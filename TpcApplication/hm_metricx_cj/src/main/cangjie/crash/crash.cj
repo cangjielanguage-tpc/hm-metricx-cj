@@ -193,7 +193,8 @@ private var inited = false
 
 public func initCrashHandler(
     applicationContext: ApplicationContext,
-    collectCrashInfo: (errObject: ?ErrorObject) -> JsonValue,
+    collectCrashInfo: () -> JsonValue,
+    collectNativeCrashInfo: CFunc<() -> CString>,
     reportCrashInfo: (crashInfo: CrashInfo) -> Unit,
     persistentDir: Path
 ) {
@@ -204,26 +205,58 @@ public func initCrashHandler(
     crashInfo.limits = collectLimits()
     let persistentFilePath = persistentDir.join("crash.json")
     initErrorObserver(crashInfo, collectCrashInfo, persistentFilePath)
+    initNativeSignalHandler(persistentFilePath.toString(), crashInfo.limits.getOrThrow(), collectNativeCrashInfo)
     initCrashWatcher(crashInfo, applicationContext, reportCrashInfo, persistentFilePath)
     inited = true
 }
 
-private func initErrorObserver(crashInfo: CrashInfo, collectCrashInfo: (errObject: ?ErrorObject) -> JsonValue,
-    persistentFilePath: Path) {
+private func initNativeSignalHandler(persistentFilePath: String, limits: String, collectCrashInfo: CFunc<() -> CString>) {
+    unsafe {
+        let cstr = LibC.mallocCString(persistentFilePath)
+        let lmts = LibC.mallocCString(limits)
+        if (InitNativeSignalHandler(
+            cstr,
+            lmts,
+            collectCrashInfo,
+            {
+                persistentFilePath, limits, collectCrashInfo =>
+                let crashInfo = CrashInfo()
+                crashInfo.limits = limits.toString()
+                crashInfo.fds = collectFDInfo()
+                crashInfo.threads = collectThreads()
+                let extraInfo = collectCrashInfo()
+                try {
+                    crashInfo.extraInfo = JsonValue.fromStr(extraInfo.toString())
+                } catch (e: JsonException) {
+                    AppLog.warn(e.toString())
+                } finally {
+                    LibC.free(extraInfo)
+                }
+                writeFile(persistentFilePath.toString(), crashInfo.toString())
+            }
+        ) != 0) {
+            AppLog.warn("InitNativeSignalHandler failed.")
+        }
+        LibC.free(cstr)
+        LibC.free(lmts)
+    }
+}
+
+private func initErrorObserver(crashInfo: CrashInfo, collectCrashInfo: () -> JsonValue, persistentFilePath: Path) {
     let errorObserver = ErrorObserver(
         {errMsg: String =>},
         {
             errObject: ErrorObject =>
             crashInfo.fds = collectFDInfo()
             crashInfo.threads = collectThreads()
-            crashInfo.extraInfo = collectCrashInfo(errObject)
-            writeFile(persistentFilePath, crashInfo.toString())
+            crashInfo.extraInfo = collectCrashInfo()
+            writeFile(persistentFilePath.toString(), crashInfo.toString())
         }
     )
     errorManager.on(ErrorManagerType.ERROR, errorObserver)
 }
 
-private func writeFile(path: Path, data: String) {
+private func writeFile(path: String, data: String) {
     try {
         File.writeTo(path, data.toArray())
     } catch (e: FSException) {
@@ -381,3 +414,6 @@ private func extractFromCrashLog(content: String, pid: ?String, threads: ?String
     }
     return (pname, tid, tname)
 }
+
+foreign func InitNativeSignalHandler(persistentFilePath: CString, limits: CString,
+    collectCrashInfo: CFunc<() -> CString>, cb: CFunc<(CString, CString, CFunc<() -> CString>) -> Unit>): Int8
