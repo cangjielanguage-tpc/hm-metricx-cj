@@ -5,6 +5,7 @@
 // please include "napi/native_api.h".
 
 #include "crash.h"
+#include "common.h"
 #include <signal.h>
 #include <malloc.h>
 #include <string.h>
@@ -13,6 +14,11 @@
 #include <unistd.h>
 #include <syscall.h>
 #include <stdlib.h>
+#include <stdexcept>
+#include <hilog/log.h>
+#include <string>
+#include <iostream>
+#include <filesystem>
 
 typedef struct {
     int sigNum;
@@ -29,13 +35,13 @@ typedef const char* (*CollectCrashInfo)();
 
 CollectCrashInfo cjCollectCrashInfo;
 
-typedef void (*Callback)(const char*, const char*, CollectCrashInfo);
+typedef void (*Callback)(const char*, const char*, CollectCrashInfo, const char*);
 
 Callback cjcb;
 
-const char* persistentFilePath;
+char *persistentFilePath;
 
-const char* cjLimits;
+char *cjLimits;
 
 static SignalCrashInfo signalCrashInfo[] =
         {
@@ -67,23 +73,33 @@ static void CrashSignalHandler(int sig, siginfo_t *si, void *context)
         signalCrashInfo[sig].oldact.sa_sigaction(sig, si, context);
         return;
     }
-    
     pthread_mutex_lock(&signalHandlerMutex);
     if (inCrash) {
         pthread_mutex_unlock(&signalHandlerMutex);
         signalCrashInfo[sig].oldact.sa_sigaction(sig, si, context);
         return;
     }
-
     inCrash = 1;
-    cjcb(persistentFilePath, cjLimits, cjCollectCrashInfo);
+    std::string fds = "";
+    if (std::__fs::filesystem::exists("/proc/self/fd")) {
+        for (auto& entry : std::__fs::filesystem::directory_iterator("/proc/self/fd")) {
+            auto path = entry.path();
+            fds += path.string() + ",";
+            try {
+                fds += std::__fs::filesystem::canonical(path).string() + ",";
+            } catch (const std::__fs::filesystem::filesystem_error& e) {
+                fds += "unknown,";
+            }
+        }
+    }
+    cjcb(persistentFilePath, cjLimits, cjCollectCrashInfo, fds.c_str());
     RemoveSignalHandler();
     pthread_mutex_unlock(&signalHandlerMutex);
     signalCrashInfo[sig].oldact.sa_sigaction(sig, si, context);
 }
 
 extern "C" {
-int8_t InitNativeSignalHandler(const char* pFilePath, const char* limits, CollectCrashInfo collectCrashInfo, Callback cb)
+int8_t InitNativeSignalHandler(const char *pFilePath, const char *limits, CollectCrashInfo collectCrashInfo, Callback cb)
 {
     struct sigaction act;
     memset(&act, 0, sizeof(act));
@@ -99,8 +115,10 @@ int8_t InitNativeSignalHandler(const char* pFilePath, const char* limits, Collec
         }
     }
     initSuccess = 1;
-    persistentFilePath = pFilePath;
-    cjLimits = limits;
+    persistentFilePath = new char[strlen(pFilePath) + 1];
+    strcpy(persistentFilePath, pFilePath);
+    cjLimits = new char[strlen(limits) + 1];
+    strcpy(cjLimits, limits);
     cjCollectCrashInfo = collectCrashInfo;
     cjcb = cb;
     return SUCCESS;

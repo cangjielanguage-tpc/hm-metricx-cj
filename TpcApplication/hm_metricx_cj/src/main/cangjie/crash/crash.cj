@@ -3,9 +3,6 @@
  */
 package ohos_app_cangjie_hm_metricx_cj.crash
 
-import tpc.AbilityKit.kit_common.*
-import tpc.AbilityKit.errorManager
-import tpc.AbilityKit.errorManager.*
 import tpc.PerformanceAnalysisKit.hiAppEvent.*
 import tpc.AbilityKit.ApplicationContext
 import tpc.AbilityKit.getRunningProcessInformation
@@ -17,9 +14,13 @@ import tpc.CoreFileKit.fs.listFile
 import tpc.CoreFileKit.fs.dup
 import ohos.base.AppLog
 import std.convert.*
-import std.os.posix.getpid
 import encoding.json.JsonObject
 import encoding.json.JsonException
+import std.os.process.Process
+import std.os.setEnv
+import ohos.ability.ErrorManager
+import ohos.ability.ErrorObserver
+import encoding.json.JsonString
 
 public class CrashInfo {
     private var timestampValue: ?String = None
@@ -34,6 +35,7 @@ public class CrashInfo {
     private var threadsValue: ?String = None
     private var extraInfoValue: ?JsonValue = None
     private var crashLogPathValue: ?String = None
+    private var dumpOnOOMPathValue: ?String = None
 
     mut prop timestamp: ?String {
         get() {
@@ -143,16 +145,25 @@ public class CrashInfo {
         }
     }
 
+    mut prop dumpOnOOMPath: ?String {
+        get() {
+            dumpOnOOMPathValue
+        }
+        set(value) {
+            dumpOnOOMPathValue = value
+        }
+    }
+
     func toString(): String {
         let jsonObj = JsonObject()
         if (fdsValue.isSome()) {
             jsonObj.put("fds", map2json(fdsValue.getOrThrow()))
         }
         if (limitsValue.isSome()) {
-            jsonObj.put("limits", JsonValue.fromStr(limitsValue.getOrThrow()))
+            jsonObj.put("limits", JsonString(limitsValue.getOrThrow()))
         }
         if (threadsValue.isSome()) {
-            jsonObj.put("threads", JsonValue.fromStr(threadsValue.getOrThrow()))
+            jsonObj.put("threads", JsonString(threadsValue.getOrThrow()))
         }
         if (extraInfoValue.isSome()) {
             jsonObj.put("extraInfo", extraInfoValue.getOrThrow())
@@ -179,7 +190,7 @@ public class CrashInfo {
 
 private func map2json(input: HashMap<String, String>) {
     let map = HashMap<String, JsonValue>()
-    input.iterator().forEach({entry => map.put(entry[0], JsonValue.fromStr(entry[1]))})
+    input.iterator().forEach({entry => map.put(entry[0], JsonString(entry[1]))})
     JsonObject(map)
 }
 
@@ -196,7 +207,8 @@ public func initCrashHandler(
     collectCrashInfo: () -> JsonValue,
     collectNativeCrashInfo: CFunc<() -> CString>,
     reportCrashInfo: (crashInfo: CrashInfo) -> Unit,
-    persistentDir: Path
+    persistentDir: Path,
+    enableDumpOnOOM: Bool
 ) {
     if (inited) {
         return
@@ -207,7 +219,21 @@ public func initCrashHandler(
     initErrorObserver(crashInfo, collectCrashInfo, persistentFilePath)
     initNativeSignalHandler(persistentFilePath.toString(), crashInfo.limits.getOrThrow(), collectNativeCrashInfo)
     initCrashWatcher(crashInfo, applicationContext, reportCrashInfo, persistentFilePath)
+    if (enableDumpOnOOM) {
+        initOOMHandler(persistentDir.toString())
+    }
     inited = true
+}
+
+private func initOOMHandler(persistentDir: String) {
+    setEnv("cjHeapDumpOnOOM", "on")
+    setEnv("cjHeapDumpLog", persistentDir)
+    unsafe {
+        let targetFile = LibC.mallocCString(persistentDir + "/cj_OOM_pid" + Process.current.pid.toString() + ".dat")
+        if (InitOOMHandler(targetFile) != 0) {
+            AppLog.warn("InitOOMHandler failed.")
+        }
+    }
 }
 
 private func initNativeSignalHandler(persistentFilePath: String, limits: String, collectCrashInfo: CFunc<() -> CString>) {
@@ -219,10 +245,10 @@ private func initNativeSignalHandler(persistentFilePath: String, limits: String,
             lmts,
             collectCrashInfo,
             {
-                persistentFilePath, limits, collectCrashInfo =>
+                persistentFilePath, limits, collectCrashInfo, fds =>
                 let crashInfo = CrashInfo()
                 crashInfo.limits = limits.toString()
-                crashInfo.fds = collectFDInfo()
+                crashInfo.fds = parseFDs(fds.toString())
                 crashInfo.threads = collectThreads()
                 let extraInfo = collectCrashInfo()
                 try {
@@ -242,18 +268,32 @@ private func initNativeSignalHandler(persistentFilePath: String, limits: String,
     }
 }
 
+private func parseFDs(fds: String) {
+    let map: HashMap<String, String> = HashMap()
+    let arr = fds.split(",")
+    if (arr.size % 2 != 0) {
+        return map
+    }
+    var i = 0
+    while (i < arr.size) {
+        map.put(arr[i], arr[i + 1])
+        i += 2
+    }
+    map
+}
+
 private func initErrorObserver(crashInfo: CrashInfo, collectCrashInfo: () -> JsonValue, persistentFilePath: Path) {
     let errorObserver = ErrorObserver(
         {errMsg: String =>},
-        {
-            errObject: ErrorObject =>
+        onException: {
+            errObject =>
             crashInfo.fds = collectFDInfo()
             crashInfo.threads = collectThreads()
             crashInfo.extraInfo = collectCrashInfo()
             writeFile(persistentFilePath.toString(), crashInfo.toString())
         }
     )
-    errorManager.on(ErrorManagerType.ERROR, errorObserver)
+    ErrorManager.on("error", errorObserver)
 }
 
 private func writeFile(path: String, data: String) {
@@ -282,21 +322,26 @@ private func collectFDInfo() {
     if (!Directory.exists(path)) {
         return fds
     }
-    let files = listFile("/proc/self/fd")
-    files
-        .iterator()
-        .forEach(
-            {
-                file =>
-                let fdPath = path.join(file)
-                if (File.exists(fdPath)) {
-                    let realPath = dup(Int32.parse(file)).path
-                    fds.put(fdPath.toString(), realPath)
-                } else {
-                    fds.put(fdPath.toString(), "unknown")
+    try {
+        // somtimes stackoverflow
+        let files = listFile("/proc/self/fd")
+        files
+            .iterator()
+            .forEach(
+                {
+                    file =>
+                    let fdPath = path.join(file)
+                    if (File.exists(fdPath)) {
+                        let realPath = dup(Int32.parse(file)).path
+                        fds.put(fdPath.toString(), realPath)
+                    } else {
+                        fds.put(fdPath.toString(), "unknown")
+                    }
                 }
-            }
-        )
+            )
+    } catch (e: Exception) {
+        AppLog.warn("collectFDInfo failed: " + e.toString())
+    }
     fds
 }
 
@@ -332,7 +377,7 @@ private func initCrashWatcher(crashinfo: CrashInfo, applicationContext: Applicat
                         case _ => None
                     }
                     crashInfo.pid = match (eventInfo.params.get("pid")) {
-                        case Some(value) => value.toString()
+                        case Some(value) => value.toString().trimRight(".000000")
                         case _ => None
                     }
                     crashInfo.stacktrace = match (eventInfo.params.get("exception")) {
@@ -361,8 +406,14 @@ private func initCrashWatcher(crashinfo: CrashInfo, applicationContext: Applicat
                     crashInfo.tname = res[2]
                 }
             }
+            if (crashInfo.pid.isSome()) {
+                let dumpOnOOMPath = persistentFilePath.join("cj_OOM_pid" + crashInfo.pid.getOrThrow() + ".dat")
+                if (File.exists(dumpOnOOMPath)) {
+                    crashInfo.dumpOnOOMPath = dumpOnOOMPath.toString()
+                }
+            }
             reportCrashInfo(crashInfo)
-            if (getpid().toString() == crashInfo.pid.getOrDefault({=> ""})) {
+            if (Process.current.pid.toString() == crashInfo.pid.getOrDefault({=> ""})) {
                 applicationContext.killAllProcesses({err, data =>})
             }
         }
@@ -416,4 +467,6 @@ private func extractFromCrashLog(content: String, pid: ?String, threads: ?String
 }
 
 foreign func InitNativeSignalHandler(persistentFilePath: CString, limits: CString,
-    collectCrashInfo: CFunc<() -> CString>, cb: CFunc<(CString, CString, CFunc<() -> CString>) -> Unit>): Int8
+    collectCrashInfo: CFunc<() -> CString>, cb: CFunc<(CString, CString, CFunc<() -> CString>, CString) -> Unit>): Int8
+
+foreign func InitOOMHandler(targetFile: CString): Int8

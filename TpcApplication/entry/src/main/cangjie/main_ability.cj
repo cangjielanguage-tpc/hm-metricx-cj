@@ -21,8 +21,9 @@ class EntryAbility <: UIAbility {
             case AbilityConstant.LaunchReason.START_ABILITY => AppLog.info("START_ABILITY")
             case _ => ()
         }
-        initCrashHandler(this.context.getApplicationContext(), {=> JsonValue.fromStr("")},
-            {=> unsafe { LibC.mallocCString("") }}, {data =>}, Path(this.context.cacheDir))
+
+        initCrashHandler(this.context.getApplicationContext(), {=> JsonValue.fromStr("{}")},
+            {=> unsafe { LibC.mallocCString("{}") }}, {data =>}, Path(this.context.cacheDir), true)
     }
 
     public override func onDestroy(): Unit {
