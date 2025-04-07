@@ -2,3 +2,368 @@
  * Created on 2025/3/28
  */
 package ohos_app_cangjie_hm_metricx_cj.freeze
+
+import ohos_app_cangjie_hm_metricx_cj.*
+import tpc.AbilityKit.kit_common.*
+import tpc.AbilityKit.errorManager.*
+import tpc.PerformanceAnalysisKit.hiAppEvent.*
+import tpc.PerformanceAnalysisKit.hidebug.*
+import tpc.AbilityKit.ApplicationContext
+import tpc.AbilityKit.getRunningProcessInformation
+import encoding.json.JsonValue
+import std.fs.*
+import std.collection.*
+import ohos.hilog.Hilog
+import tpc.CoreFileKit.fs.listFile
+import tpc.CoreFileKit.fs.dup
+import ohos.base.AppLog
+import std.convert.*
+import std.os.posix.getpid
+import encoding.json.JsonObject
+import encoding.json.JsonException
+import ohos.base.nativeLog
+import ohos.base.ArrayLike
+import std.sort.stableSort
+import encoding.json.JsonArray
+import ohos.file_fs.OpenMode
+
+public class FreezeInfo {
+    private var timestampValue: ?String = None
+    private var pidValue: ?String = None
+    private var exceptionValue: ?String = None
+    private var hilogValue: ?String = None
+    private var tidValue: ?String = None
+    private var tnameValue: ?String = None
+    private var extraInfoValue: ?JsonValue = None
+    private var freezeLogPathValue: ?String = None
+    private var cpuThreadValue: ?HashMap<String, String> = None
+    private var cpuValue: ?HashMap<String, String> = None
+    private var stacktraceValue: ?ArrayList<String> = None
+
+    mut prop timestamp: ?String {
+        get() {
+            timestampValue
+        }
+        set(value) {
+            timestampValue = value
+        }
+    }
+
+    mut prop pid: ?String {
+        get() {
+            pidValue
+        }
+        set(value) {
+            pidValue = value
+        }
+    }
+
+    mut prop exception: ?String {
+        get() {
+            exceptionValue
+        }
+        set(value) {
+            exceptionValue = value
+        }
+    }
+
+    mut prop hilog: ?String {
+        get() {
+            hilogValue
+        }
+        set(value) {
+            hilogValue = value
+        }
+    }
+
+    mut prop tid: ?String {
+        get() {
+            tidValue
+        }
+        set(value) {
+            tidValue = value
+        }
+    }
+
+    mut prop tname: ?String {
+        get() {
+            tnameValue
+        }
+        set(value) {
+            tnameValue = value
+        }
+    }
+
+    mut prop extraInfo: ?JsonValue {
+        get() {
+            extraInfoValue
+        }
+        set(value) {
+            extraInfoValue = value
+        }
+    }
+
+    mut prop freezeLogPath: ?String {
+        get() {
+            freezeLogPathValue
+        }
+        set(value) {
+            freezeLogPathValue = value
+        }
+    }
+
+    mut prop cpuThread: ?HashMap<String, String> {
+        get() {
+            cpuThreadValue
+        }
+        set(value) {
+            cpuThreadValue = value
+        }
+    }
+
+    mut prop cpu: ?HashMap<String, String> {
+        get() {
+            cpuValue
+        }
+        set(value) {
+            cpuValue = value
+        }
+    }
+
+    mut prop stacktrace: ?ArrayList<String> {
+        get() {
+            stacktraceValue
+        }
+        set(value) {
+            stacktraceValue = value
+        }
+    }
+
+    func toString(): String {
+        let jsonObj = JsonObject()
+        if (cpuThreadValue.isSome()) {
+            jsonObj.put("cpuThread", map2json(cpuThreadValue.getOrThrow()))
+        }
+        if (extraInfoValue.isSome()) {
+            jsonObj.put("extraInfo", extraInfoValue.getOrThrow())
+        }
+        jsonObj.toString()
+    }
+
+    static func fromJson(jsonObject: JsonObject): FreezeInfo {
+        let freezeInfo = FreezeInfo()
+
+        if (jsonObject.get("cpuThread").isSome()) {
+            let fields: HashMap<String, JsonValue> = jsonObject.get("cpuThread").getOrThrow().asObject().getFields()
+            freezeInfo.cpuThread = json2map(fields)
+        }
+        if (jsonObject.get("extraInfo").isSome()) {
+            freezeInfo.extraInfo = jsonObject.get("extraInfo")
+        }
+
+        freezeInfo
+    }
+}
+
+private var freezeInited = false
+private var jsonPath: Path = Path("")
+
+public func initFreezeHandler(
+    applicationContext: ApplicationContext,
+    collectFreezeInfo: (errObject: ?ErrorObject) -> JsonValue,
+    reportFreezeInfo: (freezeInfo: FreezeInfo) -> Unit,
+    persistentDir: Path
+) {
+    if (freezeInited) {
+        return
+    }
+    let freezeInfo = FreezeInfo()
+    let persistentFilePath = persistentDir.join("freeze.json")
+    jsonPath = persistentFilePath
+    let persistentBackFilePath = persistentDir.join("freeze-back.json")
+    if (File.exists(persistentFilePath)) {
+        File.copy(persistentFilePath, persistentBackFilePath, true)
+    }
+    initFreezeWatcher(freezeInfo, applicationContext, reportFreezeInfo, persistentBackFilePath)
+    initHilogWatcher(persistentFilePath)
+    freezeInited = true
+}
+
+private func initFreezeWatcher(freezeinfo: FreezeInfo, applicationContext: ApplicationContext,
+    reportFreezeInfo: (freeezeInfo: FreezeInfo) -> Unit, persistentFilePath: Path) {
+    let watcher = Watcher(
+        "freezeWatcher",
+        appEventFilters: [AppEventFilter(OS, eventTypes: [FAULT], names: [APP_FREEZE])],
+        onReceive: {
+            domain: String, appEventGroups: Array<AppEventGroup> =>
+            if (domain != OS) {
+                return
+            }
+            var freezeInfo = freezeinfo
+
+            if (File.exists(persistentFilePath)) {
+                if (freezeInfo.cpuThread.isNone()) {
+                    let fileContent = String.fromUtf8(File.readFrom(persistentFilePath))
+                    let cpuUsageMap = extractDataFromLog(fileContent)
+                    freezeInfo.cpuThread = cpuUsageMap
+                }
+                File.delete(persistentFilePath)
+            }
+            for (eventGroup in appEventGroups) {
+                if (eventGroup.name != APP_FREEZE) {
+                    continue
+                }
+                for (eventInfo in eventGroup.appEventInfos) {
+                    freezeInfo.timestamp = match (eventInfo.params.get("time")) {
+                        case Some(value) => value.toString()
+                        case _ => None
+                    }
+                    freezeInfo.pid = match (eventInfo.params.get("pid")) {
+                        case Some(value) => value.toString()
+                        case _ => None
+                    }
+                    freezeInfo.exception = match (eventInfo.params.get("exception")) {
+                        case Some(value) => value.toString()
+                        case _ => None
+                    }
+                    freezeInfo.hilog = match (eventInfo.params.get("hilog")) {
+                        case Some(value) => value.toString()
+                        case _ => None
+                    }
+
+                    if (eventInfo.params.get("external_log").isNone()) {
+                        continue
+                    }
+
+                    var freezeLogPath: String = eventInfo.params.get("external_log").getOrThrow().toString()
+                    freezeLogPath = freezeLogPath.trimLeft("[")
+                    freezeLogPath = freezeLogPath.trimRight("]")
+                    if (!File.exists(freezeLogPath)) {
+                        nativeLog("freeze log not exist: ${freezeLogPath}")
+                        continue
+                    }
+                    freezeInfo.freezeLogPath = freezeLogPath
+
+                    let content = String.fromUtf8(File.readFrom(freezeLogPath))
+
+                    let res = extractFromFreezeLog(content)
+                    freezeInfo.tid = res[0]
+                    freezeInfo.tname = res[1]
+                    freezeInfo.stacktrace = res[2]
+                    freezeInfo.cpu = res[3]
+                }
+            }
+            reportFreezeInfo(freezeInfo)
+        }
+    )
+    addWatcher(watcher)
+}
+
+private func extractFromFreezeLog(content: String) {
+    let lines = content.split("\n", removeEmpty: true)
+    var tid = ""
+    var tname = ""
+    var cpuMap = HashMap<String, String>()
+    var stacktrace = ArrayList<String>()
+
+    var curLine = 0
+    for (i in 0..lines.size) {
+        if (lines[i].startsWith("TID = ")) {
+            tid = lines[i].trimLeft("TID = ")
+            curLine = i
+            break
+        }
+    }
+
+    let tidTag = "Tid:" + tid + ", Name:"
+    for (i in curLine..lines.size) {
+        if (lines[i].startsWith(tidTag)) {
+            tname = lines[i].trimLeft(tidTag)
+            curLine = i
+            break
+        }
+    }
+    curLine = curLine + 1
+    for (i in curLine..lines.size) {
+        if (!lines[i].startsWith("#")) {
+            curLine = i
+            break
+        }
+        stacktrace.append(lines[i])
+    }
+
+    let cpuTag = "Details of Processes:"
+    for (i in curLine..lines.size) {
+        if (lines[i].startsWith(cpuTag)) {
+            curLine = i
+            break
+        }
+    }
+    curLine = curLine + 2
+    for (i in curLine..lines.size) {
+        let line = lines[i]
+        if (!line.startsWith("  ")) {
+            curLine = i
+            break
+        }
+        let dataArray = line.split(" ", removeEmpty: true)
+        cpuMap.put(dataArray[0], dataArray[1])
+    }
+
+    return (tid, tname, stacktrace, cpuMap)
+}
+
+private func extractDataFromLog(content: String): HashMap<String, String> {
+    let lines = content.split("\n", removeEmpty: true)
+    var cpuUsageMap = HashMap<String, String>()
+    var curLine: Int64 = -1
+    for (i in 0..lines.size) {
+        if (lines[i].startsWith("ThreadCpuUsage")) {
+            curLine = i
+            break
+        }
+    }
+    if (curLine == -1) {
+        return cpuUsageMap
+    }
+
+    curLine = curLine + 1
+    let cpuUsageStr = lines[curLine]
+    let cpuUsageStrs = cpuUsageStr.split(",", removeEmpty: true)
+    let cpuSize = cpuUsageStrs.size / 2
+    for (i in 0..cpuSize) {
+        cpuUsageMap.put(cpuUsageStrs[2 * i], cpuUsageStrs[2 * i + 1])
+    }
+    cpuUsageMap
+}
+
+foreign func registerHilogCallback(logPath: CString, cb: CFunc<() -> Unit>): Unit
+
+@C
+func CallbackHilogHandler(): Unit {
+    nativeLog("C -> cangjie func")
+    return
+    let cpuThreadUsage = getAppThreadCpuUsage()
+
+    let cpuThreadJson = HashMap<String, JsonValue>()
+    cpuThreadUsage
+        .iterator()
+        .forEach({entry => cpuThreadJson.put(entry.threadId.toString(), JsonValue.fromStr(entry.cpuUsage.toString()))})
+    let cpuThreadObject = JsonObject(cpuThreadJson)
+
+    let obJect = JsonObject()
+    obJect.put("cpuThread", cpuThreadObject)
+
+    let file = File(jsonPath, OpenOption.CreateOrTruncate(true))
+    file.write(obJect.toJsonString().toArray())
+    file.close()
+}
+
+public func initHilogWatcher(persistentFilePath: Path): Unit {
+    let logStr = persistentFilePath.toString()
+    unsafe {
+        let cPath = LibC.mallocCString(logStr)
+        registerHilogCallback(cPath, CallbackHilogHandler)
+        LibC.free(cPath)
+    }
+}

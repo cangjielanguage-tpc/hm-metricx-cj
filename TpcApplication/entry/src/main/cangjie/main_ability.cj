@@ -8,6 +8,7 @@ import tpc.AbilityKit.AbilityConstant
 import tpc.UIKit.window
 import ohos.hybrid_base.CJPageEntry
 import ohos_app_cangjie_hm_metricx_cj.crash.*
+import ohos_app_cangjie_hm_metricx_cj.freeze.*
 import encoding.json
 import encoding.json.JsonValue
 import std.fs.*
@@ -21,9 +22,10 @@ class EntryAbility <: UIAbility {
             case AbilityConstant.LaunchReason.START_ABILITY => AppLog.info("START_ABILITY")
             case _ => ()
         }
-
         initCrashHandler(this.context.getApplicationContext(), {=> JsonValue.fromStr("{}")},
             {=> unsafe { LibC.mallocCString("{}") }}, {data =>}, Path(this.context.cacheDir), true)
+        initFreezeHandler(this.context.getApplicationContext(), {err => JsonValue.fromStr("")}, {data =>},
+            Path(this.context.cacheDir))
     }
 
     public override func onDestroy(): Unit {

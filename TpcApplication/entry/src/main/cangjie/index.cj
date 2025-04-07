@@ -42,6 +42,18 @@ class Index {
 //                    Crash()
 //                }
             }
+            Button("Hilog-Freeze").onClick {
+                =>
+                msg = "Hilog"
+                Hilog.info(218108688, "AppDfr", "appfreeze_inner cj log : hilog")
+            }
+            Button("freeze").onClick {
+                =>
+                msg = "freeze"
+                Hilog.info(0, "testTag", "cj log : freeze clicked")
+                while (true) {
+                }
+            }
         }
     }
 }

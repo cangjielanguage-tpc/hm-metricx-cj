@@ -1,7 +1,4 @@
 #include "napi/native_api.h"
-#include "hiappevent/hiappevent.h"
-#include "hicollie/hicollie.h"
-#include "hilog/log.h"
 
 static napi_value Add(napi_env env, napi_callback_info info)
 {

@@ -3,6 +3,7 @@
  */
 package ohos_app_cangjie_hm_metricx_cj.crash
 
+import ohos_app_cangjie_hm_metricx_cj.*
 import tpc.PerformanceAnalysisKit.hiAppEvent.*
 import tpc.AbilityKit.ApplicationContext
 import tpc.AbilityKit.getRunningProcessInformation
@@ -189,18 +190,6 @@ public class CrashInfo {
         crashInfo.extraInfo = jsonObject.get("extraInfo")
         crashInfo
     }
-}
-
-private func map2json(input: HashMap<String, String>) {
-    let map = HashMap<String, JsonValue>()
-    input.iterator().forEach({entry => map.put(entry[0], JsonString(entry[1]))})
-    JsonObject(map)
-}
-
-private func json2map(input: HashMap<String, JsonValue>) {
-    let map = HashMap<String, String>()
-    input.iterator().forEach({entry => map.put(entry[0], entry[1].toString())})
-    map
 }
 
 private var inited = false
