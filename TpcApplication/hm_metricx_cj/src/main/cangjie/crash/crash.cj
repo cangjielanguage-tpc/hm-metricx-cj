@@ -21,6 +21,9 @@ import std.os.setEnv
 import ohos.ability.ErrorManager
 import ohos.ability.ErrorObserver
 import encoding.json.JsonString
+import compress.zlib.*
+import std.time.*
+import std.sync.*
 
 public class CrashInfo {
     private var timestampValue: ?String = None
@@ -201,6 +204,7 @@ private func json2map(input: HashMap<String, JsonValue>) {
 }
 
 private var inited = false
+private let TIMEOUT = Duration.second
 
 public func initCrashHandler(
     applicationContext: ApplicationContext,
@@ -216,7 +220,7 @@ public func initCrashHandler(
     let crashInfo = CrashInfo()
     crashInfo.limits = collectLimits()
     let persistentFilePath = persistentDir.join("crash.json")
-    initErrorObserver(crashInfo, collectCrashInfo, persistentFilePath)
+    initErrorObserver(crashInfo, applicationContext, collectCrashInfo, persistentFilePath)
     initNativeSignalHandler(persistentFilePath.toString(), crashInfo.limits.getOrThrow(), collectNativeCrashInfo)
     initCrashWatcher(crashInfo, applicationContext, reportCrashInfo, persistentFilePath)
     if (enableDumpOnOOM) {
@@ -230,9 +234,19 @@ private func initOOMHandler(persistentDir: String) {
     setEnv("cjHeapDumpLog", persistentDir)
     unsafe {
         let targetFile = LibC.mallocCString(persistentDir + "/cj_OOM_pid" + Process.current.pid.toString() + ".dat")
-        if (InitOOMHandler(targetFile) != 0) {
+        let zlibFile = LibC.mallocCString(persistentDir + "/cj_OOM_pid" + Process.current.pid.toString() + ".zlib")
+        if (InitOOMHandler(targetFile, zlibFile,
+            {
+                src, dest => if (compressFile(src.toString(), dest.toString())) {
+                    File.delete(src.toString())
+                } else {
+                    AppLog.warn("compressFile failed.")
+                }
+            }) != 0) {
             AppLog.warn("InitOOMHandler failed.")
         }
+        LibC.free(targetFile)
+        LibC.free(zlibFile)
     }
 }
 
@@ -282,7 +296,8 @@ private func parseFDs(fds: String) {
     map
 }
 
-private func initErrorObserver(crashInfo: CrashInfo, collectCrashInfo: () -> JsonValue, persistentFilePath: Path) {
+private func initErrorObserver(crashInfo: CrashInfo, applicationContext: ApplicationContext,
+    collectCrashInfo: () -> JsonValue, persistentFilePath: Path) {
     let errorObserver = ErrorObserver(
         {errMsg: String =>},
         onException: {
@@ -291,6 +306,9 @@ private func initErrorObserver(crashInfo: CrashInfo, collectCrashInfo: () -> Jso
             crashInfo.threads = collectThreads()
             crashInfo.extraInfo = collectCrashInfo()
             writeFile(persistentFilePath.toString(), crashInfo.toString())
+            Timer.once(TIMEOUT) {
+                exit(applicationContext)
+            }
         }
     )
     ErrorManager.on("error", errorObserver)
@@ -414,11 +432,15 @@ private func initCrashWatcher(crashinfo: CrashInfo, applicationContext: Applicat
             }
             reportCrashInfo(crashInfo)
             if (Process.current.pid.toString() == crashInfo.pid.getOrDefault({=> ""})) {
-                applicationContext.killAllProcesses({err, data =>})
+                exit(applicationContext)
             }
         }
     )
     addWatcher(watcher)
+}
+
+private func exit(applicationContext: ApplicationContext) {
+    applicationContext.killAllProcesses({err, data =>})
 }
 
 private func extractFromCrashLog(content: String, pid: ?String, threads: ?String) {
@@ -466,7 +488,31 @@ private func extractFromCrashLog(content: String, pid: ?String, threads: ?String
     return (pname, tid, tname)
 }
 
+private func compressFile(src: String, dest: String): Bool {
+    var count: Int64 = 0
+    let srcFile: File = File(src, Open(true, false))
+    let destFile: File = File(dest, CreateOrAppend)
+
+    var tempBuf: Array<UInt8> = Array<UInt8>(1024, item: 0)
+    var compressOutputStream: CompressOutputStream = CompressOutputStream(destFile, wrap: GzipFormat)
+    while (true) {
+        var readNum = srcFile.read(tempBuf)
+        if (readNum > 0) {
+            compressOutputStream.write(tempBuf.slice(0, readNum).toArray())
+            count += readNum
+        } else {
+            break
+        }
+    }
+    compressOutputStream.flush()
+    compressOutputStream.close()
+
+    srcFile.close()
+    destFile.close()
+    return count > 0
+}
+
 foreign func InitNativeSignalHandler(persistentFilePath: CString, limits: CString,
     collectCrashInfo: CFunc<() -> CString>, cb: CFunc<(CString, CString, CFunc<() -> CString>, CString) -> Unit>): Int8
 
-foreign func InitOOMHandler(targetFile: CString): Int8
+foreign func InitOOMHandler(targetFile: CString, zlibFile: CString, compressFile: CFunc<(CString, CString) -> Unit>): Int8

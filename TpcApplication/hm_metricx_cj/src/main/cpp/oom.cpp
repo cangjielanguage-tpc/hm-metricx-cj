@@ -31,8 +31,16 @@
 #define PAGE_COVER(addr) (PAGE_END(addr) - PAGE_START(addr))
 
 uintptr_t gBaseAddr = 0;
-const char *oomFile;
+
+char *oomFile;
+
+char *cjZlibFile;
+
 FILE *gFp;
+
+typedef bool (*CompressFile)(const char*, const char*);
+
+CompressFile cjCompressFile;
 
 class MutatorManager {
     public:
@@ -99,7 +107,7 @@ static int Fclose(FILE *fp)
 {
     int res = fclose(fp);
     if (gFp == fp) {
-        // compress
+        cjCompressFile(oomFile, cjZlibFile);
     }
     return res;
 }
@@ -163,7 +171,7 @@ void *Dlsym(void *handle, const char *name) {
 }
 
 extern "C" {
-int8_t InitOOMHandler(const char* targetFile)
+int8_t InitOOMHandler(const char *targetFile, const char *zlibFile, CompressFile compressFile)
 {
     char line[512];
     FILE *fp;
@@ -223,7 +231,11 @@ int8_t InitOOMHandler(const char* targetFile)
     }
     
     gBaseAddr = baseAddr;
-    oomFile = targetFile;
+    oomFile = new char[strlen(targetFile) + 1];
+    strcpy(oomFile, targetFile);
+    cjZlibFile = new char[strlen(zlibFile) + 1];
+    strcpy(cjZlibFile, zlibFile);
+    cjCompressFile = compressFile;
     return SUCCESS;
 }
 }
