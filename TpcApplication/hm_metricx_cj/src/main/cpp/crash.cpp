@@ -19,6 +19,7 @@
 #include <string>
 #include <iostream>
 #include <filesystem>
+#include <bundle/native_interface_bundle.h>
 
 typedef struct {
     int sigNum;
@@ -31,11 +32,15 @@ static sig_atomic_t inCrash = 0;
 
 int initSuccess = 0;
 
-typedef const char* (*CollectCrashInfo)();
+typedef const char *(*CollectCrashInfo)();
 
 CollectCrashInfo cjCollectCrashInfo;
 
-typedef void (*Callback)(const char*, const char*, CollectCrashInfo, const char*);
+typedef void (*ReportCrashInfo)(const char *);
+
+ReportCrashInfo cjReportCrashInfo;
+
+typedef void (*Callback)(const char *, const char *, CollectCrashInfo, ReportCrashInfo, const char *, char *);
 
 Callback cjcb;
 
@@ -92,14 +97,14 @@ static void CrashSignalHandler(int sig, siginfo_t *si, void *context)
             }
         }
     }
-    cjcb(persistentFilePath, cjLimits, cjCollectCrashInfo, fds.c_str());
+    cjcb(persistentFilePath, cjLimits, cjCollectCrashInfo, cjReportCrashInfo, fds.c_str(), OH_NativeBundle_GetCurrentApplicationInfo().bundleName);
     RemoveSignalHandler();
     pthread_mutex_unlock(&signalHandlerMutex);
     signalCrashInfo[sig].oldact.sa_sigaction(sig, si, context);
 }
 
 extern "C" {
-int8_t InitNativeSignalHandler(const char *pFilePath, const char *limits, CollectCrashInfo collectCrashInfo, Callback cb)
+int8_t InitNativeSignalHandler(const char *pFilePath, const char *limits, CollectCrashInfo collectCrashInfo, ReportCrashInfo reportCrashInfo, Callback cb)
 {
     struct sigaction act;
     memset(&act, 0, sizeof(act));
@@ -120,6 +125,7 @@ int8_t InitNativeSignalHandler(const char *pFilePath, const char *limits, Collec
     cjLimits = new char[strlen(limits) + 1];
     strcpy(cjLimits, limits);
     cjCollectCrashInfo = collectCrashInfo;
+    cjReportCrashInfo = reportCrashInfo;
     cjcb = cb;
     return SUCCESS;
 }

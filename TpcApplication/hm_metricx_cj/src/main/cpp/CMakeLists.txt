@@ -12,4 +12,5 @@ include_directories(${NATIVERENDER_ROOT_PATH}
                     ${NATIVERENDER_ROOT_PATH}/include)
 
 add_library(hm_metricx_cj SHARED napi_init.cpp crash.cpp oom.cpp KOOM/elf_reader.cpp freeze.cpp)
-target_link_libraries(hm_metricx_cj PUBLIC libace_napi.z.so libhilog_ndk.z.so libohhicollie.so libhiappevent_ndk.z.so libohhidebug.so)
+target_link_libraries(hm_metricx_cj PUBLIC libace_napi.z.so libhilog_ndk.z.so libohhicollie.so libhiappevent_ndk.z.so libohhidebug.so
+    libbundle_ndk.z.so)

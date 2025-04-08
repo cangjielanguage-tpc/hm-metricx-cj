@@ -190,6 +190,22 @@ public class CrashInfo {
         crashInfo.extraInfo = jsonObject.get("extraInfo")
         crashInfo
     }
+
+    func reset() {
+        this.timestampValue = None
+        this.pidValue = None
+        this.pnameValue = None
+        this.stacktraceValue = None
+        this.hilogValue = None
+        this.tidValue = None
+        this.tnameValue = None
+        this.fdsValue = None
+        this.limitsValue = None
+        this.threadsValue = None
+        this.extraInfoValue = None
+        this.crashLogPathValue = None
+        this.dumpOnOOMPathValue = None
+    }
 }
 
 private var inited = false
@@ -200,6 +216,7 @@ public func initCrashHandler(
     collectCrashInfo: () -> JsonValue,
     collectNativeCrashInfo: CFunc<() -> CString>,
     reportCrashInfo: (crashInfo: CrashInfo) -> Unit,
+    reportNativeCrashInfo: CFunc<(CString) -> Unit>,
     persistentDir: Path,
     enableDumpOnOOM: Bool
 ) {
@@ -210,7 +227,8 @@ public func initCrashHandler(
     crashInfo.limits = collectLimits()
     let persistentFilePath = persistentDir.join("crash.json")
     initErrorObserver(crashInfo, applicationContext, collectCrashInfo, persistentFilePath)
-    initNativeSignalHandler(persistentFilePath.toString(), crashInfo.limits.getOrThrow(), collectNativeCrashInfo)
+    initNativeSignalHandler(persistentFilePath.toString(), applicationContext, crashInfo.limits.getOrThrow(),
+        collectNativeCrashInfo, reportNativeCrashInfo)
     initCrashWatcher(crashInfo, applicationContext, reportCrashInfo, persistentFilePath)
     if (enableDumpOnOOM) {
         initOOMHandler(persistentDir.toString())
@@ -239,7 +257,8 @@ private func initOOMHandler(persistentDir: String) {
     }
 }
 
-private func initNativeSignalHandler(persistentFilePath: String, limits: String, collectCrashInfo: CFunc<() -> CString>) {
+private func initNativeSignalHandler(persistentFilePath: String, applicationContext: ApplicationContext, limits: String,
+    collectCrashInfo: CFunc<() -> CString>, reportCrashInfo: CFunc<(CString) -> Unit>) {
     unsafe {
         let cstr = LibC.mallocCString(persistentFilePath)
         let lmts = LibC.mallocCString(limits)
@@ -247,8 +266,9 @@ private func initNativeSignalHandler(persistentFilePath: String, limits: String,
             cstr,
             lmts,
             collectCrashInfo,
+            reportCrashInfo,
             {
-                persistentFilePath, limits, collectCrashInfo, fds =>
+                persistentFilePath, limits, collectCrashInfo, reportCrashInfo, fds, bundleName =>
                 let crashInfo = CrashInfo()
                 crashInfo.limits = limits.toString()
                 crashInfo.fds = parseFDs(fds.toString())
@@ -262,6 +282,57 @@ private func initNativeSignalHandler(persistentFilePath: String, limits: String,
                     LibC.free(extraInfo)
                 }
                 writeFile(persistentFilePath.toString(), crashInfo.toString())
+                let faultlogDir = Path("/data/log/faultlog/faultlogger")
+                if (!Directory.exists(faultlogDir)) {
+                    AppLog.warn("No permission to access faultlog.")
+                    let crashInfoStr = LibC.mallocCString(crashInfo.toString())
+                    reportCrashInfo(crashInfoStr)
+                    LibC.free(crashInfoStr)
+                    return
+                }
+                var crashLogFound = false
+                let fut: Future<Unit> = spawn {
+                    => sleep(TIMEOUT)
+                }
+                fut.get()
+                let files = listFile("/proc/self/fd")
+                let prefix = "cppcrash-" + bundleName.toString() + "-"
+                files
+                    .iterator()
+                    .forEach(
+                        {
+                            file => if (file.startsWith(prefix)) {
+                                crashInfo.crashLogPath = faultlogDir.join(file).toString()
+                            }
+                        })
+                if (crashInfo.crashLogPath.isSome()) {
+                    let file = crashInfo.crashLogPath.getOrThrow()
+                    let content = String.fromUtf8(File.readFrom(file))
+                    let lines = content.split("\n", removeEmpty: true)
+                    let nativeInfo = extractFromNativeCrashLog(lines)
+                    if (nativeInfo[1] != Process.current.pid.toString()) {
+                        AppLog.warn("No native crash log generated.")
+                        let crashInfoStr = LibC.mallocCString(crashInfo.toString())
+                        reportCrashInfo(crashInfoStr)
+                        LibC.free(crashInfoStr)
+                        return
+                    }
+                    crashInfo.timestamp = nativeInfo[0]
+                    crashInfo.pid = nativeInfo[1]
+                    crashInfo.stacktrace = nativeInfo[2]
+                    crashInfo.hilog = nativeInfo[3]
+                    let res = extractFromCrashLog(lines, None, None)
+                    crashInfo.pname = res[0]
+                    crashInfo.tid = res[1]
+                    crashInfo.tname = res[2]
+                    crashLogFound = true
+                }
+                if (!crashLogFound) {
+                    AppLog.warn("No native crash log generated.")
+                }
+                let crashInfoStr = LibC.mallocCString(crashInfo.toString())
+                reportCrashInfo(crashInfoStr)
+                LibC.free(crashInfoStr)
             }
         ) != 0) {
             AppLog.warn("InitNativeSignalHandler failed.")
@@ -273,8 +344,9 @@ private func initNativeSignalHandler(persistentFilePath: String, limits: String,
 
 private func parseFDs(fds: String) {
     let map: HashMap<String, String> = HashMap()
-    let arr = fds.split(",")
+    let arr = fds.split(",", removeEmpty: true)
     if (arr.size % 2 != 0) {
+        AppLog.warn("parseFDs failed.")
         return map
     }
     var i = 0
@@ -379,6 +451,14 @@ private func initCrashWatcher(crashinfo: CrashInfo, applicationContext: Applicat
                     continue
                 }
                 for (eventInfo in eventGroup.appEventInfos) {
+                    if (eventInfo.params.get("external_log").isNone()) {
+                        continue
+                    }
+                    let crashLogPath: String = eventInfo.params.get("external_log").getOrThrow().toString()
+                    if (crashLogPath.startsWith("cppcrash-")) {
+                        crashInfo.reset()
+                        return
+                    }
                     crashInfo.timestamp = match (eventInfo.params.get("time")) {
                         case Some(value) => value.toString()
                         case _ => None
@@ -396,18 +476,14 @@ private func initCrashWatcher(crashinfo: CrashInfo, applicationContext: Applicat
                         case _ => None
                     }
 
-                    if (eventInfo.params.get("external_logs").isNone()) {
-                        continue
-                    }
-
-                    let crashLogPath: String = eventInfo.params.get("external_logs").getOrThrow().toString()
                     if (!File.exists(crashLogPath)) {
                         continue
                     }
 
                     crashInfo.crashLogPath = crashLogPath
                     let content = String.fromUtf8(File.readFrom(crashLogPath))
-                    let res = extractFromCrashLog(content, crashInfo.pid, crashInfo.threads)
+                    let res = extractFromCrashLog(content.split("\n", removeEmpty: true), crashInfo.pid,
+                        crashInfo.threads)
                     crashInfo.pname = res[0]
                     crashInfo.tid = res[1]
                     crashInfo.tname = res[2]
@@ -422,6 +498,8 @@ private func initCrashWatcher(crashinfo: CrashInfo, applicationContext: Applicat
             reportCrashInfo(crashInfo)
             if (Process.current.pid.toString() == crashInfo.pid.getOrDefault({=> ""})) {
                 exit(applicationContext)
+            } else {
+                crashInfo.reset()
             }
         }
     )
@@ -432,8 +510,7 @@ private func exit(applicationContext: ApplicationContext) {
     applicationContext.killAllProcesses({err, data =>})
 }
 
-private func extractFromCrashLog(content: String, pid: ?String, threads: ?String) {
-    let lines = content.split("\n", removeEmpty: true)
+private func extractFromCrashLog(lines: Array<String>, pid: ?String, threads: ?String) {
     var moduleName = ""
     var tid = ""
     var tname = ""
@@ -477,6 +554,34 @@ private func extractFromCrashLog(content: String, pid: ?String, threads: ?String
     return (pname, tid, tname)
 }
 
+private func extractFromNativeCrashLog(lines: Array<String>) {
+    var timestamp = ""
+    var pid = ""
+    var stacktrace = ""
+    var hilog = ""
+    var inHiLog = false
+    var inStacktrace = false
+    for (line in lines) {
+        if (timestamp.isEmpty() && line.startsWith("Timestamp:")) {
+            timestamp = line.trimLeft("Timestamp:")
+        } else if (pid.isEmpty() && line.startsWith("Pid:")) {
+            pid = line.trimLeft("Pid:")
+        } else if (inHiLog) {
+            hilog += line + "\n"
+        } else if (line == "Reason:") {
+            inStacktrace = true
+            stacktrace += line.trimLeft("Reason:")
+        } else if (line == "Other thread info:") {
+            inStacktrace = false
+        } else if (line == "HiLog:") {
+            inHiLog = true
+        } else if (inStacktrace) {
+            stacktrace += line + "\n"
+        }
+    }
+    return (timestamp, pid, stacktrace, hilog)
+}
+
 private func compressFile(src: String, dest: String): Bool {
     var count: Int64 = 0
     let srcFile: File = File(src, Open(true, false))
@@ -502,6 +607,7 @@ private func compressFile(src: String, dest: String): Bool {
 }
 
 foreign func InitNativeSignalHandler(persistentFilePath: CString, limits: CString,
-    collectCrashInfo: CFunc<() -> CString>, cb: CFunc<(CString, CString, CFunc<() -> CString>, CString) -> Unit>): Int8
+    collectCrashInfo: CFunc<() -> CString>, reportCrashInfo: CFunc<(CString) -> Unit>,
+    cb: CFunc<(CString, CString, CFunc<() -> CString>, CFunc<(CString) -> Unit>, CString, CString) -> Unit>): Int8
 
 foreign func InitOOMHandler(targetFile: CString, zlibFile: CString, compressFile: CFunc<(CString, CString) -> Unit>): Int8

@@ -23,7 +23,7 @@ class EntryAbility <: UIAbility {
             case _ => ()
         }
         initCrashHandler(this.context.getApplicationContext(), {=> JsonValue.fromStr("{}")},
-            {=> unsafe { LibC.mallocCString("{}") }}, {data =>}, Path(this.context.cacheDir), true)
+            {=> unsafe { LibC.mallocCString("{}") }}, {data =>}, {data =>}, Path(this.context.cacheDir), true)
         initFreezeHandler(this.context.getApplicationContext(), {err => JsonValue.fromStr("")}, {data =>},
             Path(this.context.cacheDir))
     }
