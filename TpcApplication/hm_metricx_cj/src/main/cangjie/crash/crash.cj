@@ -245,7 +245,7 @@ private func initOOMHandler(persistentDir: String) {
         if (InitOOMHandler(targetFile, zlibFile,
             {
                 src, dest => if (compressFile(src.toString(), dest.toString())) {
-                    File.delete(src.toString())
+                    deleteFile(src.toString())
                 } else {
                     AppLog.warn("compressFile failed.")
                 }
@@ -285,9 +285,7 @@ private func initNativeSignalHandler(persistentFilePath: String, applicationCont
                 let faultlogDir = Path("/data/log/faultlog/faultlogger")
                 if (!Directory.exists(faultlogDir)) {
                     AppLog.warn("No permission to access faultlog.")
-                    let crashInfoStr = LibC.mallocCString(crashInfo.toString())
-                    reportCrashInfo(crashInfoStr)
-                    LibC.free(crashInfoStr)
+                    // report at next launch in HiAppEvent callback
                     return
                 }
                 var crashLogFound = false
@@ -312,9 +310,7 @@ private func initNativeSignalHandler(persistentFilePath: String, applicationCont
                     let nativeInfo = extractFromNativeCrashLog(lines)
                     if (nativeInfo[1] != Process.current.pid.toString()) {
                         AppLog.warn("No native crash log generated.")
-                        let crashInfoStr = LibC.mallocCString(crashInfo.toString())
-                        reportCrashInfo(crashInfoStr)
-                        LibC.free(crashInfoStr)
+                        // report at next launch in HiAppEvent callback
                         return
                     }
                     crashInfo.timestamp = nativeInfo[0]
@@ -329,10 +325,13 @@ private func initNativeSignalHandler(persistentFilePath: String, applicationCont
                 }
                 if (!crashLogFound) {
                     AppLog.warn("No native crash log generated.")
+                    // report at next launch in HiAppEvent callback
+                    return
                 }
                 let crashInfoStr = LibC.mallocCString(crashInfo.toString())
                 reportCrashInfo(crashInfoStr)
                 LibC.free(crashInfoStr)
+                deleteFile(persistentFilePath.toString())
             }
         ) != 0) {
             AppLog.warn("InitNativeSignalHandler failed.")
@@ -381,6 +380,22 @@ private func writeFile(path: String, data: String) {
     } catch (e: FSException) {
         AppLog.warn(e.toString())
     } catch (e: IllegalArgumentException) {
+        AppLog.warn(e.toString())
+    }
+}
+
+private func deleteFile(path: String) {
+    try {
+        File.delete(path)
+    } catch (e: FSException) {
+        AppLog.warn(e.toString())
+    }
+}
+
+private func deleteFile(path: Path) {
+    try {
+        File.delete(path)
+    } catch (e: FSException) {
         AppLog.warn(e.toString())
     }
 }
@@ -435,7 +450,9 @@ private func initCrashWatcher(crashinfo: CrashInfo, applicationContext: Applicat
                 return
             }
             var crashInfo = crashinfo
+            var nativeCrashReported = true
             if (File.exists(persistentFilePath)) {
+                nativeCrashReported = false
                 if (crashInfo.fds.isNone()) {
                     try {
                         let jsonObj = JsonValue.fromStr(String.fromUtf8(File.readFrom(persistentFilePath))).asObject()
@@ -444,7 +461,7 @@ private func initCrashWatcher(crashinfo: CrashInfo, applicationContext: Applicat
                         AppLog.warn(e.toString())
                     }
                 }
-                File.delete(persistentFilePath)
+                deleteFile(persistentFilePath)
             }
             for (eventGroup in appEventGroups) {
                 if (eventGroup.name != APP_CRASH) {
@@ -455,7 +472,7 @@ private func initCrashWatcher(crashinfo: CrashInfo, applicationContext: Applicat
                         continue
                     }
                     let crashLogPath: String = eventInfo.params.get("external_log").getOrThrow().toString()
-                    if (crashLogPath.startsWith("cppcrash-")) {
+                    if (crashLogPath.startsWith("cppcrash-") && nativeCrashReported) {
                         crashInfo.reset()
                         return
                     }
