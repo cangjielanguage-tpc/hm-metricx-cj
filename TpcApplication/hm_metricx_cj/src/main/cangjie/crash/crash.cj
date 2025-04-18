@@ -40,6 +40,7 @@ public class CrashInfo {
     private var extraInfoValue: ?JsonValue = None
     private var crashLogPathValue: ?String = None
     private var dumpOnOOMPathValue: ?String = None
+    private var appVersionValue: ?String = None
 
     mut prop timestamp: ?String {
         get() {
@@ -158,6 +159,15 @@ public class CrashInfo {
         }
     }
 
+    mut prop appVersion: ?String {
+        get() {
+            appVersionValue
+        }
+        set(value) {
+            appVersionValue = value
+        }
+    }
+
     func toString(): String {
         let jsonObj = JsonObject()
         if (fdsValue.isSome()) {
@@ -205,6 +215,7 @@ public class CrashInfo {
         this.extraInfoValue = None
         this.crashLogPathValue = None
         this.dumpOnOOMPathValue = None
+        this.appVersionValue = None
     }
 }
 
@@ -489,6 +500,10 @@ private func initCrashWatcher(crashinfo: CrashInfo, applicationContext: Applicat
                         case _ => None
                     }
                     crashInfo.hilog = match (eventInfo.params.get("hilog")) {
+                        case Some(value) => value.toString()
+                        case _ => None
+                    }
+                    crashInfo.appVersion = match (eventInfo.params.get("bundle_version")) {
                         case Some(value) => value.toString()
                         case _ => None
                     }
