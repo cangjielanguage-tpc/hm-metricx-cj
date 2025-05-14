@@ -26,6 +26,8 @@ class EntryAbility <: UIAbility {
             {=> unsafe { LibC.mallocCString("{}") }}, {data =>}, {data =>}, Path(this.context.cacheDir), true)
         initFreezeHandler(this.context.getApplicationContext(), {err => JsonValue.fromStr("")}, {data =>},
             Path(this.context.cacheDir))
+        initScrollEventHandle({data => })
+        initPageEventHandle(this.context, {data => })
     }
 
     public override func onDestroy(): Unit {
@@ -34,6 +36,7 @@ class EntryAbility <: UIAbility {
 
     public override func onWindowStageCreate(windowStage: window.WindowStage): Unit {
         windowStage.loadContent("pages/index", {err, data => ()})
+        initPageEventHandle(this.windowStage, {data => })
     }
 
     public override func onWindowStageDestroy(): Unit {

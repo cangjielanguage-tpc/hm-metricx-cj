@@ -4,13 +4,14 @@ import tpc.UIKit.Text
 import tpc.UIKit.Button
 import tpc.UIKit.Column
 import tpc.UIKit.CustomView
+import tpc.UIKit.*
 import ohos.state_macro_manage.State
 import ohos.state_macro_manage.Component
 import ohos.state_manage.LocalStorage
 import ohos.state_manage.ObservedProperty
 import ohos.state_manage.SubscriberManager
 import ohos.state_manage.ViewStackProcessor
-import ohos.state_macro_manage.HybridComponentEntry
+import ohos.state_macro_manage.{HybridComponentEntry, Component}
 import ohos.hybrid_base.CJPageEntry
 import ohos.hybrid_base.HybridComponentBase
 import cj_res_entry.app
@@ -22,38 +23,82 @@ import tpc.AbilityKit.*
 import tpc.UIKit.component_interop.getContext
 import std.collection.ArrayList
 import ohos.base.AppLog
+import tpc.UIKit.component_interop.NavDestination
+import ohos.state_macro_manage.Provide
+import ohos.state_macro_manage.Builder
+
+@Component
+class pageOneTmp {
+    public func build() {
+        NavDestination() {
+            TextInput(placeholder: 'search...').height(40).width(90).backgroundColor(0XFFFFFF).margin(top: 8)
+        }
+    }
+}
 
 @HybridComponentEntry
 @Component
 class Index {
     @State
     var msg: String = "Hello"
+    let arr = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 100]
+    @Provide
+    var pageInfos: NavPathStack = NavPathStack()
+
+    @Builder
+    public func PageMap(name: String): Unit {
+        pageOneTmp
+    }
 
     public func build() {
         Column {
-            Text(msg)
-            Button("click to change Text").onClick {
-                =>
-                msg = "world"
-                sayHello()
-                //let xxx = ArrayList<Int64>(222222222222222222)
-                //crash()
-//                unsafe {
-//                    Crash()
-//                }
-            }
-            Button("Hilog-Freeze").onClick {
-                =>
-                msg = "Hilog"
-                Hilog.info(218108688, "AppDfr", "appfreeze_inner cj log : hilog")
-            }
-            Button("freeze").onClick {
-                =>
-                msg = "freeze"
-                Hilog.info(0, "testTag", "cj log : freeze clicked")
-                while (true) {
+            Navigation(this.pageInfos) {
+                Text(msg)
+                Button("click to change Text").onClick {
+                    =>
+                    msg = "world"
+                    sayHello()
+                    //let xxx = ArrayList<Int64>(222222222222222222)
+                    //crash()
+                    //                unsafe {
+                    //                    Crash()
+                    //                }
                 }
-            }
+                Button("Hilog-Freeze").onClick {
+                    =>
+                    msg = "Hilog"
+                    Hilog.info(218108688, "AppDfr", "appfreeze_inner cj log : hilog")
+                }
+                Button("freeze").onClick {
+                    =>
+                    msg = "freeze"
+                    Hilog.info(0, "testTag", "cj log : freeze clicked")
+                    while (true) {
+                    }
+                }
+
+                TextInput(placeholder: 'search...').height(40).width(90).backgroundColor(0XFFFFFF).margin(top: 8)
+
+                List(space: 20, initialIndex: 0) {
+                    ForEach(
+                        this.arr,
+                        itemGeneratorFunc: {
+                            item: Int64, _: Int64 => ListItem() {
+                                Text("${item}")
+                                    .width(100)
+                                    .height(100)
+                                    .fontSize(16)
+                                    .textAlign(TextAlign.Center)
+                                    .borderRadius(10)
+                                    .backgroundColor(0xFFFFFF)
+                                    .onClick(
+                                        {event => this.pageInfos.pushPath(NavPathInfo(name: item.toString(), param: ""))}
+                                    )
+                            }
+                        }
+                    )
+                }.scrollBar(BarState.Off).width(90)
+            }.width(100).height(100).backgroundColor(0xDCDCDC).padding(top: 5.px)
         }
     }
 }
