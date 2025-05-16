@@ -9,9 +9,12 @@ import tpc.UIKit.window
 import ohos.hybrid_base.CJPageEntry
 import ohos_app_cangjie_hm_metricx_cj.crash.*
 import ohos_app_cangjie_hm_metricx_cj.freeze.*
+import ohos_app_cangjie_hm_metricx_cj.fps.*
+import ohos_app_cangjie_hm_metricx_cj.storage.*
 import encoding.json
 import encoding.json.JsonValue
 import std.fs.*
+import ohos.hilog.*
 
 let ENTRYABILITY_REGISTER_RESULT = UIAbility.registerCreator("EntryAbility", {=> EntryAbility()})
 
@@ -26,8 +29,9 @@ class EntryAbility <: UIAbility {
             {=> unsafe { LibC.mallocCString("{}") }}, {data =>}, {data =>}, Path(this.context.cacheDir), true)
         initFreezeHandler(this.context.getApplicationContext(), {err => JsonValue.fromStr("")}, {data =>},
             Path(this.context.cacheDir))
-        initScrollEventHandle({data => })
-        initPageEventHandle(this.context, {data => })
+        initScrollEventHandle({data =>})
+        initPageEventHandle(this.context, {data =>})
+        initStorageHandler({data: StorageInfo => })
     }
 
     public override func onDestroy(): Unit {
@@ -36,7 +40,7 @@ class EntryAbility <: UIAbility {
 
     public override func onWindowStageCreate(windowStage: window.WindowStage): Unit {
         windowStage.loadContent("pages/index", {err, data => ()})
-        initPageEventHandle(this.windowStage, {data => })
+        initPageEventHandle(windowStage, {data =>})
     }
 
     public override func onWindowStageDestroy(): Unit {

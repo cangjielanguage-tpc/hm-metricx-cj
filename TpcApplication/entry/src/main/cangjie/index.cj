@@ -17,6 +17,7 @@ import ohos.hybrid_base.HybridComponentBase
 import cj_res_entry.app
 import ohos_app_cangjie_hm_metricx_cj.*
 import ohos_app_cangjie_hm_metricx_cj.freeze.*
+import ohos_app_cangjie_hm_metricx_cj.storage.*
 import ohos.base.nativeLog
 import ohos.hilog.*
 import tpc.AbilityKit.*
@@ -47,35 +48,40 @@ class Index {
 
     @Builder
     public func PageMap(name: String): Unit {
-        pageOneTmp
+        pageOneTmp()
     }
 
     public func build() {
         Column {
+            Button("click to change Text").onClick {
+                =>
+                msg = "world"
+                sayHello()
+                //let xxx = ArrayList<Int64>(222222222222222222)
+                //crash()
+                //                unsafe {
+                //                    Crash()
+                //                }
+            }
+            Button("Hilog-Freeze").onClick {
+                =>
+                msg = "Hilog"
+                Hilog.info(218108688, "AppDfr", "appfreeze_inner cj log : hilog")
+            }
+            Button("freeze").onClick {
+                =>
+                msg = "freeze"
+                Hilog.info(0, "testTag", "cj log : freeze clicked")
+                while (true) {
+                }
+            }
+            Button("storage").onClick {
+                =>
+                Hilog.info(0, "testTag", "storage click")
+                getAppStorageInfo()
+            }
             Navigation(this.pageInfos) {
                 Text(msg)
-                Button("click to change Text").onClick {
-                    =>
-                    msg = "world"
-                    sayHello()
-                    //let xxx = ArrayList<Int64>(222222222222222222)
-                    //crash()
-                    //                unsafe {
-                    //                    Crash()
-                    //                }
-                }
-                Button("Hilog-Freeze").onClick {
-                    =>
-                    msg = "Hilog"
-                    Hilog.info(218108688, "AppDfr", "appfreeze_inner cj log : hilog")
-                }
-                Button("freeze").onClick {
-                    =>
-                    msg = "freeze"
-                    Hilog.info(0, "testTag", "cj log : freeze clicked")
-                    while (true) {
-                    }
-                }
 
                 TextInput(placeholder: 'search...').height(40).width(90).backgroundColor(0XFFFFFF).margin(top: 8)
 
