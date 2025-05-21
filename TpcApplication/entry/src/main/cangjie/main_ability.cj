@@ -11,6 +11,7 @@ import ohos_app_cangjie_hm_metricx_cj.crash.*
 import ohos_app_cangjie_hm_metricx_cj.freeze.*
 import ohos_app_cangjie_hm_metricx_cj.fps.*
 import ohos_app_cangjie_hm_metricx_cj.storage.*
+import ohos_app_cangjie_hm_metricx_cj.battery.*
 import encoding.json
 import encoding.json.JsonValue
 import std.fs.*
@@ -32,9 +33,11 @@ class EntryAbility <: UIAbility {
         initScrollEventHandle({data =>})
         initPageEventHandle(this.context, {data =>})
         initStorageHandler({data: StorageInfo => })
+        initBatteryHandler(this, {data =>})
     }
 
     public override func onDestroy(): Unit {
+        destroyBatteryHandler()
         AppLog.info("myAbility onDestroy.")
     }
 
