@@ -3,6 +3,7 @@
  */
 package ohos_app_cangjie_hm_metricx_cj.battery
 
+import ohos_app_cangjie_hm_metricx_cj.*
 import tpc.AbilityKit.UIAbility
 import tpc.BasicServicesKit.*
 import tpc.BasicServicesKit.batteryInfo.*
@@ -220,16 +221,6 @@ public class BatteryUsageInfo {
             jsonObj.put("time", JsonString(time.getOrThrow().toString()))
         }
         jsonObj.toString()
-    }
-}
-
-public class PageSwitchCallBack <: Callback1Argument<NavDestinationSwitchInfo> {
-    let elementInfoCallback: (NavDestinationSwitchInfo) -> Unit
-    public init(elementInfoCallback: (NavDestinationSwitchInfo) -> Unit) {
-        this.elementInfoCallback = elementInfoCallback
-    }
-    public func invoke(res: NavDestinationSwitchInfo): Unit {
-        this.elementInfoCallback(res)
     }
 }
 
