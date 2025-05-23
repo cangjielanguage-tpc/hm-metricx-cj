@@ -12,6 +12,8 @@ import ohos_app_cangjie_hm_metricx_cj.freeze.*
 import ohos_app_cangjie_hm_metricx_cj.fps.*
 import ohos_app_cangjie_hm_metricx_cj.storage.*
 import ohos_app_cangjie_hm_metricx_cj.battery.*
+import ohos_app_cangjie_hm_metricx_cj.cpu.*
+import ohos_app_cangjie_hm_metricx_cj.memory.*
 import encoding.json
 import encoding.json.JsonValue
 import std.fs.*
@@ -32,12 +34,16 @@ class EntryAbility <: UIAbility {
             Path(this.context.cacheDir))
         initScrollEventHandle({data =>})
         initPageEventHandle(this.context, {data =>})
-        initStorageHandler({data: StorageInfo => })
+        initStorageHandler({data: StorageInfo =>})
         initBatteryHandler(this, {data =>})
+        initCpuHandler(this, {data =>})
+        initMemoryHandler(this, {data =>})
     }
 
     public override func onDestroy(): Unit {
         destroyBatteryHandler()
+        destroyCpuHandler()
+        destroyMemoryHandler()
         AppLog.info("myAbility onDestroy.")
     }
 
