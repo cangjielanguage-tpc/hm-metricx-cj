@@ -10,6 +10,15 @@
 
 ### 集成方式
 
+i.
+获取 `hm-metricx-cj` 源码。
+
+ii.
+在 `DevEco Studio` 中点击 `Build -> Make module 'hm-metricx-cj'` 编译生成har包 `hm_metricx_cj.har` 。har包产物路径在 `hm_metricx_cj/build/default/outputs/default` 目录下。
+
+iii.
+将 `hm_metricx_cj.har` 放到工程模块的har目录下。在工程模块的 `oh-package.json5` 中配置依赖 `"hm_metricx_cj": "file:./har/hm_mtricx_cj.har"` 。
+
 ### 监控Crash
 
 ### 监控Freeze
