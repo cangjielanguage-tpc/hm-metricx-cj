@@ -1,6 +1,9 @@
 {
   "apiType": "stageMode",
   "buildOption": {
+    "arkOptions": {
+      "byteCodeHar": false
+    },
     "cangjieOptions": {
       "path": "./src/main/cangjie/cjpm.toml"
     },
