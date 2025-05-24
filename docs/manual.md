@@ -69,6 +69,19 @@ public func initCrashHandler(
 - `appVersion` 应用版本
 
 使用示例：
+
+i.
+在主模块的 `module.json5` 中添加权限配置：
+```text
+"requestPermissions":[
+	{
+		"name":"ohos.permission.ACCESS_ANALYTICS"
+	}
+]
+```
+
+ii.
+在主模块的 `main_ability.cj` 的 `onCreate` 回调中调用 `initCrashHandler` ：
 ```text
 class EntryAbility <: UIAbility {
     public override func onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): Unit {
