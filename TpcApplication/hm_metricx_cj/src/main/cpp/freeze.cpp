@@ -99,8 +99,5 @@ extern "C" void registerHilogCallback(const char * logPath, HilogHandler handler
     if(status == 0) {
         hilogHandler = handler;
         OH_LOG_SetCallback(HilogCallback);
-    } else {
-        OH_LOG_Print(LOG_APP, LOG_INFO, 0x00008, "Freeze", "cj log path : %{public}s", logPath);
-        OH_LOG_Print(LOG_APP, LOG_INFO, 0x00008, "Freeze", "cj log fail :  %{public}d", status);
     }
 }

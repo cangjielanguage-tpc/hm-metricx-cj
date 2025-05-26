@@ -2,6 +2,7 @@
  * Created on 2025/5/19
  */
 package ohos_app_cangjie_hm_metricx_cj.memory
+
 import ohos_app_cangjie_hm_metricx_cj.*
 import tpc.AbilityKit.UIAbility
 import tpc.BasicServicesKit.*
@@ -131,7 +132,7 @@ public class ProcessMemoryInfo <: MemoryInfo {
 
 var MEMOMRY_THRESHOLD: Int64 = 1024 * 100
 var thresholdReported: Bool = false
-var pageMemoryInfo = PageMemoryInfo()
+var pageMemoryInfo = PageMemoryInfo("mainPage")
 var processMemoryInfo = ProcessMemoryInfo()
 var uiAbility: UIAbility = UIAbility()
 var reportMemory: (memoryInfo: MemoryInfo) -> Unit = {info: MemoryInfo =>}
@@ -151,19 +152,17 @@ let doMemorySample: (param: Array<String>) -> Unit = {
 let handleMemoryReport: (param: Array<String>) -> Unit = {
     param: Array<String> => reportMemory(processMemoryInfo)
 }
-var currentPageName: String = ""
-
+var currentPageName: String = "mainPage"
 let pageSwitchCallback: PageSwitchCallBack = PageSwitchCallBack(
     {
         info: NavDestinationSwitchInfo =>
         match (info.to) {
             case to: NavBar => currentPageName = "navRoot"
-            case to: NavDestinationInfo =>
-                let resource: ResourceStr = to.name
-                match (resource) {
-                    case name: String => currentPageName = name
-                    case name: AppResource => currentPageName = name.moduleName
-                }
+            case to: NavDestinationInfo => try {
+                currentPageName = (((to as NavDestinationInfo).getOrThrow()).name as String).getOrThrow()
+            } catch (e: Exception) {
+                AppLog.warn(e.toString())
+            }
         }
         doMemorySample()
         pageMemoryInfo.reset()
@@ -187,6 +186,7 @@ public func getMaxMemory(): Int64 {
             }
         }
     } catch (e: Exception) {
+        AppLog.warn(e.toString())
     }
     maxMemory
 }
@@ -198,14 +198,18 @@ public func setMaxMemory(memoryValue: Int64): Unit {
         let fileOption: OpenOption = OpenOption.CreateOrTruncate(false)
         File.writeTo(filePath, memoryStr.toArray(), openOption: fileOption)
     } catch (e: Exception) {
+        AppLog.warn(e.toString())
     }
 }
 
-public func initMemoryHandler(ability: UIAbility, reportMemoryInfo: (info: MemoryInfo) -> Unit,
-    memotyThreshold!: Int64 = 100 * 1024): Unit {
+public func initMemoryHandler(
+    ability: UIAbility,
+    reportMemoryInfo: (info: MemoryInfo) -> Unit,
+    memoryThreshold!: Int64 = 100 * 1024
+): Unit {
     uiAbility = ability
     reportMemory = reportMemoryInfo
-    MEMOMRY_THRESHOLD = memotyThreshold
+    MEMOMRY_THRESHOLD = memoryThreshold
     let maxMemory: Int64 = getMaxMemory()
     processMemoryInfo.reset()
     processMemoryInfo.maxMemory = maxMemory
