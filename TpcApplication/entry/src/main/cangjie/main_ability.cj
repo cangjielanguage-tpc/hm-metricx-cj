@@ -30,8 +30,7 @@ class EntryAbility <: UIAbility {
         }
         initCrashHandler(this.context.getApplicationContext(), {=> JsonValue.fromStr("{}")},
             {=> unsafe { LibC.mallocCString("{}") }}, {data =>}, {data =>}, Path(this.context.cacheDir), true)
-        initFreezeHandler(this.context.getApplicationContext(), {err => JsonValue.fromStr("")}, {data =>},
-            Path(this.context.cacheDir))
+        initFreezeHandler(this.context.getApplicationContext(), {data =>}, Path(this.context.cacheDir))
         initScrollEventHandle({data =>})
         initPageEventHandle(this.context, {data =>})
         initStorageHandler({data: StorageInfo =>})

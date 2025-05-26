@@ -34,7 +34,6 @@ public class FreezeInfo {
     private var hilogValue: ?String = None
     private var tidValue: ?String = None
     private var tnameValue: ?String = None
-    private var extraInfoValue: ?JsonValue = None
     private var freezeLogPathValue: ?String = None
     private var cpuThreadValue: ?HashMap<String, String> = None
     private var cpuValue: ?HashMap<String, String> = None
@@ -94,15 +93,6 @@ public class FreezeInfo {
         }
     }
 
-    mut prop extraInfo: ?JsonValue {
-        get() {
-            extraInfoValue
-        }
-        set(value) {
-            extraInfoValue = value
-        }
-    }
-
     mut prop freezeLogPath: ?String {
         get() {
             freezeLogPathValue
@@ -144,9 +134,6 @@ public class FreezeInfo {
         if (cpuThreadValue.isSome()) {
             jsonObj.put("cpuThread", map2json(cpuThreadValue.getOrThrow()))
         }
-        if (extraInfoValue.isSome()) {
-            jsonObj.put("extraInfo", extraInfoValue.getOrThrow())
-        }
         jsonObj.toString()
     }
 
@@ -156,9 +143,6 @@ public class FreezeInfo {
         if (jsonObject.get("cpuThread").isSome()) {
             let fields: HashMap<String, JsonValue> = jsonObject.get("cpuThread").getOrThrow().asObject().getFields()
             freezeInfo.cpuThread = json2map(fields)
-        }
-        if (jsonObject.get("extraInfo").isSome()) {
-            freezeInfo.extraInfo = jsonObject.get("extraInfo")
         }
 
         freezeInfo
@@ -170,10 +154,9 @@ private var jsonPath: Path = Path("")
 
 public func initFreezeHandler(
     applicationContext: ApplicationContext,
-    collectFreezeInfo: (errObject: ?ErrorObject) -> JsonValue,
     reportFreezeInfo: (freezeInfo: FreezeInfo) -> Unit,
     persistentDir: Path
-) {
+): Unit {
     if (freezeInited) {
         return
     }
@@ -189,8 +172,12 @@ public func initFreezeHandler(
     freezeInited = true
 }
 
-private func initFreezeWatcher(freezeinfo: FreezeInfo, applicationContext: ApplicationContext,
-    reportFreezeInfo: (freeezeInfo: FreezeInfo) -> Unit, persistentFilePath: Path) {
+private func initFreezeWatcher(
+    freezeinfo: FreezeInfo,
+    applicationContext: ApplicationContext,
+    reportFreezeInfo: (freeezeInfo: FreezeInfo) -> Unit,
+    persistentFilePath: Path
+) {
     let watcher = Watcher(
         "freezeWatcher",
         appEventFilters: [AppEventFilter(OS, eventTypes: [FAULT], names: [APP_FREEZE])],
@@ -239,7 +226,6 @@ private func initFreezeWatcher(freezeinfo: FreezeInfo, applicationContext: Appli
                     freezeLogPath = freezeLogPath.trimLeft("[")
                     freezeLogPath = freezeLogPath.trimRight("]")
                     if (!File.exists(freezeLogPath)) {
-                        nativeLog("freeze log not exist: ${freezeLogPath}")
                         continue
                     }
                     freezeInfo.freezeLogPath = freezeLogPath
@@ -341,8 +327,6 @@ foreign func registerHilogCallback(logPath: CString, cb: CFunc<() -> Unit>): Uni
 
 @C
 func CallbackHilogHandler(): Unit {
-    nativeLog("C -> cangjie func")
-    return
     let cpuThreadUsage = getAppThreadCpuUsage()
 
     let cpuThreadJson = HashMap<String, JsonValue>()

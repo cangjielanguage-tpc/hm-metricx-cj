@@ -285,7 +285,7 @@ var lastTime: Int64 = getUptime(TimeType.STARTUP)
 var lastScreenOnTimeStamp: Int64 = getUptime(TimeType.STARTUP)
 var screenOnTotalSecond: Int64 = 0
 var frontStatus: Bool = true
-var currentPageName: String = ""
+var currentPageName: String = "mainPage"
 
 private func reset() {
     lastLevel = -1
@@ -323,12 +323,11 @@ let pageSwitchCallback: PageSwitchCallBack = PageSwitchCallBack(
     {
         info: NavDestinationSwitchInfo => match (info.to) {
             case to: NavBar => currentPageName = "navRoot"
-            case to: NavDestinationInfo =>
-                let resource: ResourceStr = to.name
-                match (resource) {
-                    case name: String => currentPageName = name
-                    case name: AppResource => currentPageName = name.moduleName
-                }
+            case to: NavDestinationInfo => try {
+                currentPageName = (((to as NavDestinationInfo).getOrThrow()).name as String).getOrThrow()
+            } catch (e: Exception) {
+                AppLog.warn(e.toString())
+            }
         }
     })
 let commonEventCallback: AsyncCallback<CommonEventData> = {
@@ -393,10 +392,12 @@ let commonEventCallback: AsyncCallback<CommonEventData> = {
 
 public func initBatteryHandler(
     ability: UIAbility,
-    reportBatteryInfo: (batteryInfo: BatteryUsageInfo) -> Unit
-) {
+    reportBatteryInfo: (batteryInfo: BatteryUsageInfo) -> Unit,
+    limit!: Int32 = 1
+): Unit {
     reportBatteryCallback = reportBatteryInfo
     uiAbility = ability
+    batteryLimit = limit
     let context = uiAbility.context
     let applicationContext = context.getApplicationContext()
     applicationContext.on(ApplicationContextType.APPLICATION_STATE_CHANGE, applicationCallback)
@@ -404,7 +405,7 @@ public func initBatteryHandler(
     subscribe(eventSubscriber, commonEventCallback)
 }
 
-public func destroyBatteryHandler() {
+public func destroyBatteryHandler(): Unit {
     reportBatteryCallback = {data: BatteryUsageInfo =>}
     let context = uiAbility.context
     let applicationContext = context.getApplicationContext()

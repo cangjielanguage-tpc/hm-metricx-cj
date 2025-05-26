@@ -102,8 +102,68 @@ class EntryAbility <: UIAbility {
 }
 ```
 
-
 ### 监控Freeze
+
+`hm_metricx_cj` 提供
+
+```text
+public func initFreezeHandler(
+    applicationContext: ApplicationContext,
+    reportFreezeInfo: (freezeInfo: FreezeInfo) -> Unit,
+    persistentDir: Path
+): Unit
+```
+
+接口对freeze事件进行监控。
+
+`initFreezeHandler` 需要的入参说明如下：
+
+- `applicationContext: ApplicationContext` 指定应用上下文。
+- `reportFreezeInfo: (freezeInfo: FreezeInfo) -> Unit` 用于在APP发生freeze事件时，将收集完成的freeze信息进行上报，入参为 `FreezeInfo` 类型对象。
+- `persistentDir: Path` 指定中间日志文件的持久化目录。
+
+`FreezeInfo` 包含以下信息：
+
+- `timestamp` freeze发生的时间戳
+- `pid` freeze进程名
+- `exception` freeze发生原因
+- `hilog` Hilog日志
+- `tid` freeze线程ID
+- `tname` freeze线程名
+- `freezeLogPath` 系统生成的faultlog文件路径
+- `cpuThread` 线程CPU使用率
+- `cpu` 进程CPU使用率
+- `stacktrace` freeze调用栈
+
+使用示例：
+
+i.
+在主模块的 `module.json5` 中添加权限配置：
+
+```text
+"requestPermissions":[
+    {
+        "name":"ohos.permission.ACCESS_ANALYTICS"
+    }
+]
+```
+
+ii.
+
+在主模块的 `main_ability.cj` 的 `onCreate` 回调中调用 `initFreezeHandler` ：
+
+```text
+class EntryAbility <: UIAbility {
+    public override func onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): Unit {
+        AppLog.info("Ability OnCreated.${want.abilityName}")
+        match (launchParam.launchReason) {
+            case AbilityConstant.LaunchReason.START_ABILITY => AppLog.info("START_ABILITY")
+            case _ => ()
+        }
+        initFreezeHandler(this.context.getApplicationContext(), {data =>}, Path(this.context.cacheDir))
+    }
+}
+```
 
 ### 监控异常退出原因
 
@@ -225,10 +285,250 @@ class EntryAbility <: UIAbility {
 
 ### 监控内存
 
+`hm_metricx_cj` 提供
+
+```text
+// 注册内存监控
+public func initMemoryHandler(
+    ability: UIAbility,
+    reportMemoryInfo: (info: MemoryInfo) -> Unit,
+    memoryThreshold!: Int64
+): Unit
+// 取消内存监控
+public func destroyMemoryHandler(): Unit
+```
+
+接口对应用的内存使用情况进行监控。
+
+`initMemoryHandler` 需要的入参说明如下：
+
+- `ability: UIAbility` 指定应用组件。
+- `reportMemoryInfo: (info: MemoryInfo) -> Unit` 将内存的使用情况进行上报，入参为 `MemoryInfo` 类型对象。
+- `memoryThreshold!: Int64` 内存使用阈值，默认为100 * 1024 KB。当使用内存超过该阈值时，将内存使用情况上报。
+
+`MemoryInfo` 包含以下信息：
+
+- `avgMemory` 内存使用平均值，单位为KB
+- `maxMemory` 内存使用最大值，单位为KB
+- `sampleCount` 内存采样次数
+
+`PageMemoryInfo` 继承 `MemoryInfo` ，在 `MemoryInfo` 基础上，添加：
+
+- `pageName` 当前页面名称
+
+`ProcessMemoryInfo` 继承 `MemoryInfo` ，在 `MemoryInfo` 基础上，添加：
+
+- `pid` 进程ID
+
+使用示例：
+
+i.
+
+在主模块的 `main_ability.cj` 的 `onCreate` 回调中调用 `initMemoryHandler` 
+
+ii.
+
+在主模块的 `main_ability.cj` 的 `onDestroy` 回调中调用 `destroyMemoryHandler` ：
+
+```text
+class EntryAbility <: UIAbility {
+    public override func onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): Unit {
+        AppLog.info("Ability OnCreated.${want.abilityName}")
+        match (launchParam.launchReason) {
+            case AbilityConstant.LaunchReason.START_ABILITY => AppLog.info("START_ABILITY")
+            case _ => ()
+        }
+        initMemoryHandler(this, {data =>})
+    }
+    public override func onDestroy(): Unit {
+        destroyMemoryHandler()
+        AppLog.info("myAbility onDestroy.")
+    }
+}
+```
+
 ### 监控CPU
 
+`hm_metricx_cj` 提供
+
+```text
+// 注册CPU监控
+public func initCpuHandler(
+    ability: UIAbility,
+    reportCpuInfo: (info: CpuInfo) -> Unit
+): Unit
+// 取消CPU监控
+public func destroyCpuHandler(): Unit
+```
+
+接口对应用的CPU使用情况进行监控。
+
+`initCpuHandler` 需要的入参说明如下：
+
+- `ability: UIAbility` 指定应用组件。
+- `reportCpuInfo: (info: CpuInfo) -> Unit` 将CPU的使用情况进行上报，入参为 `CpuInfo` 类型对象。
+
+`CpuInfo` 包含以下信息：
+
+- `avgCpu` CPU使用平均值，单位为KB
+- `maxCpu` CPU使用最大值，单位为KB
+- `sampleCount` CPU采样次数
+
+`PageCpuInfo` 继承 `CpuInfo` ，在 `CpuInfo` 基础上，添加如下信息：
+
+- `pageName` 当前页面名称
+
+`ProcessCpuInfo` 继承 `CpuInfo` ，在 `CpuInfo` 基础上，添加如下信息：
+
+- `pid` 进程ID
+
+使用示例：
+
+i.
+
+在主模块的 `main_ability.cj` 的 `onCreate` 回调中调用 `initCpuHandler`
+
+ii.
+
+在主模块的 `main_ability.cj` 的 `onDestroy` 回调中调用 `destroyCpuHandler` ：
+
+```text
+class EntryAbility <: UIAbility {
+    public override func onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): Unit {
+        AppLog.info("Ability OnCreated.${want.abilityName}")
+        match (launchParam.launchReason) {
+            case AbilityConstant.LaunchReason.START_ABILITY => AppLog.info("START_ABILITY")
+            case _ => ()
+        }
+        initCpuHandler(this, {data =>})
+    }
+    public override func onDestroy(): Unit {
+        destroyCpuHandler()
+        AppLog.info("myAbility onDestroy.")
+    }
+}
+```
+
 ### 监控电量
+
+`hm_metricx_cj`提供
+
+```text
+// 注册电量监控
+public func initBatteryHandler(
+    ability: UIAbility,
+    reportBatteryInfo: (batteryInfo: BatteryUsageInfo) -> Unit,
+    limit!: Int32
+): Unit
+// 取消电量监控
+public func destroyBatteryHandler(): Unit
+```
+
+接口对手机的掉电情况进行监控。
+
+`initBatteryHandler` 需要的入参说明如下：
+
+- `ability: UIAbility` 指定应用组件。
+- `reportBatteryInfo: (batteryInfo: BatteryUsageInfo) -> Unit` 用于在发生掉电时，将相应的信息进行上报，入参为 `BatteryUsageInfo` 类型对象。
+- `limit!: Int32` 掉电x格上报，默认为1。
+
+`BatteryUsageInfo` 包含以下信息：
+
+- `currentPageName` 当前浏览页面
+- `level` 当前电量
+- `temperature` 当前电池温度，单位为摄氏度（°C）
+- `capacity` 电池容量（当前暂不支持获取）
+- `scale` 电池的最大电量，默认为100
+- `status` 电池的当前状态
+- `health` 电池的健康状况
+- `voltage` 电池的当前电压，单位为毫伏特
+- `technology` 电池的技术类型
+- `plugged`  设备的连接方式
+- `charging` 设备是否在充电
+- `limit` 掉电x格上报，默认为1格
+- `brightness` 屏幕亮度
+- `useTime` APP前台使用时间，单位为s
+- `time` 距离上次掉电的时间间隔，单位为s
+
+使用示例：
+
+i.
+
+在主模块的 `main_ability.cj` 的 `onCreate` 回调中调用 `initBatteryHandler`
+
+ii.
+
+在主模块的 `main_ability.cj` 的 `onDestroy` 回调中调用 `destroyBatteryHandler` ：
+
+```text
+class EntryAbility <: UIAbility {
+    public override func onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): Unit {
+        AppLog.info("Ability OnCreated.${want.abilityName}")
+        match (launchParam.launchReason) {
+            case AbilityConstant.LaunchReason.START_ABILITY => AppLog.info("START_ABILITY")
+            case _ => ()
+        }
+        initBatteryHandler(this, {data =>})
+    }
+    
+    public override func onDestroy(): Unit {
+        destroyBatteryHandler()
+        AppLog.info("myAbility onDestroy.")
+    }
+}
+```
 
 ### 监控流量
 
 ### 监控存储
+
+`hm_metricx_cj` 提供
+
+```text
+// 注册占用存储上报函数
+public func initStorageHandler(
+    reportStorageInfo: (storageInfo: StorageInfo) -> Unit
+): Unit
+// 获取占用存储空间
+public func getAppStorageInfo(): Unit
+```
+
+接口提供获取app占用存储空间。
+
+`initStorageHandler` 需要的入参说明如下：
+
+- `reportStorageInfo: (storageInfo: StorageInfo) -> Unit` 用于获取app占用存储空间时，将app占用存储空间进行上报，入参为 `StorageInfo` 类型对象。
+
+`StorageInfo` 包含以下信息
+
+- `appSize` 应用安装文件大小，单位为Byte
+- `cacheSize` 应用缓存文件大小，单位为Byte
+- `dataSize` 应用文件存储大小（除应用安装文件和缓存文件），单位为Byte
+
+使用示例：
+
+i.
+
+在主模块的 `main_ability.cj` 的 `onCreate` 回调中调用 `initBatteryHandler` ：
+
+```text
+class EntryAbility <: UIAbility {
+    public override func onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): Unit {
+        AppLog.info("Ability OnCreated.${want.abilityName}")
+        match (launchParam.launchReason) {
+            case AbilityConstant.LaunchReason.START_ABILITY => AppLog.info("START_ABILITY")
+            case _ => ()
+        }
+        initBatteryHandler(this, {data =>})
+    }
+}
+```
+
+ii.
+
+在需要上报app占用存储空间时，调用 `reportStorageInfo` 函数 ：
+
+```text
+reportStorageInfo()
+```
+
