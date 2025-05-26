@@ -107,9 +107,119 @@ class EntryAbility <: UIAbility {
 
 ### 监控异常退出原因
 
-### 监控FPS
+`hm_metricx_cj` 提供
+```text
+getExitInfo(launchParam: LaunchParam): ExitInfo
+```
+接口获取应用异常退出原因。
 
-### 监控滑动掉帧率
+`getExitInfo` 需要的入参说明如下：
+
+- `launchParam: LaunchParam` 应用启动参数。
+
+`ExitInfo` 包含以下信息：
+
+- `exitReason` 上次应用退出的原因，分类如下：
+    - `ability_not_responding` Ability未响应
+    - `app_freeze` 应用无响应
+    - `cpp_crash` Native层发出异常信号导致应用退出
+    - `js_error` JS层Error导致应用退出
+    - `unknown` 上次应用退出原因未被应用框架记录
+    - `normal` 正常退出，如用户主动关闭应用
+    - `performance_control` 系统能耗管控导致应用退出，如设备低内存
+    - `resource_control` 资源管控导致应用退出，如过量使用CPU/IO/内存资源
+    - `upgrade` 应用升级导致应用退出
+- `exitMessage` 上次应用退出的详细信息
+
+使用示例：
+
+i.
+在主模块的 `main_ability.cj` 的 `onCreate` 回调中调用 `getExitInfo` ：
+```text
+class EntryAbility <: UIAbility {
+    public override func onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): Unit {
+        AppLog.info("Ability OnCreated.${want.abilityName}")
+        match (launchParam.launchReason) {
+            case AbilityConstant.LaunchReason.START_ABILITY => AppLog.info("START_ABILITY")
+            case _ => ()
+        }
+        let lastExitInfo = getExitInfo(launchParam)
+        // report lastExitInfo
+    }
+}
+```
+
+### 监控FPS/滑动掉帧率
+
+`hm_metricx_cj` 提供
+```text
+public func initPageEventHandler(
+    uiContext: UIAbilityContext,
+    reportFpsInfo: (fpsInfo: FpsEventInfo) -> Unit
+): Unit
+
+public func initPageEventHandler(
+    windowStage: WindowStage,
+    reportFpsInfo: (fpsInfo: FpsEventInfo) -> Unit
+): Unit
+
+public func initScrollEventHandler(
+    reportScrollInfo: (scrollInfo: ScrollHitchInfo) -> Unit
+): Unit
+```
+接口对FPS/滑动掉帧率进行监控。
+
+`initPageEventHandler` 需要的入参说明如下：
+
+- `uiContext: UIAbilityContext` 指定UIAbility上下文
+- `reportFpsInfo: (fpsInfo: FpsEventInfo) -> Unit` 用于每次页面退出时，将统计到的FPS信息进行上报，入参为 `FpsEventInfo` 类型对象
+
+`FpsEventInfo` 包含以下信息：
+
+- `minFps` 一段时间内，每隔一秒采样，测量到的最低帧率值
+- `avgFps` 一段时间内，测量到的平均帧率值
+
+`initPageEventHandler` 需要的入参说明如下：
+
+- `windowStage: WindowStage` 指定WindowStage
+- `reportFpsInfo: (fpsInfo: FpsEventInfo) -> Unit` 用于每次进入后台时，将统计到的FPS信息进行上报，入参为 `FpsEventInfo` 类型对象
+
+`initScrollEventHandler` 需要的入参说明如下：
+
+- `reportScrollInfo: (scrollInfo: ScrollHitchInfo) -> Unit` 用于每次滑动事件停止时，将统计到的滑动掉帧率信息，以及FPS信息进行上报，入参为 `ScrollHitchInfo` 类型对象。 
+
+`ScrollHitchInfo` 继承 `FpsEventInfo` 的所有信息，并包含以下信息：
+
+- `frameDropRatio` 滑动掉帧率
+
+使用示例：
+
+i.
+在主模块的 `main_ability.cj` 的 `onCreate` 回调中调用 `initPageEventHandler` 和 `initScrollEventHandler` ：
+```text
+class EntryAbility <: UIAbility {
+    public override func onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): Unit {
+        AppLog.info("Ability OnCreated.${want.abilityName}")
+        match (launchParam.launchReason) {
+            case AbilityConstant.LaunchReason.START_ABILITY => AppLog.info("START_ABILITY")
+            case _ => ()
+        }
+        initPageEventHandle(this.context, {data =>})
+        initScrollEventHandler({data =>})
+    }
+}
+```
+
+ii.
+在主模块的 `main_ability.cj` 的 `onWindowStageCreate` 回调中调用 `initPageEventHandler` ：
+```text
+class EntryAbility <: UIAbility {
+    public override func onWindowStageCreate(windowStage: window.WindowStage): Unit {
+        windowStage.loadContent("pages/index", {err, data => ()})
+        initPageEventHandler(windowStage, {data =>})
+    }
+}
+```
 
 ### 监控交互响应延迟
 
