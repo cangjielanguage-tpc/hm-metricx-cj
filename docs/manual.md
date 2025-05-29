@@ -283,6 +283,26 @@ class EntryAbility <: UIAbility {
 
 ### 监控交互响应延迟
 
+`hm_metricx_cj` 提供
+```text
+public func initLaggyHandle(applicationcontext: ApplicationContext, uiContext: UIContext,
+                            maxTime: Float64, maxArraySize: Int64,
+                            reportLaggyInfo: (data: JsonObject) -> Unit)
+```
+接口对交互式响应延迟提供监控能力。
+
+`initLaggyHandle` 需要的入参说明如下：
+
+- `applicationcontext` 指定应用上下文。
+
+- `uiContext` 指定 `uiContext`。
+
+- `maxTime` 指定最大的响应时间，超过该时间视为一次卡顿事件。
+
+- `maxArraySize` 指定存储最大的卡顿时间集合，当卡顿次数超过该值时，会删除最早的一次卡顿数据。
+
+- `reportLaggyInfo` 上报数据的回调函数，接受一个输入型参数 `data`。
+
 ### 监控内存
 
 `hm_metricx_cj` 提供
