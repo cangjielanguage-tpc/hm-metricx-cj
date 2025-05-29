@@ -508,6 +508,59 @@ class EntryAbility <: UIAbility {
 
 ### 监控流量
 
+`hm_metricx_cj` 提供
+
+```text
+// 注册占用存储空间上报函数
+public func initTrafficHandler(
+    ability: UIAbility,
+    reportTrafficInfo: (trafficInfo: TrafficInfo) -> Unit,
+    limits: ?Int32
+): Unit
+// 上报占用存储空间
+public func reportTrafficInfo(): Unit
+```
+
+接口对app占用存储空间获取并进行上报。
+
+`initTrafficHandler` 需要的入参说明如下：
+- `ability`: `UIAbility`指定应用组件。
+
+- `reportTrafficInfo: (trafficInfo: TrafficInfo) -> Unit` 用于获取app流量时，将app流量信息进行上报，入参为 `TrafficInfo` 类型对象。
+
+`TrafficInfo` 包含以下信息
+
+- `totalDailyTraffic` 应用日流量信息
+- `totalTraffic` 单次进程总流量
+- `limit` 触发告警的流量阈值
+
+使用示例：
+
+i.
+
+在主模块的 `main_ability.cj` 的 `onCreate` 回调中调用 `initTrafficHandler` ：
+
+```text
+class EntryAbility <: UIAbility {
+    public override func onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): Unit {
+        AppLog.info("Ability OnCreated.${want.abilityName}")
+        match (launchParam.launchReason) {
+            case AbilityConstant.LaunchReason.START_ABILITY => AppLog.info("START_ABILITY")
+            case _ => ()
+        }
+        initBatteryHandler(this, {data =>}， 500 * 1024 * 1024)
+    }
+}
+```
+
+ii.
+
+需要上报app占用存储空间时，调用 `reportTrafficInfo` 函数 ：
+
+```text
+reportTrafficInfo()
+```
+
 ### 监控存储
 
 `hm_metricx_cj` 提供
