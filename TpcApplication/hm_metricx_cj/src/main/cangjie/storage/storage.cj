@@ -63,7 +63,7 @@ public class StorageInfo {
 
 var reportStorageInfoCallback: (storageInfo: StorageInfo) -> Unit = {info: StorageInfo =>}
 
-public func reportStorageInfo(): Unit {
+public func reportAppStorageInfo(): Unit {
     getCurrentBundleStats(
         {
             err, data => if (err.isNone()) {

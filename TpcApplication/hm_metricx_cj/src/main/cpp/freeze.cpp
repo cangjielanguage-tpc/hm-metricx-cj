@@ -82,14 +82,12 @@ void HilogCallback(const LogType type, const LogLevel level, const unsigned int 
         }
         saveStr += "\n";
         
-        hilogHandler();
-        
-        fwrite(saveStr.c_str(), sizeof(char), saveStr.size(), m_file);
-        fflush(m_file);
-        
-        ThreadCpuUsageGet = true;
+        if (m_file != nullptr) {
+            fwrite(saveStr.c_str(), sizeof(char), saveStr.size(), m_file);
+            fflush(m_file);
+            ThreadCpuUsageGet = true;
+        }
     }
-    
     return;
 }
 
@@ -100,4 +98,5 @@ extern "C" void registerHilogCallback(const char * logPath, HilogHandler handler
         hilogHandler = handler;
         OH_LOG_SetCallback(HilogCallback);
     }
+    return;
 }

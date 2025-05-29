@@ -78,7 +78,7 @@ class Index {
             Button("storage").onClick {
                 =>
                 Hilog.info(0, "testTag", "storage click")
-                reportStorageInfo()
+                reportAppStorageInfo()
             }
             Navigation(this.pageInfos) {
                 Text(msg)

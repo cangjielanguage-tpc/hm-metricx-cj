@@ -169,7 +169,7 @@ let handleCpuReport: (param: Array<String>) -> Unit = {
     param: Array<String> => reportCpu(processCpuInfo)
 }
 
-public func handleCpu(param: Array<String>): Unit {
+private func handleCpu(param: Array<String>): Unit {
     setInterval(doCpuSample, 2000, Array<String>())
     setInterval(handleCpuReport, 30 * 60 * 1000, Array<String>())
 }

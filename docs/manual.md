@@ -296,6 +296,10 @@ public func initMemoryHandler(
 ): Unit
 // 取消内存监控
 public func destroyMemoryHandler(): Unit
+// 获取页面内存信息
+public func getPageMemoryInfo(): PageMemoryInfo
+// 获取进程内存信息
+public func getProcessMemoryInfo(): ProcessMemoryInfo
 ```
 
 接口对应用的内存使用情况进行监控。
@@ -359,6 +363,10 @@ public func initCpuHandler(
 ): Unit
 // 取消CPU监控
 public func destroyCpuHandler(): Unit
+// 获取页面CPU信息
+public func getPageCpuInfo(): PageCpuInfo
+// 获取进程CPU信息
+public func getProcessCpuInfo(): ProcessCpuInfo
 ```
 
 接口对应用的CPU使用情况进行监控。
@@ -485,15 +493,15 @@ class EntryAbility <: UIAbility {
 `hm_metricx_cj` 提供
 
 ```text
-// 注册占用存储上报函数
+// 注册占用存储空间上报函数
 public func initStorageHandler(
     reportStorageInfo: (storageInfo: StorageInfo) -> Unit
 ): Unit
-// 获取占用存储空间
-public func getAppStorageInfo(): Unit
+// 上报占用存储空间
+public func reportAppStorageInfo(): Unit
 ```
 
-接口提供获取app占用存储空间。
+接口对app占用存储空间获取并进行上报。
 
 `initStorageHandler` 需要的入参说明如下：
 
@@ -526,9 +534,9 @@ class EntryAbility <: UIAbility {
 
 ii.
 
-在需要上报app占用存储空间时，调用 `reportStorageInfo` 函数 ：
+需要上报app占用存储空间时，调用 `reportAppStorageInfo` 函数 ：
 
 ```text
-reportStorageInfo()
+reportAppStorageInfo()
 ```
 

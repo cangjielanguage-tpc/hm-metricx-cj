@@ -170,12 +170,20 @@ let pageSwitchCallback: PageSwitchCallBack = PageSwitchCallBack(
     }
 )
 
-public func handleMemory(array: Array<String>): Unit {
+private func handleMemory(array: Array<String>): Unit {
     setInterval(doMemorySample, 2000, Array<String>())
     setInterval(handleMemoryReport, 30 * 60 * 1000, Array<String>())
 }
 
-public func getMaxMemory(): Int64 {
+public func getPageMemoryInfo(): PageMemoryInfo {
+    pageMemoryInfo
+}
+
+public func getProcessMemoryInfo(): ProcessMemoryInfo {
+    processMemoryInfo
+}
+
+private func getMaxMemory(): Int64 {
     let filePath: String = uiAbility.context.cacheDir + "/memory.txt"
     var maxMemory: Int64 = 0
     try {
@@ -191,7 +199,7 @@ public func getMaxMemory(): Int64 {
     maxMemory
 }
 
-public func setMaxMemory(memoryValue: Int64): Unit {
+private func setMaxMemory(memoryValue: Int64): Unit {
     let filePath: String = uiAbility.context.cacheDir + "/memory.txt"
     try {
         let memoryStr = memoryValue.toString()
@@ -222,4 +230,5 @@ public func initMemoryHandler(
 public func destroyMemoryHandler(): Unit {
     setMaxMemory(processMemoryInfo.maxMemory)
     off(navDestinationSwitch, uiAbility.context, pageSwitchCallback)
+    // todo clearInterval
 }
