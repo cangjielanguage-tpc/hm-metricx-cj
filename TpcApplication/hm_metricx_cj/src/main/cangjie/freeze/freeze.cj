@@ -164,8 +164,12 @@ public func initFreezeHandler(
     let persistentFilePath = persistentDir.join("freeze.json")
     jsonPath = persistentFilePath
     let persistentBackFilePath = persistentDir.join("freeze-back.json")
-    if (File.exists(persistentFilePath)) {
-        File.copy(persistentFilePath, persistentBackFilePath, true)
+    try {
+        if (File.exists(persistentFilePath)) {
+            File.copy(persistentFilePath, persistentBackFilePath, true)
+        }
+    } catch (e: Exception) {
+        AppLog.warn(e.toString())
     }
     initFreezeWatcher(freezeInfo, applicationContext, reportFreezeInfo, persistentBackFilePath)
     initHilogWatcher(persistentFilePath)
@@ -186,15 +190,19 @@ private func initFreezeWatcher(
             if (domain != OS) {
                 return
             }
-            var freezeInfo = freezeinfo
+            let freezeInfo = freezeinfo
 
-            if (File.exists(persistentFilePath)) {
-                if (freezeInfo.cpuThread.isNone()) {
-                    let fileContent = String.fromUtf8(File.readFrom(persistentFilePath))
-                    let cpuUsageMap = extractDataFromLog(fileContent)
-                    freezeInfo.cpuThread = cpuUsageMap
+            try {
+                if (File.exists(persistentFilePath)) {
+                    if (freezeInfo.cpuThread.isNone()) {
+                        let fileContent = String.fromUtf8(File.readFrom(persistentFilePath))
+                        let cpuUsageMap = extractDataFromLog(fileContent)
+                        freezeInfo.cpuThread = cpuUsageMap
+                    }
+                    File.delete(persistentFilePath)
                 }
-                File.delete(persistentFilePath)
+            } catch (e: Exception) {
+                AppLog.warn(e.toString())
             }
             for (eventGroup in appEventGroups) {
                 if (eventGroup.name != APP_FREEZE) {
@@ -230,13 +238,16 @@ private func initFreezeWatcher(
                     }
                     freezeInfo.freezeLogPath = freezeLogPath
 
-                    let content = String.fromUtf8(File.readFrom(freezeLogPath))
-
-                    let res = extractFromFreezeLog(content)
-                    freezeInfo.tid = res[0]
-                    freezeInfo.tname = res[1]
-                    freezeInfo.stacktrace = res[2]
-                    freezeInfo.cpu = res[3]
+                    try {
+                        let content = String.fromUtf8(File.readFrom(freezeLogPath))
+                        let res = extractFromFreezeLog(content)
+                        freezeInfo.tid = res[0]
+                        freezeInfo.tname = res[1]
+                        freezeInfo.stacktrace = res[2]
+                        freezeInfo.cpu = res[3]
+                    } catch (e: Exception) {
+                        AppLog.warn(e.toString())
+                    }
                 }
             }
             reportFreezeInfo(freezeInfo)
@@ -247,12 +258,12 @@ private func initFreezeWatcher(
 
 private func extractFromFreezeLog(content: String) {
     let lines = content.split("\n", removeEmpty: true)
-    var tid = ""
-    var tname = ""
+    var tid: String = ""
+    var tname: String = ""
     var cpuMap = HashMap<String, String>()
     var stacktrace = ArrayList<String>()
 
-    var curLine = 0
+    var curLine: Int64 = -1
     for (i in 0..lines.size) {
         if (lines[i].startsWith("TID = ")) {
             tid = lines[i].trimLeft("TID = ")
@@ -260,8 +271,11 @@ private func extractFromFreezeLog(content: String) {
             break
         }
     }
+    if (curLine == -1) {
+        (tid, tname, stacktrace, cpuMap)
+    }
 
-    let tidTag = "Tid:" + tid + ", Name:"
+    let tidTag: String = "Tid:" + tid + ", Name:"
     for (i in curLine..lines.size) {
         if (lines[i].startsWith(tidTag)) {
             tname = lines[i].trimLeft(tidTag)
@@ -310,7 +324,7 @@ private func extractDataFromLog(content: String): HashMap<String, String> {
         }
     }
     if (curLine == -1) {
-        return cpuUsageMap
+        cpuUsageMap
     }
 
     curLine = curLine + 1
