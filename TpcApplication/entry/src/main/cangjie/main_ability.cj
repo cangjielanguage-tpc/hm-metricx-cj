@@ -14,10 +14,14 @@ import ohos_app_cangjie_hm_metricx_cj.storage.*
 import ohos_app_cangjie_hm_metricx_cj.battery.*
 import ohos_app_cangjie_hm_metricx_cj.cpu.*
 import ohos_app_cangjie_hm_metricx_cj.memory.*
+import ohos_app_cangjie_hm_metricx_cj.laggy.*
 import encoding.json
 import encoding.json.JsonValue
 import std.fs.*
 import ohos.hilog.*
+import ohos.base.BusinessException
+import tpc.UIKit.UIContext.fromUIContextBase
+import tpc.UIKit.UIContext.*
 
 let ENTRYABILITY_REGISTER_RESULT = UIAbility.registerCreator("EntryAbility", {=> EntryAbility()})
 
@@ -49,6 +53,18 @@ class EntryAbility <: UIAbility {
     public override func onWindowStageCreate(windowStage: window.WindowStage): Unit {
         windowStage.loadContent("pages/index", {err, data => ()})
         initPageEventHandle(windowStage, {data =>})
+        windowStage.getMainWindow(
+            {
+                err: ?BusinessException, data: ? window.Window =>
+                    match (data) {
+                        case Some(x) => initLaggyHandle(this.context.getApplicationContext(),
+                                                        fromUIContextBase(x.getUIContext()),
+                                                        10.0, 10, {data =>})
+                                        AppLog.info("initLaggyHandle")
+                        case None => AppLog.info("initLaggyHandle error")
+                    }
+            }
+        )
     }
 
     public override func onWindowStageDestroy(): Unit {
