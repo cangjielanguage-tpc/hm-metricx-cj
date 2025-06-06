@@ -42,7 +42,7 @@ public class CrashInfo {
     private var dumpOnOOMPathValue: ?String = None
     private var appVersionValue: ?String = None
 
-    mut prop timestamp: ?String {
+    public mut prop timestamp: ?String {
         get() {
             timestampValue
         }
@@ -51,7 +51,7 @@ public class CrashInfo {
         }
     }
 
-    mut prop pid: ?String {
+    public mut prop pid: ?String {
         get() {
             pidValue
         }
@@ -60,7 +60,7 @@ public class CrashInfo {
         }
     }
 
-    mut prop pname: ?String {
+    public mut prop pname: ?String {
         get() {
             pnameValue
         }
@@ -69,7 +69,7 @@ public class CrashInfo {
         }
     }
 
-    mut prop stacktrace: ?String {
+    public mut prop stacktrace: ?String {
         get() {
             stacktraceValue
         }
@@ -78,7 +78,7 @@ public class CrashInfo {
         }
     }
 
-    mut prop hilog: ?String {
+    public mut prop hilog: ?String {
         get() {
             hilogValue
         }
@@ -87,7 +87,7 @@ public class CrashInfo {
         }
     }
 
-    mut prop tid: ?String {
+    public mut prop tid: ?String {
         get() {
             tidValue
         }
@@ -96,7 +96,7 @@ public class CrashInfo {
         }
     }
 
-    mut prop limits: ?String {
+    public mut prop limits: ?String {
         get() {
             limitsValue
         }
@@ -105,7 +105,7 @@ public class CrashInfo {
         }
     }
 
-    mut prop fds: ?HashMap<String, String> {
+    public mut prop fds: ?HashMap<String, String> {
         get() {
             fdsValue
         }
@@ -114,7 +114,7 @@ public class CrashInfo {
         }
     }
 
-    mut prop tname: ?String {
+    public mut prop tname: ?String {
         get() {
             tnameValue
         }
@@ -123,7 +123,7 @@ public class CrashInfo {
         }
     }
 
-    mut prop threads: ?String {
+    public mut prop threads: ?String {
         get() {
             threadsValue
         }
@@ -132,7 +132,7 @@ public class CrashInfo {
         }
     }
 
-    mut prop crashLogPath: ?String {
+    public mut prop crashLogPath: ?String {
         get() {
             crashLogPathValue
         }
@@ -141,7 +141,7 @@ public class CrashInfo {
         }
     }
 
-    mut prop extraInfo: ?JsonValue {
+    public mut prop extraInfo: ?JsonValue {
         get() {
             extraInfoValue
         }
@@ -150,7 +150,7 @@ public class CrashInfo {
         }
     }
 
-    mut prop dumpOnOOMPath: ?String {
+    public mut prop dumpOnOOMPath: ?String {
         get() {
             dumpOnOOMPathValue
         }
@@ -159,7 +159,7 @@ public class CrashInfo {
         }
     }
 
-    mut prop appVersion: ?String {
+    public mut prop appVersion: ?String {
         get() {
             appVersionValue
         }
