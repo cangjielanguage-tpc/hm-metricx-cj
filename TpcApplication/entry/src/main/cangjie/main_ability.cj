@@ -59,7 +59,7 @@ class EntryAbility <: UIAbility {
                     match (data) {
                         case Some(x) => initLaggyHandle(this.context.getApplicationContext(),
                                                         fromUIContextBase(x.getUIContext()),
-                                                        10.0, 10, {data =>})
+                                                        10, 10, {data =>})
                                         AppLog.info("initLaggyHandle")
                         case None => AppLog.info("initLaggyHandle error")
                     }

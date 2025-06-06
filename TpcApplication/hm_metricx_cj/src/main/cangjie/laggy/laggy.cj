@@ -10,10 +10,12 @@ import tpc.AbilityKit.AbilityLifecycleCallback
 import tpc.UIKit.arkui_node.{FrameNode, ComponentContent}
 import tpc.UIKit.Observer.*
 import tpc.UIKit.component_interop.*
+import tpc.ArkGraphics2D.displaySync as displaySync
 import tpc.ArkGraphics2D.displaySync.*
 import tpc.UIKit.window
 import tpc.AbilityKit.UIAbility
 import std.collection.*
+import std.time.*
 import encoding.json.*
 import ohos.ark_interop.JSObject
 import ohos.ark_interop.JSString
@@ -29,13 +31,14 @@ var timeBegain: Float64 = 0.0
 var currentPageName = "mainPage"
 var isFirstCallBack = true
 var isComplite = false
-var maxResponsesTime = 0.0
+var maxResponsesTime = 0
 var maxSize = 0
+var sync = displaySync.create()
 
 public class ResponseEvent{
     var pageName = ""
     var technologyStack = "Native"
-    var responseTime = 0.0
+    var responseTime = 0
     var descriptionID = ""
     var nodeType = ""
     var viewTouchID = ""
@@ -94,10 +97,9 @@ public func syncCallBack(info: IntervalInfo)
         return
     }
     var timeEnd = Float64(info.timestamp)
-    var sync = create()
-    sync.off(OnOffType.DS_FRAME)
     var event = eventMap[timeBegain]
-    if (timeEnd - timeBegain > maxResponsesTime) {
+    var cost = ((timeEnd - timeBegain) * Duration.microsecond).toMicroseconds()
+    if (cost > maxResponsesTime) {
         var jsObj = event.ToJsonValue()
         uploadLaggyinfo(jsObj)
         if (laggyMap.contains(currentPageName)) {
@@ -110,6 +112,8 @@ public func syncCallBack(info: IntervalInfo)
             isComplite = true
         }
     }
+    sync.stop()
+    sync.off(OnOffType.DS_FRAME)
     isFirstCallBack = true
 }
 
@@ -139,6 +143,12 @@ public func didClickCallBack(event: ClickEventEnhanced, node: ?FrameNode)
     } catch (e: NoneValueException) {
         println(e.toString())
     }
+    eventMap.put(timeBegain, response)
+    if (laggyMap.contains(currentPageName)) {
+        laggyMap[currentPageName].touchTimes += 1
+    }
+    sync.on(displaySync.OnOffType.DS_FRAME, DisplaySyncCallBack(syncCallBack))
+    sync.start()
 }
 
 public func navDestinationSwitchCallBack(info:NavDestinationSwitchInfo)
@@ -190,7 +200,7 @@ let abilityLifecycleCallback: AbilityLifecycleCallback = AbilityLifecycleCallbac
 )
 
 public func initLaggyHandle(applicationcontext: ApplicationContext, uiContext: UIContext,
-                            maxTime: Float64, maxArraySize: Int64, reportLaggyInfo: (data: JsonObject) -> Unit)
+                            maxTime: Int64, maxArraySize: Int64, reportLaggyInfo: (data: JsonObject) -> Unit)
 {
     uploadLaggyinfo = reportLaggyInfo
     maxSize = maxArraySize
