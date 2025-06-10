@@ -17,6 +17,8 @@ import std.os.posix.*
 import std.fs.*
 import std.collection.*
 import ohos.hilog.Hilog
+import tpc.ArkData.preferences
+import numeric.bigint.BigInt
 
 public open class MemoryInfo {
     private var avgMemoryValue: Int64 = 0
@@ -165,6 +167,7 @@ let pageSwitchCallback: PageSwitchCallBack = PageSwitchCallBack(
             }
         }
         doMemorySample()
+        reportMemory(pageMemoryInfo)
         pageMemoryInfo.reset()
         pageMemoryInfo.pageName = currentPageName
     }
@@ -183,31 +186,35 @@ public func getProcessMemoryInfo(): ProcessMemoryInfo {
     processMemoryInfo
 }
 
-private func getMaxMemory(): Int64 {
-    let filePath: String = uiAbility.context.cacheDir + "/memory.txt"
-    var maxMemory: Int64 = 0
+private func setMaxMemory(memoryValue: Int64): Unit {
     try {
-        if (File.exists(filePath)) {
-            let txtString = String.fromUtf8(File.readFrom(filePath))
-            if (!txtString.isEmpty()) {
-                maxMemory = Int64.parse(txtString)
+        let options = preferences.Options("Memory")
+        let dataPreferences = preferences.getPreferences(uiAbility.context, options)
+        dataPreferences.put("max", preferences.ValueType.NUMBER(Int32(memoryValue)))
+        dataPreferences.flush({err, data =>})
+    } catch (e: Exception) {
+        Hilog.info(0, "testTag", "exception : ${e.toString()}")
+        AppLog.warn(e.toString())
+    }
+}
+
+private func getMaxMemory(): Int64 {
+    var maxMemory: Int64 = -1
+    try {
+        let options = preferences.Options("Memory")
+        let dataPreferences = preferences.getPreferences(uiAbility.context, options)
+        let status: Bool = dataPreferences.has("max")
+        if (status) {
+            let val = dataPreferences.get("max", preferences.ValueType.NUMBER(0))
+            match (val) {
+                case NUMBER(v) => maxMemory = Int64(v)
+                case _ => ()
             }
         }
     } catch (e: Exception) {
         AppLog.warn(e.toString())
     }
     maxMemory
-}
-
-private func setMaxMemory(memoryValue: Int64): Unit {
-    let filePath: String = uiAbility.context.cacheDir + "/memory.txt"
-    try {
-        let memoryStr = memoryValue.toString()
-        let fileOption: OpenOption = OpenOption.CreateOrTruncate(false)
-        File.writeTo(filePath, memoryStr.toArray(), openOption: fileOption)
-    } catch (e: Exception) {
-        AppLog.warn(e.toString())
-    }
 }
 
 public func initMemoryHandler(
@@ -219,10 +226,12 @@ public func initMemoryHandler(
     reportMemory = reportMemoryInfo
     MEMOMRY_THRESHOLD = memoryThreshold
     let maxMemory: Int64 = getMaxMemory()
-    processMemoryInfo.reset()
-    processMemoryInfo.maxMemory = maxMemory
-    reportMemory(processMemoryInfo)
-    processMemoryInfo.reset()
+    if (maxMemory != -1) {
+        processMemoryInfo.reset()
+        processMemoryInfo.maxMemory = maxMemory
+        reportMemory(processMemoryInfo)
+        processMemoryInfo.reset()
+    }
     setTimeout(handleMemory, 2 * 1000, Array<String>())
     on(navDestinationSwitch, uiAbility.context, pageSwitchCallback)
 }
