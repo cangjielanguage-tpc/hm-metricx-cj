@@ -102,6 +102,13 @@ class EntryAbility <: UIAbility {
 }
 ```
 
+> ** 注意: **
+> 
+> 对ArkTS/仓颉层引发的崩溃的监控依赖系统提供的ErrorManager机制。
+> 
+> 当存在其他ErrorManager回调，并且在崩溃监控对应的回调之前执行时，可能会干扰崩溃监控的正常行为，导致收集的数据错漏等情况。
+
+
 ### 监控Freeze
 
 `hm_metricx_cj` 提供

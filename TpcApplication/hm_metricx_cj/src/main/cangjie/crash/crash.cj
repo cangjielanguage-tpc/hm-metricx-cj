@@ -382,7 +382,12 @@ private func initErrorObserver(crashInfo: CrashInfo, applicationContext: Applica
             }
         }
     )
-    ErrorManager.on("error", errorObserver)
+    let index = ErrorManager.on("error", errorObserver)
+    if (index != 0) {
+        // TODO Once ErrorManager supports "freeze" handler, this condition may need to be tweaked.
+        AppLog.warn(
+            "There are other error observers registered before crash obsverver, which may interfere with its behavior.")
+    }
 }
 
 private func writeFile(path: String, data: String) {
