@@ -16,7 +16,7 @@ import tpc.UIKit.window
 import tpc.AbilityKit.UIAbility
 import std.collection.*
 import std.time.*
-import encoding.json.*
+import stdx.encoding.json.*
 import ohos.ark_interop.JSObject
 import ohos.ark_interop.JSString
 import ohos_app_cangjie_hm_metricx_cj.*
@@ -51,18 +51,18 @@ public class ResponseEvent{
 
     public func ToJsonValue() {
         var info = HashMap<String, String>()
-        info.put("pageName", pageName)
-        info.put("technologyStack", technologyStack)
-        info.put("responseTime", responseTime.toString())
-        info.put("descriptionID", descriptionID)
-        info.put("nodeType", nodeType)
-        info.put("viewTouchID", viewTouchID)
-        info.put("touchX", touchX.toString())
-        info.put("touchY", touchY.toString())
-        info.put("hitX", hitX.toString())
-        info.put("hitY", hitY.toString())
-        info.put("hitWidth", hitWidth.toString())
-        info.put("hitHeight", hitHeight.toString())
+        info.add("pageName", pageName)
+        info.add("technologyStack", technologyStack)
+        info.add("responseTime", responseTime.toString())
+        info.add("descriptionID", descriptionID)
+        info.add("nodeType", nodeType)
+        info.add("viewTouchID", viewTouchID)
+        info.add("touchX", touchX.toString())
+        info.add("touchY", touchY.toString())
+        info.add("hitX", hitX.toString())
+        info.add("hitY", hitY.toString())
+        info.add("hitWidth", hitWidth.toString())
+        info.add("hitHeight", hitHeight.toString())
         var jsObj = JsonObject()
         jsObj.put("ResponseEvent", map2json(info))
         jsObj
@@ -80,10 +80,10 @@ public class PageResponseLaggyModel {
 
     public func ToJsonValue() {
         var info = HashMap<String, String>()
-        info.put("pageName", pageName)
-        info.put("touchTimes", touchTimes.toString())
-        info.put("laggyTimes", laggyTimes.toString())
-        info.put("laggyTimeList", laggyTimeList.toString())
+        info.add("pageName", pageName)
+        info.add("touchTimes", touchTimes.toString())
+        info.add("laggyTimes", laggyTimes.toString())
+        info.add("laggyTimeList", laggyTimeList.toString())
         var jsObj = JsonObject()
         jsObj.put("PageResponseLaggyModel", map2json(info))
         jsObj
@@ -105,9 +105,9 @@ public func syncCallBack(info: IntervalInfo)
         if (laggyMap.contains(currentPageName)) {
             var model = laggyMap[currentPageName]
             model.laggyTimes += 1
-            model.laggyTimeList.append(timeEnd - timeBegain)
+            model.laggyTimeList.add(timeEnd - timeBegain)
             if (model.laggyTimeList.size > maxSize) {
-                model.laggyTimeList.remove(0)
+                model.laggyTimeList.remove(at: 0)
             }
             isComplite = true
         }
@@ -143,7 +143,7 @@ public func didClickCallBack(event: ClickEventEnhanced, node: ?FrameNode)
     } catch (e: NoneValueException) {
         println(e.toString())
     }
-    eventMap.put(timeBegain, response)
+    eventMap.add(timeBegain, response)
     if (laggyMap.contains(currentPageName)) {
         laggyMap[currentPageName].touchTimes += 1
     }
@@ -173,7 +173,7 @@ public func navDestinationSwitchCallBack(info:NavDestinationSwitchInfo)
         var res = PageResponseLaggyModel()
         res.pageName = name
         currentPageName = name
-        laggyMap.put(name, res)
+        laggyMap.add(name, res)
     }
 }
 

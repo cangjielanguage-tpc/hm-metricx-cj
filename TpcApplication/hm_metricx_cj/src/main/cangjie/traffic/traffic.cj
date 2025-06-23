@@ -12,8 +12,7 @@ import std.time.DateTime
 import tpc.ArkData.preferences
 import tpc.ArkData.preferences.*
 import tpc.UIKit.global.setInterval
-import encoding.json.JsonObject
-import encoding.json.JsonString
+import stdx.encoding.json.*
 import std.collection.ArrayList
 import ohos_app_cangjie_hm_metricx_cj.battery.BatteryUsageInfo
 

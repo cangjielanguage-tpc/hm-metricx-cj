@@ -10,7 +10,7 @@ import tpc.PerformanceAnalysisKit.hiAppEvent.*
 import tpc.PerformanceAnalysisKit.hidebug.*
 import tpc.AbilityKit.ApplicationContext
 import tpc.AbilityKit.getRunningProcessInformation
-import encoding.json.JsonValue
+import stdx.encoding.json.*
 import std.fs.*
 import std.collection.*
 import ohos.hilog.Hilog
@@ -18,14 +18,10 @@ import tpc.CoreFileKit.fs.listFile
 import tpc.CoreFileKit.fs.dup
 import ohos.base.AppLog
 import std.convert.*
-import std.os.posix.getpid
-import encoding.json.JsonObject
-import encoding.json.JsonException
+import std.posix.getpid
 import ohos.base.nativeLog
 import ohos.base.ArrayLike
 import std.sort.stableSort
-import encoding.json.JsonArray
-import ohos.file_fs.OpenMode
 
 public class FreezeInfo {
     private var timestampValue: ?String = None
@@ -34,6 +30,7 @@ public class FreezeInfo {
     private var hilogValue: ?String = None
     private var tidValue: ?String = None
     private var tnameValue: ?String = None
+    private var extraInfoValue: ?JsonValue = None
     private var freezeLogPathValue: ?String = None
     private var cpuThreadValue: ?HashMap<String, String> = None
     private var cpuValue: ?HashMap<String, String> = None
@@ -90,6 +87,14 @@ public class FreezeInfo {
         }
         set(value) {
             tnameValue = value
+        }
+    }
+        mut prop extraInfo: ?JsonValue {
+        get() {
+            extraInfoValue
+        }
+        set(value) {
+            extraInfoValue = value
         }
     }
 
@@ -154,6 +159,7 @@ private var jsonPath: Path = Path("")
 
 public func initFreezeHandler(
     applicationContext: ApplicationContext,
+    collectFreezeInfo: () -> JsonValue,
     reportFreezeInfo: (freezeInfo: FreezeInfo) -> Unit,
     persistentDir: Path
 ): Unit {
@@ -165,13 +171,13 @@ public func initFreezeHandler(
     jsonPath = persistentFilePath
     let persistentBackFilePath = persistentDir.join("freeze-back.json")
     try {
-        if (File.exists(persistentFilePath)) {
-            File.copy(persistentFilePath, persistentBackFilePath, true)
+        if (exists(persistentFilePath)) {
+            copy(persistentFilePath, to: persistentBackFilePath,overwrite: true)
         }
     } catch (e: Exception) {
         AppLog.warn(e.toString())
     }
-    initFreezeWatcher(freezeInfo, applicationContext, reportFreezeInfo, persistentBackFilePath)
+    initFreezeWatcher(freezeInfo, applicationContext, collectFreezeInfo, reportFreezeInfo, persistentBackFilePath)
     initHilogWatcher(persistentFilePath)
     freezeInited = true
 }
@@ -179,6 +185,7 @@ public func initFreezeHandler(
 private func initFreezeWatcher(
     freezeinfo: FreezeInfo,
     applicationContext: ApplicationContext,
+    collectFreezeInfo: () -> JsonValue,
     reportFreezeInfo: (freeezeInfo: FreezeInfo) -> Unit,
     persistentFilePath: Path
 ) {
@@ -191,15 +198,15 @@ private func initFreezeWatcher(
                 return
             }
             let freezeInfo = freezeinfo
-
+            freezeInfo.extraInfo = collectFreezeInfo()
             try {
-                if (File.exists(persistentFilePath)) {
+                if (exists(persistentFilePath)) {
                     if (freezeInfo.cpuThread.isNone()) {
                         let fileContent = String.fromUtf8(File.readFrom(persistentFilePath))
                         let cpuUsageMap = extractDataFromLog(fileContent)
                         freezeInfo.cpuThread = cpuUsageMap
                     }
-                    File.delete(persistentFilePath)
+                    remove(persistentFilePath)
                 }
             } catch (e: Exception) {
                 AppLog.warn(e.toString())
@@ -231,9 +238,9 @@ private func initFreezeWatcher(
                     }
 
                     var freezeLogPath: String = eventInfo.params.get("external_log").getOrThrow().toString()
-                    freezeLogPath = freezeLogPath.trimLeft("[")
-                    freezeLogPath = freezeLogPath.trimRight("]")
-                    if (!File.exists(freezeLogPath)) {
+                    freezeLogPath = freezeLogPath.removePrefix("[")
+                    freezeLogPath = freezeLogPath.removeSuffix("]")
+                    if (!exists(freezeLogPath)) {
                         continue
                     }
                     freezeInfo.freezeLogPath = freezeLogPath
@@ -266,7 +273,7 @@ private func extractFromFreezeLog(content: String) {
     var curLine: Int64 = -1
     for (i in 0..lines.size) {
         if (lines[i].startsWith("TID = ")) {
-            tid = lines[i].trimLeft("TID = ")
+            tid = lines[i].removePrefix("TID = ")
             curLine = i
             break
         }
@@ -278,7 +285,7 @@ private func extractFromFreezeLog(content: String) {
     let tidTag: String = "Tid:" + tid + ", Name:"
     for (i in curLine..lines.size) {
         if (lines[i].startsWith(tidTag)) {
-            tname = lines[i].trimLeft(tidTag)
+            tname = lines[i].removePrefix(tidTag)
             curLine = i
             break
         }
@@ -289,7 +296,7 @@ private func extractFromFreezeLog(content: String) {
             curLine = i
             break
         }
-        stacktrace.append(lines[i])
+        stacktrace.add(lines[i])
     }
 
     let cpuTag = "Details of Processes:"
@@ -307,7 +314,7 @@ private func extractFromFreezeLog(content: String) {
             break
         }
         let dataArray = line.split(" ", removeEmpty: true)
-        cpuMap.put(dataArray[0], dataArray[1])
+        cpuMap.add(dataArray[0], dataArray[1])
     }
 
     return (tid, tname, stacktrace, cpuMap)
@@ -332,7 +339,7 @@ private func extractDataFromLog(content: String): HashMap<String, String> {
     let cpuUsageStrs = cpuUsageStr.split(",", removeEmpty: true)
     let cpuSize = cpuUsageStrs.size / 2
     for (i in 0..cpuSize) {
-        cpuUsageMap.put(cpuUsageStrs[2 * i], cpuUsageStrs[2 * i + 1])
+        cpuUsageMap.add(cpuUsageStrs[2 * i], cpuUsageStrs[2 * i + 1])
     }
     cpuUsageMap
 }
@@ -346,13 +353,13 @@ func CallbackHilogHandler(): Unit {
     let cpuThreadJson = HashMap<String, JsonValue>()
     cpuThreadUsage
         .iterator()
-        .forEach({entry => cpuThreadJson.put(entry.threadId.toString(), JsonValue.fromStr(entry.cpuUsage.toString()))})
+        .forEach({entry => cpuThreadJson.add(entry.threadId.toString(), JsonValue.fromStr(entry.cpuUsage.toString()))})
     let cpuThreadObject = JsonObject(cpuThreadJson)
 
     let obJect = JsonObject()
     obJect.put("cpuThread", cpuThreadObject)
 
-    let file = File(jsonPath, OpenOption.CreateOrTruncate(true))
+    let file = File(jsonPath, OpenMode.Write)
     file.write(obJect.toJsonString().toArray())
     file.close()
 }

@@ -9,7 +9,7 @@ import tpc.ArkGraphics2D.displaySync.{IntervalInfo, DisplaySync, create, OnOffTy
 import ohos.hilog.Hilog
 import tpc.UIKit.arkui_node.*
 import tpc.AbilityKit.common.UIAbilityContext
-import encoding.json.{JsonObject, JsonString}
+import stdx.encoding.json.{JsonObject, JsonString}
 import ohos.component.Scroll
 import tpc.UIKit.component_interop.Scroll
 import tpc.UIKit.window.{WindowStage, WindowCallbackType, WindowEventType}

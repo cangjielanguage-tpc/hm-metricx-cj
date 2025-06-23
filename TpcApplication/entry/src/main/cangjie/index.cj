@@ -1,5 +1,6 @@
 package ohos_app_cangjie_entry
 
+import ohos.hybrid_base.CJPageEntry
 import tpc.UIKit.Text
 import tpc.UIKit.Button
 import tpc.UIKit.Column
@@ -14,7 +15,6 @@ import ohos.state_manage.ViewStackProcessor
 import ohos.state_macro_manage.{HybridComponentEntry, Component}
 import ohos.hybrid_base.CJPageEntry
 import ohos.hybrid_base.HybridComponentBase
-import cj_res_entry.app
 import ohos_app_cangjie_hm_metricx_cj.*
 import ohos_app_cangjie_hm_metricx_cj.freeze.*
 import ohos_app_cangjie_hm_metricx_cj.storage.*

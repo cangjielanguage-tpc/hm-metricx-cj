@@ -10,10 +10,9 @@ import tpc.UIKit.Observer.*
 import tpc.PerformanceAnalysisKit.hidebug.*
 import tpc.UIKit.component_interop.ResourceStr
 import tpc.UIKit.global.*
-import ohos.base.AppResource
 import std.convert.*
-import encoding.json.*
-import std.os.posix.*
+import stdx.encoding.json.*
+import std.posix.*
 import std.collection.*
 
 public open class CpuInfo {
@@ -158,6 +157,8 @@ let pageSwitchCallback: PageSwitchCallBack = PageSwitchCallBack(
             } catch (e: Exception) {
                 AppLog.warn(e.toString())
             }
+            case _ => ()
+
         }
         doCpuSample()
         reportCpu(pageCpuInfo)

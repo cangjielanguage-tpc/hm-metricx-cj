@@ -150,6 +150,7 @@ public func initFreezeHandler(
 `initFreezeHandler` 需要的入参说明如下：
 
 - `applicationContext: ApplicationContext` 指定应用上下文。
+- `collectFreezeInfo: () -> JsonValue` 用于在APP发生freeze事件时，收集若干自定义的业务/系统信息(比如页面操作栈等)，以 `JsonValue` 形式返回。
 - `reportFreezeInfo: (freezeInfo: FreezeInfo) -> Unit` 用于在APP发生freeze事件时，将收集完成的freeze信息进行上报，入参为 `FreezeInfo` 类型对象。
 - `persistentDir: Path` 指定中间日志文件的持久化目录。
 
@@ -161,6 +162,7 @@ public func initFreezeHandler(
 - `hilog` Hilog日志
 - `tid` freeze线程ID
 - `tname` freeze线程名
+- `exrtaInfo` 收集的自定义的业务/系统信息
 - `freezeLogPath` 系统生成的faultlog文件路径
 - `cpuThread` 线程CPU使用率
 - `cpu` 进程CPU使用率
@@ -191,7 +193,7 @@ class EntryAbility <: UIAbility {
             case AbilityConstant.LaunchReason.START_ABILITY => AppLog.info("START_ABILITY")
             case _ => ()
         }
-        initFreezeHandler(this.context.getApplicationContext(), {data =>}, Path(this.context.cacheDir))
+        initFreezeHandler(this.context.getApplicationContext(), {=> JsonValue.fromStr("{}")}, {data =>}, Path(this.context.cacheDir))
     }
 }
 ```

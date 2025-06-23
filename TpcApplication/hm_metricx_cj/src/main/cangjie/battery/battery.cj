@@ -14,10 +14,7 @@ import tpc.BasicServicesKit.power.*
 import tpc.AbilityKit.kit_common.*
 import tpc.AbilityKit.ApplicationContextType
 import tpc.UIKit.Observer.*
-import encoding.json.JsonString
-import encoding.json.JsonObject
-import encoding.json.JsonException
-import ohos.base.AppResource
+import stdx.encoding.json.*
 import tpc.UIKit.component_interop.ResourceStr
 import std.convert.*
 import std.fs.*
@@ -328,6 +325,7 @@ let pageSwitchCallback: PageSwitchCallBack = PageSwitchCallBack(
             } catch (e: Exception) {
                 AppLog.warn(e.toString())
             }
+            case _ => ()
         }
     })
 let commonEventCallback: AsyncCallback<CommonEventData> = {

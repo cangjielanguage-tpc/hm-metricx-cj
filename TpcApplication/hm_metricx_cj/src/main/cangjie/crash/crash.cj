@@ -7,7 +7,6 @@ import ohos_app_cangjie_hm_metricx_cj.*
 import tpc.PerformanceAnalysisKit.hiAppEvent.*
 import tpc.AbilityKit.ApplicationContext
 import tpc.AbilityKit.getRunningProcessInformation
-import encoding.json.JsonValue
 import std.fs.*
 import std.collection.*
 import ohos.hilog.Hilog
@@ -15,14 +14,12 @@ import tpc.CoreFileKit.fs.listFile
 import tpc.CoreFileKit.fs.dup
 import ohos.base.AppLog
 import std.convert.*
-import encoding.json.JsonObject
-import encoding.json.JsonException
-import std.os.process.Process
-import std.os.setEnv
+import std.process.*
+import std.env.*
 import ohos.ability.ErrorManager
 import ohos.ability.ErrorObserver
-import encoding.json.JsonString
-import compress.zlib.*
+import stdx.compress.zlib.*
+import stdx.encoding.json.*
 import std.time.*
 import std.sync.*
 
@@ -248,8 +245,8 @@ public func initCrashHandler(
 }
 
 private func initOOMHandler(persistentDir: String) {
-    setEnv("cjHeapDumpOnOOM", "on")
-    setEnv("cjHeapDumpLog", persistentDir)
+    setVariable("cjHeapDumpOnOOM", "on")
+    setVariable("cjHeapDumpLog", persistentDir)
     unsafe {
         let targetFile = LibC.mallocCString(persistentDir + "/cj_OOM_pid" + Process.current.pid.toString() + ".dat")
         let zlibFile = LibC.mallocCString(persistentDir + "/cj_OOM_pid" + Process.current.pid.toString() + ".zlib")
@@ -294,7 +291,7 @@ private func initNativeSignalHandler(persistentFilePath: String, applicationCont
                 }
                 writeFile(persistentFilePath.toString(), crashInfo.toString())
                 let faultlogDir = Path("/data/log/faultlog/faultlogger")
-                if (!Directory.exists(faultlogDir)) {
+                if (!exists(faultlogDir)) {
                     AppLog.warn("No permission to access faultlog.")
                     // report at next launch in HiAppEvent callback
                     return
@@ -361,7 +358,7 @@ private func parseFDs(fds: String) {
     }
     var i = 0
     while (i < arr.size) {
-        map.put(arr[i], arr[i + 1])
+        map.add(arr[i], arr[i + 1])
         i += 2
     }
     map
@@ -402,7 +399,7 @@ private func writeFile(path: String, data: String) {
 
 private func deleteFile(path: String) {
     try {
-        File.delete(path)
+        remove(path)
     } catch (e: FSException) {
         AppLog.warn(e.toString())
     }
@@ -410,7 +407,7 @@ private func deleteFile(path: String) {
 
 private func deleteFile(path: Path) {
     try {
-        File.delete(path)
+        remove(path)
     } catch (e: FSException) {
         AppLog.warn(e.toString())
     }
@@ -429,7 +426,7 @@ private func collectLimits() {
 private func collectFDInfo() {
     let fds: HashMap<String, String> = HashMap()
     let path = Path("/proc/self/fd")
-    if (!Directory.exists(path)) {
+    if (!exists(path)) {
         return fds
     }
     try {
@@ -441,11 +438,11 @@ private func collectFDInfo() {
                 {
                     file =>
                     let fdPath = path.join(file)
-                    if (File.exists(fdPath)) {
+                    if (exists(fdPath)) {
                         let realPath = dup(Int32.parse(file)).path
-                        fds.put(fdPath.toString(), realPath)
+                        fds.add(fdPath.toString(), realPath)
                     } else {
-                        fds.put(fdPath.toString(), "unknown")
+                        fds.add(fdPath.toString(), "unknown")
                     }
                 }
             )
@@ -467,7 +464,7 @@ private func initCrashWatcher(crashinfo: CrashInfo, applicationContext: Applicat
             }
             var crashInfo = crashinfo
             var nativeCrashReported = true
-            if (File.exists(persistentFilePath)) {
+            if (exists(persistentFilePath)) {
                 nativeCrashReported = false
                 if (crashInfo.fds.isNone()) {
                     try {
@@ -497,7 +494,7 @@ private func initCrashWatcher(crashinfo: CrashInfo, applicationContext: Applicat
                         case _ => None
                     }
                     crashInfo.pid = match (eventInfo.params.get("pid")) {
-                        case Some(value) => value.toString().trimRight(".000000")
+                        case Some(value) => value.toString().removeSuffix(".000000")
                         case _ => None
                     }
                     crashInfo.stacktrace = match (eventInfo.params.get("exception")) {
@@ -513,7 +510,7 @@ private func initCrashWatcher(crashinfo: CrashInfo, applicationContext: Applicat
                         case _ => None
                     }
 
-                    if (!File.exists(crashLogPath)) {
+                    if (!exists(crashLogPath)) {
                         continue
                     }
 
@@ -528,7 +525,7 @@ private func initCrashWatcher(crashinfo: CrashInfo, applicationContext: Applicat
             }
             if (crashInfo.pid.isSome()) {
                 let dumpOnOOMPath = persistentFilePath.join("cj_OOM_pid" + crashInfo.pid.getOrThrow() + ".dat")
-                if (File.exists(dumpOnOOMPath)) {
+                if (exists(dumpOnOOMPath)) {
                     crashInfo.dumpOnOOMPath = dumpOnOOMPath.toString()
                 }
             }
@@ -559,16 +556,16 @@ private func extractFromCrashLog(lines: Array<String>, pid: ?String, threads: ?S
             break
         }
         if (line.startsWith("Module name:")) {
-            moduleName = line.trimLeft("Module name:")
+            moduleName = line.removePrefix("Module name:")
         } else if (line.startsWith("Process name:")) {
-            pname = line.trimLeft("Process name:")
+            pname = line.removePrefix("Process name:")
         } else if (line.startsWith("Tid:") && line.contains(", Name:")) {
             let arr = line.split(", ")
             if (arr.size != 2) {
                 continue
             }
-            tid = arr[0].trimLeft("Tid:")
-            tname = arr[1].trimLeft("Name:")
+            tid = arr[0].removePrefix("Tid:")
+            tname = arr[1].removePrefix("Name:")
             break
         }
     }
@@ -582,7 +579,7 @@ private func extractFromCrashLog(lines: Array<String>, pid: ?String, threads: ?S
             for (thread in arr) {
                 let prefix = tid + ":"
                 if (thread.startsWith(prefix)) {
-                    tname = thread.trimLeft(prefix)
+                    tname = thread.removePrefix(prefix)
                     break
                 }
             }
@@ -600,14 +597,14 @@ private func extractFromNativeCrashLog(lines: Array<String>) {
     var inStacktrace = false
     for (line in lines) {
         if (timestamp.isEmpty() && line.startsWith("Timestamp:")) {
-            timestamp = line.trimLeft("Timestamp:")
+            timestamp = line.removePrefix("Timestamp:")
         } else if (pid.isEmpty() && line.startsWith("Pid:")) {
-            pid = line.trimLeft("Pid:")
+            pid = line.removePrefix("Pid:")
         } else if (inHiLog) {
             hilog += line + "\n"
         } else if (line == "Reason:") {
             inStacktrace = true
-            stacktrace += line.trimLeft("Reason:")
+            stacktrace += line.removePrefix("Reason:")
         } else if (line == "Other thread info:") {
             inStacktrace = false
         } else if (line == "HiLog:") {
@@ -621,10 +618,10 @@ private func extractFromNativeCrashLog(lines: Array<String>) {
 
 private func compressFile(src: String, dest: String): Bool {
     var count: Int64 = 0
-    let srcFile: File = File(src, Open(true, false))
-    let destFile: File = File(dest, CreateOrAppend)
+    let srcFile: File = File(src, OpenMode.Read)
+    let destFile: File = File(dest, OpenMode.Append)
 
-    var tempBuf: Array<UInt8> = Array<UInt8>(1024, item: 0)
+    var tempBuf: Array<UInt8> = Array<UInt8>(1024, repeat: 0)
     var compressOutputStream: CompressOutputStream = CompressOutputStream(destFile, wrap: GzipFormat)
     while (true) {
         var readNum = srcFile.read(tempBuf)

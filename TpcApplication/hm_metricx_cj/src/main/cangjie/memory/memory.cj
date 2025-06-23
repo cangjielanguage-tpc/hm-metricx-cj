@@ -10,15 +10,13 @@ import tpc.UIKit.Observer.*
 import tpc.PerformanceAnalysisKit.hidebug.*
 import tpc.UIKit.global.*
 import tpc.UIKit.component_interop.ResourceStr
-import ohos.base.AppResource
 import std.convert.*
-import encoding.json.*
-import std.os.posix.*
+import stdx.encoding.json.*
+import std.posix.*
 import std.fs.*
 import std.collection.*
 import ohos.hilog.Hilog
 import tpc.ArkData.preferences
-import numeric.bigint.BigInt
 
 public open class MemoryInfo {
     private var avgMemoryValue: Int64 = 0
@@ -165,6 +163,7 @@ let pageSwitchCallback: PageSwitchCallBack = PageSwitchCallBack(
             } catch (e: Exception) {
                 AppLog.warn(e.toString())
             }
+            case _ => ()
         }
         doMemorySample()
         reportMemory(pageMemoryInfo)

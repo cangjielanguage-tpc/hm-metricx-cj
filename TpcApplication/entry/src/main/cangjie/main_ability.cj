@@ -15,8 +15,7 @@ import ohos_app_cangjie_hm_metricx_cj.battery.*
 import ohos_app_cangjie_hm_metricx_cj.cpu.*
 import ohos_app_cangjie_hm_metricx_cj.memory.*
 import ohos_app_cangjie_hm_metricx_cj.laggy.*
-import encoding.json
-import encoding.json.JsonValue
+import stdx.encoding.json.*
 import std.fs.*
 import ohos.hilog.*
 import ohos.base.BusinessException
@@ -29,12 +28,22 @@ class EntryAbility <: UIAbility {
     public override func onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): Unit {
         AppLog.info("Ability OnCreated.${want.abilityName}")
         match (launchParam.launchReason) {
-            case AbilityConstant.LaunchReason.START_ABILITY => AppLog.info("START_ABILITY")
+            case AbilityConstant
+                    .LaunchReason
+                    .START_ABILITY => AppLog.info("START_ABILITY")
             case _ => ()
         }
-        initCrashHandler(this.context.getApplicationContext(), {=> JsonValue.fromStr("{}")},
-            {=> unsafe { LibC.mallocCString("{}") }}, {data =>}, {data =>}, Path(this.context.cacheDir), true)
-        initFreezeHandler(this.context.getApplicationContext(), {data =>}, Path(this.context.cacheDir))
+        initCrashHandler(this
+            .context
+            .getApplicationContext(), {=> JsonValue.fromStr("{}")}, {=> unsafe { LibC.mallocCString("{}") }}, {data =>},
+            {data =>}, Path(this
+                .context
+                .cacheDir), true)
+        initFreezeHandler(this
+            .context
+            .getApplicationContext(), {=> JsonValue.fromStr("{}")}, {data =>}, Path(this
+            .context
+            .cacheDir))
         initScrollEventHandle({data =>})
         initPageEventHandle(this.context, {data =>})
         initStorageHandler({data: StorageInfo =>})
@@ -55,16 +64,15 @@ class EntryAbility <: UIAbility {
         initPageEventHandle(windowStage, {data =>})
         windowStage.getMainWindow(
             {
-                err: ?BusinessException, data: ? window.Window =>
-                    match (data) {
-                        case Some(x) => initLaggyHandle(this.context.getApplicationContext(),
-                                                        fromUIContextBase(x.getUIContext()),
-                                                        10, 10, {data =>})
-                                        AppLog.info("initLaggyHandle")
-                        case None => AppLog.info("initLaggyHandle error")
-                    }
-            }
-        )
+                err: ?BusinessException, data: ?window.Window => match (data) {
+                    case Some(x) =>
+                        initLaggyHandle(this
+                            .context
+                            .getApplicationContext(), fromUIContextBase(x.getUIContext()), 10, 10, {data =>})
+                        AppLog.info("initLaggyHandle")
+                    case None => AppLog.info("initLaggyHandle error")
+                }
+            })
     }
 
     public override func onWindowStageDestroy(): Unit {
@@ -81,6 +89,8 @@ class EntryAbility <: UIAbility {
 
     public override func onConfigurationUpdate(config: AbilityKit.Configuration): Unit {
         AppLog.info("myAbility onConfigurationUpdate: ${config.mcc}")
-        CJPageEntry.getInstance().forceRerenderAllEntry()
+        CJPageEntry
+            .getInstance()
+            .forceRerenderAllEntry()
     }
 }
