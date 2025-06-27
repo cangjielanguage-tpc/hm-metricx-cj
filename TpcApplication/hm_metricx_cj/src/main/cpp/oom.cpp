@@ -6,10 +6,12 @@
 
 #include "oom.h"
 #include "common.h"
+#include <KOOM/kwai_linker/elf_reader.h>
 #include <cstdio>
 #include <dlfcn.h>
 #include <fcntl.h>
 #include <fstream>
+#include <hilog/log.h>
 #include <inttypes.h>
 #include <iostream>
 #include <link.h>
@@ -20,14 +22,12 @@
 #include <sys/syscall.h>
 #include <sys/types.h>
 #include <unistd.h>
-#include <hilog/log.h>
-#include <KOOM/kwai_linker/elf_reader.h>
 
 #define PAGE_SHIFT 12
 #define PAGE_SIZE (1UL << PAGE_SHIFT)
 #define PAGE_MASK (~(PAGE_SIZE - 1))
 #define PAGE_START(addr) ((addr) & PAGE_MASK)
-#define PAGE_END(addr)   (PAGE_START(addr + sizeof(uintptr_t) - 1) + PAGE_SIZE)
+#define PAGE_END(addr) (PAGE_START(addr + sizeof(uintptr_t) - 1) + PAGE_SIZE)
 #define PAGE_COVER(addr) (PAGE_END(addr) - PAGE_START(addr))
 
 uintptr_t gBaseAddr = 0;
@@ -38,22 +38,22 @@ char *cjZlibFile;
 
 FILE *gFp;
 
-typedef bool (*CompressFile)(const char*, const char*);
+typedef bool (*CompressFile)(const char *, const char *);
 
 CompressFile cjCompressFile;
 
 class MutatorManager {
-    public:
+public:
     MutatorManager() {}
     ~MutatorManager() {}
-    
+
     MutatorManager(const MutatorManager &) = delete;
     MutatorManager(MutatorManager &&) = delete;
     MutatorManager &operator=(const MutatorManager &) = delete;
     MutatorManager &operator=(MutatorManager &&) = delete;
-    
+
     static MutatorManager &Instance() noexcept;
-    
+
     void StopTheWorld(bool syncGCPhase, uint8_t phase);
     void StartTheWorld() noexcept;
 };
@@ -66,25 +66,23 @@ void (*startTheWorld)(MutatorManager *);
 
 static void Noop(bool syncGCPhase, uint8_t phase) {}
 
-int replaceFunc(uintptr_t baseAddr, uintptr_t offset, void *newFunc)
-{
+int replaceFunc(uintptr_t baseAddr, uintptr_t offset, void *newFunc) {
     uintptr_t addr = baseAddr + offset;
-    
+
     int res = mprotect((void *)PAGE_START(addr), PAGE_COVER(addr), PROT_READ | PROT_WRITE);
-    
+
     if (res != 0) {
         return errno;
     }
-    
+
     *(void **)addr = newFunc;
-    
+
     __builtin___clear_cache((char *)PAGE_START(addr), (char *)PAGE_END(addr));
-    
+
     return 0;
 }
 
-static FILE *Fopen(const char *filename, const char *mode)
-{
+static FILE *Fopen(const char *filename, const char *mode) {
     if (!oomFile || std::strcmp(oomFile, filename) != 0) {
         return fopen(filename, mode);
     }
@@ -103,8 +101,7 @@ static FILE *Fopen(const char *filename, const char *mode)
     }
 }
 
-static int Fclose(FILE *fp)
-{
+static int Fclose(FILE *fp) {
     int res = fclose(fp);
     if (gFp == fp) {
         cjCompressFile(oomFile, cjZlibFile);
@@ -118,16 +115,14 @@ struct dl_iterate_data {
     dl_phdr_info info_;
 };
 
-int dl_iterate_phdr_wrapper(int (*__callback)(struct dl_phdr_info *, size_t, void *), void *__data)
-{
+int dl_iterate_phdr_wrapper(int (*__callback)(struct dl_phdr_info *, size_t, void *), void *__data) {
     if (dl_iterate_phdr) {
         return dl_iterate_phdr(__callback, __data);
     }
     return 0;
 }
 
-static int dl_iterate_callback(dl_phdr_info *info, size_t size, void *data)
-{
+static int dl_iterate_callback(dl_phdr_info *info, size_t size, void *data) {
     auto target = reinterpret_cast<dl_iterate_data *>(data);
     if (info->dlpi_addr != 0 && strstr(info->dlpi_name, target->info_.dlpi_name)) {
         target->info_.dlpi_name = info->dlpi_name;
@@ -139,16 +134,14 @@ static int dl_iterate_callback(dl_phdr_info *info, size_t size, void *data)
     return 0;
 }
 
-void *Dlopen(const char* libName, int flags)
-{
+void *Dlopen(const char *libName, int flags) {
     auto *data = new dl_iterate_data();
     data->info_.dlpi_name = libName;
     dl_iterate_phdr_wrapper(dl_iterate_callback, data);
     return data;
 }
 
-int Dlclose(void *handle)
-{
+int Dlclose(void *handle) {
     delete (dl_iterate_data *)handle;
     return 0;
 }
@@ -157,12 +150,12 @@ void *Dlsym(void *handle, const char *name) {
     if (!handle) {
         return nullptr;
     }
-    
+
     auto *data = (dl_iterate_data *)handle;
     if (!data->info_.dlpi_name || data->info_.dlpi_name[0] != '/') {
         return nullptr;
     }
-    
+
     kwai::linker::ElfReader elf_reader(std::make_shared<kwai::linker::FileElfWrapper>(data->info_.dlpi_name));
     if (!elf_reader.Init()) {
         return nullptr;
@@ -171,70 +164,73 @@ void *Dlsym(void *handle, const char *name) {
 }
 
 extern "C" {
-int8_t InitOOMHandler(const char *targetFile, const char *zlibFile, CompressFile compressFile)
-{
+int8_t InitOOMHandler(const char *targetFile, const char *zlibFile, CompressFile compressFile) {
     char line[512];
     FILE *fp;
     uintptr_t baseAddr = 0;
     uintptr_t addr;
-    
+
     if (NULL == (fp = fopen("/proc/self/maps", "r"))) {
         return FAIL;
     }
-    
+
     while (fgets(line, sizeof(line), fp)) {
-    if (NULL != strstr(line, "libcangjie-runtime.so") &&
-        sscanf(line, "%" PRIxPTR "-%*lx %*4s 00000000", &baseAddr) == 1) {
+        if (NULL != strstr(line, "libcangjie-runtime.so") &&
+            sscanf(line, "%" PRIxPTR "-%*lx %*4s 00000000", &baseAddr) == 1) {
             break;
         }
     }
     fclose(fp);
-    
+
     if (0 == baseAddr) {
         return FAIL;
     }
-    
+
     int res = replaceFunc(baseAddr, 0x12e8d8, (void *)Fopen);
-    
+
     if (res != 0) {
         return FAIL;
     }
-    
+
     res = replaceFunc(baseAddr, 0x12e908, (void *)Fclose);
-    
+
     if (res != 0) {
         return FAIL;
     }
-    
+
     void *handle = Dlopen("libcangjie-runtime.so", RTLD_NOW);
     if (!handle) {
         return FAIL;
     }
-    
-    stopTheWorld = (void (*)(MutatorManager *, bool, uint8_t))Dlsym(handle, 
-        "_ZN12MapleRuntime14MutatorManager12StopTheWorldEbNS_7GCPhaseE");
+
+    stopTheWorld = (void (*)(MutatorManager *, bool, uint8_t))Dlsym(
+        handle, "_ZN12MapleRuntime14MutatorManager12StopTheWorldEbNS_7GCPhaseE");
     if (!stopTheWorld) {
         Dlclose(handle);
         return FAIL;
     }
-    
+
     startTheWorld = (void (*)(MutatorManager *))Dlsym(handle, "_ZN12MapleRuntime14MutatorManager13StartTheWorldEv");
     if (!startTheWorld) {
         Dlclose(handle);
         return FAIL;
     }
-    
-    initMutatorManager = (MutatorManager & (*)())Dlsym(handle, "_ZN12MapleRuntime14MutatorManager8InstanceEv");
+
+    initMutatorManager = (MutatorManager & (*)()) Dlsym(handle, "_ZN12MapleRuntime14MutatorManager8InstanceEv");
     if (!initMutatorManager) {
         Dlclose(handle);
         return FAIL;
     }
-    
+
     gBaseAddr = baseAddr;
-    oomFile = new char[strlen(targetFile) + 1];
-    strcpy(oomFile, targetFile);
-    cjZlibFile = new char[strlen(zlibFile) + 1];
-    strcpy(cjZlibFile, zlibFile);
+    auto targetFileLen = strlen(targetFile);
+    oomFile = new char[targetFileLen + 1];
+    strncpy(oomFile, targetFile, targetFileLen);
+    oomFile[targetFileLen] = '\0';
+    auto zlibFileLen = strlen(zlibFile);
+    cjZlibFile = new char[zlibFileLen + 1];
+    strncpy(cjZlibFile, zlibFile, zlibFileLen);
+    cjZlibFile[zlibFileLen] = '\0';
     cjCompressFile = compressFile;
     return SUCCESS;
 }
