@@ -90,8 +90,7 @@ static FILE *Fopen(const char *filename, const char *mode) {
     stopTheWorld(&mutatorManager, false, 1);
     pid_t pid = fork();
     if (pid == 0) {
-        pid_t pid = getpid();
-        replaceFunc(gBaseAddr, 0x12e940, (void *)Noop);
+        replaceFunc(gBaseAddr, 0x11a440, (void *)Noop);
         FILE *fp = fopen(filename, mode);
         gFp = fp;
         return fp;
@@ -168,7 +167,6 @@ int8_t InitOOMHandler(const char *targetFile, const char *zlibFile, CompressFile
     char line[512];
     FILE *fp;
     uintptr_t baseAddr = 0;
-    uintptr_t addr;
 
     if (NULL == (fp = fopen("/proc/self/maps", "r"))) {
         return FAIL;
@@ -186,13 +184,13 @@ int8_t InitOOMHandler(const char *targetFile, const char *zlibFile, CompressFile
         return FAIL;
     }
 
-    int res = replaceFunc(baseAddr, 0x12e8d8, (void *)Fopen);
+    int res = replaceFunc(baseAddr, 0x119978, (void *)Fopen);
 
     if (res != 0) {
         return FAIL;
     }
 
-    res = replaceFunc(baseAddr, 0x12e908, (void *)Fclose);
+    res = replaceFunc(baseAddr, 0x119980, (void *)Fclose);
 
     if (res != 0) {
         return FAIL;

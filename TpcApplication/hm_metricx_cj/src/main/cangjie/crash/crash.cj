@@ -237,7 +237,7 @@ public func initCrashHandler(
     initErrorObserver(crashInfo, applicationContext, collectCrashInfo, persistentFilePath)
     initNativeSignalHandler(persistentFilePath.toString(), applicationContext, crashInfo.limits.getOrThrow(),
         collectNativeCrashInfo, reportNativeCrashInfo)
-    initCrashWatcher(crashInfo, applicationContext, reportCrashInfo, persistentFilePath)
+    initCrashWatcher(crashInfo, applicationContext, reportCrashInfo, persistentFilePath, persistentDir)
     if (enableDumpOnOOM) {
         initOOMHandler(persistentDir.toString())
     }
@@ -430,22 +430,20 @@ private func collectFDInfo() {
         return fds
     }
     try {
-        // somtimes stackoverflow
-        let files = listFile("/proc/self/fd")
-        files
-            .iterator()
-            .forEach(
-                {
-                    file =>
-                    let fdPath = path.join(file)
-                    if (exists(fdPath)) {
-                        let realPath = dup(Int32.parse(file)).path
-                        fds.add(fdPath.toString(), realPath)
-                    } else {
-                        fds.add(fdPath.toString(), "unknown")
-                    }
+        Directory.walk(
+            path,
+            {
+                file =>
+                let fdPath = file.path
+                if (exists(fdPath)) {
+                    let realPath = SymbolicLink.readFrom(fdPath)
+                    fds.add(fdPath.toString(), realPath.toString())
+                } else {
+                    fds.add(fdPath.toString(), "unknown")
                 }
-            )
+                true
+            }
+        )
     } catch (e: Exception) {
         AppLog.warn("collectFDInfo failed: " + e.toString())
     }
@@ -453,7 +451,7 @@ private func collectFDInfo() {
 }
 
 private func initCrashWatcher(crashinfo: CrashInfo, applicationContext: ApplicationContext,
-    reportCrashInfo: (crashInfo: CrashInfo) -> Unit, persistentFilePath: Path) {
+    reportCrashInfo: (crashInfo: CrashInfo) -> Unit, persistentFilePath: Path, persistentDir: Path) {
     let watcher = Watcher(
         "crashWatcher",
         appEventFilters: [AppEventFilter(OS, names: [APP_CRASH], eventTypes: [FAULT])],
@@ -524,7 +522,7 @@ private func initCrashWatcher(crashinfo: CrashInfo, applicationContext: Applicat
                 }
             }
             if (crashInfo.pid.isSome()) {
-                let dumpOnOOMPath = persistentFilePath.join("cj_OOM_pid" + crashInfo.pid.getOrThrow() + ".dat")
+                let dumpOnOOMPath = persistentDir.join("cj_OOM_pid" + crashInfo.pid.getOrThrow() + ".zlib")
                 if (exists(dumpOnOOMPath)) {
                     crashInfo.dumpOnOOMPath = dumpOnOOMPath.toString()
                 }
