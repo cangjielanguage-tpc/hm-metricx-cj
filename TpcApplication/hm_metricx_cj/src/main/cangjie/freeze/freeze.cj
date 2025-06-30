@@ -89,7 +89,8 @@ public class FreezeInfo {
             tnameValue = value
         }
     }
-        mut prop extraInfo: ?JsonValue {
+
+    mut prop extraInfo: ?JsonValue {
         get() {
             extraInfoValue
         }
@@ -134,10 +135,48 @@ public class FreezeInfo {
         }
     }
 
-    func toString(): String {
+    public func toString(): String {
         let jsonObj = JsonObject()
+        if (timestampValue.isSome()) {
+            jsonObj.put("timestamp", JsonString(timestampValue.getOrThrow()))
+        }
+        if (pidValue.isSome()) {
+            jsonObj.put("pid", JsonString(pidValue.getOrThrow()))
+        }
+        if (exceptionValue.isSome()) {
+            jsonObj.put("exception", JsonString(exceptionValue.getOrThrow()))
+        }
+        if (hilogValue.isSome()) {
+            jsonObj.put("hilog", JsonString(hilogValue.getOrThrow()))
+        }
+        if (tidValue.isSome()) {
+            jsonObj.put("tid", JsonString(tidValue.getOrThrow()))
+        }
+        if (tnameValue.isSome()) {
+            jsonObj.put("tname", JsonString(tnameValue.getOrThrow()))
+        }
+        if (extraInfoValue.isSome()) {
+            jsonObj.put("extraInfo", extraInfoValue.getOrThrow())
+        }
+        if (freezeLogPathValue.isSome()) {
+            jsonObj.put("freezeLogPath", JsonString(freezeLogPathValue.getOrThrow()))
+        }
         if (cpuThreadValue.isSome()) {
             jsonObj.put("cpuThread", map2json(cpuThreadValue.getOrThrow()))
+        }
+        if (cpuValue.isSome()) {
+            jsonObj.put("cpu", map2json(cpuValue.getOrThrow()))
+        }
+        if (stacktraceValue.isSome()) {
+            let arrJson = ArrayList<JsonValue>()
+            stacktraceValue
+                .getOrThrow()
+                .iterator()
+                .forEach({
+                    entry =>
+                    arrJson.add(JsonValue.fromStr(JsonString(entry).toJsonString()))
+                })
+            jsonObj.put("stacktrace", JsonArray(arrJson))
         }
         jsonObj.toString()
     }
@@ -172,7 +211,7 @@ public func initFreezeHandler(
     let persistentBackFilePath = persistentDir.join("freeze-back.json")
     try {
         if (exists(persistentFilePath)) {
-            copy(persistentFilePath, to: persistentBackFilePath,overwrite: true)
+            copy(persistentFilePath, to: persistentBackFilePath, overwrite: true)
         }
     } catch (e: Exception) {
         AppLog.warn(e.toString())

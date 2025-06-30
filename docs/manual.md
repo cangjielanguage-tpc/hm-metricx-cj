@@ -140,6 +140,7 @@ class EntryAbility <: UIAbility {
 ```text
 public func initFreezeHandler(
     applicationContext: ApplicationContext,
+    collectFreezeInfo: () -> JsonValue,
     reportFreezeInfo: (freezeInfo: FreezeInfo) -> Unit,
     persistentDir: Path
 ): Unit

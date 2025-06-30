@@ -409,5 +409,5 @@ public func destroyBatteryHandler(): Unit {
     let applicationContext = context.getApplicationContext()
     applicationContext.off(ApplicationContextType.APPLICATION_STATE_CHANGE, callback: applicationCallback)
     off(navDestinationSwitch, context, pageSwitchCallback)
-    unsubscribe(eventSubscriber)
+    unsubscribe(eventSubscriber, callback: {err,_ => })
 }

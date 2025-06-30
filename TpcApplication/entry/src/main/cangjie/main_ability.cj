@@ -39,11 +39,19 @@ class EntryAbility <: UIAbility {
             {data =>}, Path(this
                 .context
                 .cacheDir), true)
-        initFreezeHandler(this
-            .context
-            .getApplicationContext(), {=> JsonValue.fromStr("{}")}, {data =>}, Path(this
-            .context
-            .cacheDir))
+        initFreezeHandler(
+            this
+                .context
+                .getApplicationContext(),
+            {=> JsonValue.fromStr("{}")},
+            {
+                data =>
+                Hilog.info(0, "testTag", "${data.toString()}")
+            },
+            Path(this
+                .context
+                .cacheDir)
+        )
         initScrollEventHandle({data =>})
         initPageEventHandle(this.context, {data =>})
         initStorageHandler({data: StorageInfo =>})
