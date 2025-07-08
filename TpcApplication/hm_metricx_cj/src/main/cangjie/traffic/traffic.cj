@@ -20,10 +20,7 @@ import ohos.base.AppLog
 public func GetAppUid(): UInt32 {
     let flag = BundleFlag.GET_BUNDLE_INFO_WITH_APPLICATION
     let bundleInfo = bundleManager.getBundleInfoForSelf(flag)
-    let uid = bundleInfo
-        .appInfo
-        .getOrThrow()
-        .uid
+    let uid = bundleInfo.appInfo.getOrThrow().uid
     UInt32(uid)
 }
 
@@ -90,29 +87,14 @@ public class TrafficInfo {
 
     public func fromJson(jsonObj: JsonObject): TrafficInfo {
         let trafficInfo = TrafficInfo()
-        if (jsonObj
-            .get("TotalDailyTraffic")
-            .isSome()) {
-            trafficInfo.totalDailyTraffic = jsonObj
-                .get("TotalDailyTraffic")
-                .getOrThrow()
-                .toString() as Int64
+        if (jsonObj.get("TotalDailyTraffic").isSome()) {
+            trafficInfo.totalDailyTraffic = jsonObj.get("TotalDailyTraffic").getOrThrow().toString() as Int64
         }
-        if (jsonObj
-            .get("TotalTraffic")
-            .isSome()) {
-            trafficInfo.totalTraffic = jsonObj
-                .get("TotalTraffic")
-                .getOrThrow()
-                .toString() as Int64
+        if (jsonObj.get("TotalTraffic").isSome()) {
+            trafficInfo.totalTraffic = jsonObj.get("TotalTraffic").getOrThrow().toString() as Int64
         }
-        if (jsonObj
-            .get("limits")
-            .isSome()) {
-            trafficInfo.limits = jsonObj
-                .get("limits")
-                .getOrThrow()
-                .toString() as Int64
+        if (jsonObj.get("limits").isSome()) {
+            trafficInfo.limits = jsonObj.get("limits").getOrThrow().toString() as Int64
         }
         trafficInfo
     }
