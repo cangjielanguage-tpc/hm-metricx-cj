@@ -27,6 +27,7 @@ import ohos.base.AppLog
 import tpc.UIKit.component_interop.NavDestination
 import ohos.state_macro_manage.Provide
 import ohos.state_macro_manage.Builder
+import tpc.ArkWeb.webview.WebviewController
 
 @Component
 class pageOneTmp {
@@ -41,6 +42,7 @@ class pageOneTmp {
 @Component
 class Index {
     @State
+    var webviewController: WebviewController = WebviewController()
     var msg: String = "Hello"
     let arr = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 100]
     @Provide
@@ -104,7 +106,8 @@ class Index {
                         }
                     )
                 }.scrollBar(BarState.Off).width(90)
-            }.width(100).height(100).backgroundColor(0xDCDCDC).padding(top: 5.px)
+            }.width(100).height(300).padding(top: 5.px)
+//            Web(src: "https://www.baidu.com/", controller: webviewController)
         }
     }
 }
