@@ -14,6 +14,8 @@ import ohos.component.Scroll
 import tpc.UIKit.component_interop.Scroll
 import tpc.UIKit.window.{WindowStage, WindowCallbackType, WindowEventType}
 import tpc.WeatherServiceKit.weatherService.Wind
+import std.collection.AbilityKit
+import ohos.base.AppLog
 
 const NANOS_IN_SECOND = 1000000000
 const SCROLL_HITCH_COEFF = 1000
@@ -107,11 +109,21 @@ public open class FpsEventInfo {
 
     static func fromJson(jsonObject: JsonObject): FpsEventInfo {
         let fpsEventInfo = FpsEventInfo()
-        if (jsonObject.get("minFps").isSome()) {
-            fpsEventInfo.minFps = jsonObject.get("minFps").getOrThrow().toString() as Int64
+        if (jsonObject
+            .get("minFps")
+            .isSome()) {
+            fpsEventInfo.minFps = jsonObject
+                .get("minFps")
+                .getOrThrow()
+                .toString() as Int64
         }
-        if (jsonObject.get("avgFps").isSome()) {
-            fpsEventInfo.avgFps = jsonObject.get("avgFps").getOrThrow().toString() as Int64
+        if (jsonObject
+            .get("avgFps")
+            .isSome()) {
+            fpsEventInfo.avgFps = jsonObject
+                .get("avgFps")
+                .getOrThrow()
+                .toString() as Int64
         }
         fpsEventInfo
     }
@@ -124,9 +136,9 @@ public open class FpsEventInfo {
 
 // 滑动事件Fps&滑动掉帧率信息类
 public class ScrollHitchInfo <: FpsEventInfo {
-    private var frameDropRatioValue: ?Int64 = None
+    private var frameDropRatioValue: ?Float64 = None
 
-    mut prop frameDropRatio: ?Int64 {
+    mut prop frameDropRatio: ?Float64 {
         get() {
             frameDropRatioValue
         }
@@ -137,7 +149,7 @@ public class ScrollHitchInfo <: FpsEventInfo {
 
     public init() {}
 
-    public init(minFpsValue: Int64, avgFpsValue: Int64, frameDropRatioValue: Int64) {
+    public init(minFpsValue: Int64, avgFpsValue: Int64, frameDropRatioValue: Float64) {
         super(minFpsValue, avgFpsValue)
         this.frameDropRatioValue = frameDropRatioValue
     }
@@ -161,14 +173,29 @@ public class ScrollHitchInfo <: FpsEventInfo {
 
     static func fromJson(jsonObject: JsonObject): ScrollHitchInfo {
         let scrollHitchInfo = ScrollHitchInfo()
-        if (jsonObject.get("minFps").isSome()) {
-            scrollHitchInfo.minFps = jsonObject.get("minFps").getOrThrow().toString() as Int64
+        if (jsonObject
+            .get("minFps")
+            .isSome()) {
+            scrollHitchInfo.minFps = jsonObject
+                .get("minFps")
+                .getOrThrow()
+                .toString() as Int64
         }
-        if (jsonObject.get("avgFps").isSome()) {
-            scrollHitchInfo.avgFps = jsonObject.get("avgFps").getOrThrow().toString() as Int64
+        if (jsonObject
+            .get("avgFps")
+            .isSome()) {
+            scrollHitchInfo.avgFps = jsonObject
+                .get("avgFps")
+                .getOrThrow()
+                .toString() as Int64
         }
-        if (jsonObject.get("frameDropRatio").isSome()) {
-            scrollHitchInfo.frameDropRatio = jsonObject.get("frameDropRatio").getOrThrow().toString() as Int64
+        if (jsonObject
+            .get("frameDropRatio")
+            .isSome()) {
+            scrollHitchInfo.frameDropRatio = jsonObject
+                .get("frameDropRatio")
+                .getOrThrow()
+                .toString() as Float64
         }
         scrollHitchInfo
     }
@@ -189,7 +216,6 @@ public open class FpsEvent {
     protected var totalStatisticsTime: Int64 = 0
     protected var totalFrameCount: Int64 = 0
     protected var totalStatisticsTimePerSec: Int64 = 0
-    protected var totalFrameCountPerSec: Int64 = 0
     // 是否是第一帧
     protected var isFirstFrame: Bool = true
     // 重置当前Frame
@@ -199,11 +225,15 @@ public open class FpsEvent {
     }
     // 开始检测frame事件
     public func startDisplaySync() {
-        this.backDisplaySync.start()
+        this
+            .backDisplaySync
+            .start()
     }
     // 停止检测frame事件
     public func stopDisplaySync() {
-        this.backDisplaySync.stop()
+        this
+            .backDisplaySync
+            .stop()
     }
     // 重置监听事件
     public open func reset() {
@@ -213,7 +243,6 @@ public open class FpsEvent {
         this.totalStatisticsTime = 0
         this.totalFrameCount = 0
         this.totalStatisticsTimePerSec = 0
-        this.totalFrameCountPerSec = 0
     }
 }
 
@@ -225,10 +254,12 @@ public class PageFpsEvent <: FpsEvent {
     }
     // 监控指标
     private var minFps: Int64 = 0
+    private var frameInOnePer = ArrayList<Int64>()
     private var fpsEventInfo: ?FpsEventInfo = None
     public func reset() {
         super.reset()
         this.minFps = 0
+        this.frameInOnePer = ArrayList<Int64>()
         this.fpsEventInfo = None
     }
     // 监控每一帧，计算Fps
@@ -244,15 +275,17 @@ public class PageFpsEvent <: FpsEvent {
                 // avgFps
                 totalStatisticsTime += realTimeInterval
                 // minFps
-                if (totalStatisticsTimePerSec < NANOS_IN_SECOND) {
-                    totalFrameCountPerSec += 1
-                    totalStatisticsTimePerSec += realTimeInterval
-                } else {
-                    if (minFps > totalFrameCountPerSec) {
-                        minFps = totalFrameCountPerSec
+                while (!frameInOnePer.isEmpty() && frameInOnePer
+                        .get(0)
+                        .getOrThrow() < frameInfo.timestamp - NANOS_IN_SECOND) {
+                    frameInOnePer.remove(0)
+                }
+                frameInOnePer.append(frameInfo.timestamp)
+                if (totalStatisticsTime >= NANOS_IN_SECOND) {
+                    var fpsCount = frameInOnePer.size
+                    if (fpsCount < minFps || minFps == 0) {
+                        minFps = fpsCount
                     }
-                    totalFrameCountPerSec = 0
-                    totalStatisticsTimePerSec = 0
                 }
                 resetFrameInfo(frameInfo.timestamp, frameInfo.targetTimestamp)
             }
@@ -265,7 +298,7 @@ public class PageFpsEvent <: FpsEvent {
             return FpsEventInfo()
         }
         let avgFps = NANOS_IN_SECOND * totalFrameCount / totalStatisticsTime
-        if (totalStatisticsTime < NANOS_IN_SECOND) {
+        if (totalStatisticsTime < NANOS_IN_SECOND || minFps > avgFps) {
             minFps = avgFps
         }
         FpsEventInfo(minFps, avgFps)
@@ -281,12 +314,14 @@ public class ScrollFpsEvent <: FpsEvent {
     // 监控指标
     private var minFps: Int64 = 0
     private var totalFrameDropTime: Int64 = 0
+    private var frameInOnePer = ArrayList<Int64>()
     private var scrollHitchInfo: ?ScrollHitchInfo = None
     public func reset() {
         super.reset()
         this.minFps = 0
         this.totalFrameDropTime = 0
         this.scrollHitchInfo = None
+        this.frameInOnePer = ArrayList<Int64>()
     }
     // 监控每一帧，计算Fps和滑动掉帧时间
     public func frameEventListener() {
@@ -301,15 +336,17 @@ public class ScrollFpsEvent <: FpsEvent {
                 // avgFps
                 totalStatisticsTime += realTimeInterval
                 // minFps
-                if (totalStatisticsTimePerSec < NANOS_IN_SECOND) {
-                    totalFrameCountPerSec += 1
-                    totalStatisticsTimePerSec += realTimeInterval
-                } else {
-                    if (minFps > totalFrameCountPerSec) {
-                        minFps = totalFrameCountPerSec
+                while (!frameInOnePer.isEmpty() && frameInOnePer
+                        .get(0)
+                        .getOrThrow() < frameInfo.timestamp - NANOS_IN_SECOND) {
+                    frameInOnePer.remove(0)
+                }
+                frameInOnePer.append(frameInfo.timestamp)
+                if (totalStatisticsTime >= NANOS_IN_SECOND) {
+                    var fpsCount = frameInOnePer.size
+                    if (fpsCount < minFps || minFps == 0) {
+                        minFps = fpsCount
                     }
-                    totalFrameCountPerSec = 0
-                    totalStatisticsTimePerSec = 0
                 }
                 // 滑动掉帧率, 值为负时不纳入统计
                 if (targetTimestamp < frameInfo.timestamp) {
@@ -329,13 +366,13 @@ public class ScrollFpsEvent <: FpsEvent {
         if (totalStatisticsTime < NANOS_IN_SECOND) {
             minFps = avgFps
         }
-        let frameDropRatio: Int64 = SCROLL_HITCH_COEFF * totalFrameDropTime / totalStatisticsTime
+        let frameDropRatio: Float64 = Float64(SCROLL_HITCH_COEFF * totalFrameDropTime) / Float64(totalStatisticsTime)
         ScrollHitchInfo(minFps, avgFps, frameDropRatio)
     }
 }
 
 // 滑动时间监听
-public func initScrollEventHandle(reportScrollInfo: (scrollInfo: ScrollHitchInfo) -> Unit) {
+public func initScrollEventHandler(reportScrollInfo: (scrollInfo: ScrollHitchInfo) -> Unit) {
     let instance = ScrollFpsEvent.GetInstance()
     let scrollCallback1 = {
         =>
@@ -361,7 +398,7 @@ public func initScrollEventHandle(reportScrollInfo: (scrollInfo: ScrollHitchInfo
 }
 
 // 页面停留监听
-public func initPageEventHandle(uiContext: UIAbilityContext, reportFpsInfo: (fpsInfo: FpsEventInfo) -> Unit) {
+public func initPageEventHandler(uiContext: UIAbilityContext, reportFpsInfo: (fpsInfo: FpsEventInfo) -> Unit) {
     let instance = PageFpsEvent.GetInstance()
     let pageCallback1 = {
         =>
@@ -375,6 +412,7 @@ public func initPageEventHandle(uiContext: UIAbilityContext, reportFpsInfo: (fps
         reportFpsInfo(fpsInfo)
         instance.reset()
     }
+    pageCallback1()
     on(
         navDestinationSwitch,
         uiContext,
@@ -387,7 +425,7 @@ public func initPageEventHandle(uiContext: UIAbilityContext, reportFpsInfo: (fps
 }
 
 // 应用状态监控
-public func initPageEventHandle(windowStage: WindowStage, reportFpsInfo: (fpsInfo: FpsEventInfo) -> Unit) {
+public func initPageEventHandler(windowStage: WindowStage, reportFpsInfo: (fpsInfo: FpsEventInfo) -> Unit) {
     let instance = PageFpsEvent.GetInstance()
     let pageCallback1 = {
         =>

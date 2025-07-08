@@ -8,19 +8,22 @@ import tpc.AbilityKit.bundleManager.BundleFlag
 import tpc.AbilityKit.UIAbilityContext
 import tpc.NetworkKit.statistics
 import ohos.base.BusinessException
-import std.time.DateTime
+import std.time.{DateTime, month}
 import tpc.ArkData.preferences
 import tpc.ArkData.preferences.*
 import tpc.UIKit.global.setInterval
 import stdx.encoding.json.*
 import std.collection.ArrayList
-import ohos_app_cangjie_hm_metricx_cj.battery.BatteryUsageInfo
+import ohos.base.AppLog
 
 // 获取应用UID
 public func GetAppUid(): UInt32 {
     let flag = BundleFlag.GET_BUNDLE_INFO_WITH_APPLICATION
     let bundleInfo = bundleManager.getBundleInfoForSelf(flag)
-    let uid = bundleInfo.appInfo.getOrThrow().uid
+    let uid = bundleInfo
+        .appInfo
+        .getOrThrow()
+        .uid
     UInt32(uid)
 }
 
@@ -87,14 +90,29 @@ public class TrafficInfo {
 
     public func fromJson(jsonObj: JsonObject): TrafficInfo {
         let trafficInfo = TrafficInfo()
-        if (jsonObj.get("TotalDailyTraffic").isSome()) {
-            trafficInfo.totalDailyTraffic = jsonObj.get("TotalDailyTraffic").getOrThrow().toString() as Int64
+        if (jsonObj
+            .get("TotalDailyTraffic")
+            .isSome()) {
+            trafficInfo.totalDailyTraffic = jsonObj
+                .get("TotalDailyTraffic")
+                .getOrThrow()
+                .toString() as Int64
         }
-        if (jsonObj.get("TotalTraffic").isSome()) {
-            trafficInfo.totalTraffic = jsonObj.get("TotalTraffic").getOrThrow().toString() as Int64
+        if (jsonObj
+            .get("TotalTraffic")
+            .isSome()) {
+            trafficInfo.totalTraffic = jsonObj
+                .get("TotalTraffic")
+                .getOrThrow()
+                .toString() as Int64
         }
-        if (jsonObj.get("limits").isSome()) {
-            trafficInfo.limits = jsonObj.get("limits").getOrThrow().toString() as Int64
+        if (jsonObj
+            .get("limits")
+            .isSome()) {
+            trafficInfo.limits = jsonObj
+                .get("limits")
+                .getOrThrow()
+                .toString() as Int64
         }
         trafficInfo
     }
@@ -123,6 +141,8 @@ private class TrafficInfoListener {
     }
 }
 
+private var needPersistenceStorage: Bool = false
+
 public func initTrafficHandler(context: UIAbilityContext, report: (TrafficInfo) -> Unit, limits: ?Int64) {
     let instance = TrafficInfoListener.GetInstance()
     let trafficInfo = TrafficInfo()
@@ -130,35 +150,35 @@ public func initTrafficHandler(context: UIAbilityContext, report: (TrafficInfo) 
     let dataPreferences = preferences.getPreferences(context, options)
     // 从持久化存储接口取值
     if (dataPreferences.has("year")) {
-        let val = dataPreferences.get("year", NUMBER(0))
+        let val = dataPreferences.get("year", ValueType.NUMBER(0))
         match (val) {
             case NUMBER(v) => instance.year = Int64(v)
             case _ => ()
         }
     }
     if (dataPreferences.has("month")) {
-        let val = dataPreferences.get("month", NUMBER(0))
+        let val = dataPreferences.get("month", ValueType.NUMBER(0))
         match (val) {
             case NUMBER(v) => instance.month = Int64(v)
             case _ => ()
         }
     }
     if (dataPreferences.has("dayOfMonth")) {
-        let val = dataPreferences.get("dayOfMonth", NUMBER(0))
+        let val = dataPreferences.get("dayOfMonth", ValueType.NUMBER(0))
         match (val) {
             case NUMBER(v) => instance.dayOfMonth = Int64(v)
             case _ => ()
         }
     }
     if (dataPreferences.has("rxBytesAtZeroOclock")) {
-        let val = dataPreferences.get("rxBytesAtZeroOclock", NUMBER(0))
+        let val = dataPreferences.get("rxBytesAtZeroOclock", ValueType.NUMBER(0))
         match (val) {
             case NUMBER(v) => instance.rxBytesAtZeroOclock = Int64(v)
             case _ => ()
         }
     }
     if (dataPreferences.has("txBytesAtZeroOclock")) {
-        let val = dataPreferences.get("txBytesAtZeroOclock", NUMBER(0))
+        let val = dataPreferences.get("txBytesAtZeroOclock", ValueType.NUMBER(0))
         match (val) {
             case NUMBER(v) => instance.txBytesAtZeroOclock = Int64(v)
             case _ => ()
@@ -168,67 +188,78 @@ public func initTrafficHandler(context: UIAbilityContext, report: (TrafficInfo) 
         param: Array<String> =>
         let currentTime = DateTime.now() // 当前时刻时间
         let uid = GetAppUid()
-        var needPersistenceStorage: Bool = false
+        // 异步回调函数，当前只能采用回调地狱的方式
         statistics.getUidRxBytes(
             uid,
             {
-                err: ?BusinessException, data: ?Int64 => if (!err.isSome()) {
-                    instance.rxBytes = data.getOrThrow()
+                err: ?BusinessException, data: ?Int64 =>
+                if (err.isSome()) {
+                    return
                 }
+                instance.rxBytes = data.getOrThrow()
+                statistics.getUidTxBytes(
+                    uid,
+                    {
+                        err: ?BusinessException, data: ?Int64 =>
+                        if (err.isSome()) {
+                            return
+                        }
+                        instance.txBytes = data.getOrThrow()
+                        // 判断是否是程序启动后的第一次采样
+                        if (instance.isFirstSample && instance.rxBytes.isSome() && instance.txBytes.isSome()) {
+                            instance.isFirstSample = false
+                            instance.rxBytesAtStart = instance.rxBytes
+                            instance.txBytesAtStart = instance.txBytes
+                        }
+                        // 判断时间
+                        if (currentTime.hour == 0 && currentTime.minute == 0) {
+                            instance.year = currentTime.year
+                            instance.month = currentTime.month.value()
+                            instance.dayOfMonth = currentTime.dayOfMonth
+                            instance.rxBytesAtZeroOclock = instance.rxBytes
+                            instance.txBytesAtZeroOclock = instance.txBytes
+                            needPersistenceStorage = true
+                        }
+                        let isTheSameDay: Bool = instance.year != currentTime.year || instance.month !=
+                            currentTime.month.value() || instance.dayOfMonth != currentTime.dayOfMonth
+                        if (instance.rxBytesAtZeroOclock.isNone() || instance.txBytesAtZeroOclock.isNone() || isTheSameDay) {
+                            instance.year = currentTime.year
+                            instance.month = currentTime.month.value()
+                            instance.dayOfMonth = currentTime.dayOfMonth
+                            instance.rxBytesAtZeroOclock = instance.rxBytes
+                            instance.txBytesAtZeroOclock = instance.txBytes
+                            needPersistenceStorage = true
+                        }
+                        // 持久化存储
+                        if (needPersistenceStorage) {
+                            try {
+                                dataPreferences.put("year", NUMBER(Int32(instance.year.getOrThrow())))
+                                dataPreferences.put("month", NUMBER(Int32(instance.month.getOrThrow())))
+                                dataPreferences.put("dayOfMonth", NUMBER(Int32(instance.dayOfMonth.getOrThrow())))
+                                dataPreferences.put("rxBytesAtZeroOclock", NUMBER(Int32(instance.rxBytesAtZeroOclock.getOrThrow())))
+                                dataPreferences.put("txBytesAtZeroOclock", NUMBER(Int32(instance.txBytesAtZeroOclock.getOrThrow())))
+                                dataPreferences.flush({err, data => ()})
+                            } catch (e: Exception) {
+                                AppLog.warn("Permanent storage of traffic-related data failed")
+                            }
+                        }
+                        // 获取日总流量
+                        try {
+                            trafficInfo.totalDailyTraffic = (instance.rxBytes.getOrThrow() - instance.rxBytesAtZeroOclock.getOrThrow()) +
+                                (instance.txBytes.getOrThrow() - instance.txBytesAtZeroOclock.getOrThrow())
+                            trafficInfo.totalTraffic = (instance.rxBytes.getOrThrow() - instance.rxBytesAtStart.getOrThrow()) +
+                                (instance.txBytes.getOrThrow() - instance.txBytesAtStart.getOrThrow())
+                            trafficInfo.limits = limits
+                            if (trafficInfo.totalDailyTraffic.getOrThrow() > limits.getOrThrow()) {
+                                report(trafficInfo)
+                            }
+                        } catch (e: Exception) {
+                            AppLog.warn("Failed to obtain traffic data.")
+                        }
+                    }
+                )
             }
         )
-        statistics.getUidTxBytes(
-            uid,
-            {
-                err: ?BusinessException, data: ?Int64 => if (!err.isSome()) {
-                    instance.txBytes = data.getOrThrow()
-                }
-            }
-        )
-        // 判断是否是程序启动后的第一次采样
-        if (instance.isFirstSample) {
-            instance.isFirstSample = false
-            instance.rxBytesAtStart = instance.rxBytes
-            instance.txBytesAtStart = instance.txBytes
-        }
-        // 判断时间
-        if (currentTime.hour == 0 && currentTime.minute == 0) {
-            instance.year = currentTime.year
-            instance.month = currentTime.month.value()
-            instance.dayOfMonth = currentTime.dayOfMonth
-            instance.rxBytesAtZeroOclock = instance.rxBytes
-            instance.txBytesAtZeroOclock = instance.txBytes
-            needPersistenceStorage = true
-        }
-        let isTheSameDay: Bool = instance.year != currentTime.year || instance.month != currentTime.month.value() ||
-            instance.dayOfMonth != currentTime.dayOfMonth
-        if (instance.rxBytesAtZeroOclock.isNone() || instance.txBytesAtZeroOclock.isNone() || isTheSameDay) {
-            instance.year = currentTime.year
-            instance.month = currentTime.month.value()
-            instance.dayOfMonth = currentTime.dayOfMonth
-            instance.rxBytesAtZeroOclock = instance.rxBytes
-            instance.txBytesAtZeroOclock = instance.txBytes
-            needPersistenceStorage = true
-        }
-        // 持久化存储
-        if (needPersistenceStorage) {
-            dataPreferences.put("year", NUMBER(Int32(instance.year.getOrThrow())))
-            dataPreferences.put("month", NUMBER(Int32(instance.month.getOrThrow())))
-            dataPreferences.put("dayOfMonth", NUMBER(Int32(instance.dayOfMonth.getOrThrow())))
-            dataPreferences.put("rxBytesAtZeroOclock", NUMBER(Int32(instance.rxBytesAtZeroOclock.getOrThrow())))
-            dataPreferences.put("txBytesAtZeroOclock", NUMBER(Int32(instance.txBytesAtZeroOclock.getOrThrow())))
-        }
-        // 获取日总流量
-        trafficInfo.totalDailyTraffic = (instance.rxBytes.getOrThrow() - instance.rxBytesAtZeroOclock.getOrThrow()) + (instance
-            .txBytes
-            .getOrThrow() - instance.txBytesAtZeroOclock.getOrThrow())
-        trafficInfo.totalTraffic = (instance.rxBytes.getOrThrow() - instance.rxBytesAtStart.getOrThrow()) + (instance
-            .txBytes
-            .getOrThrow() - instance.txBytesAtStart.getOrThrow())
-        trafficInfo.limits = limits
-        if (trafficInfo.totalDailyTraffic.getOrThrow() > limits.getOrThrow()) {
-            report(trafficInfo)
-        }
     }
     setInterval(doTrafficSample, 1000, Array<String>())
 }
