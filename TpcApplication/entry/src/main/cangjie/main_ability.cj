@@ -33,26 +33,12 @@ class EntryAbility <: UIAbility {
                     .START_ABILITY => AppLog.info("START_ABILITY")
             case _ => ()
         }
-        initCrashHandler(this
-            .context
-            .getApplicationContext(), {=> JsonValue.fromStr("{}")}, {=> unsafe { LibC.mallocCString("{}") }}, {data =>},
-            Path(this
-                .context
-                .cacheDir), true)
-        initFreezeHandler(
-            this
-                .context
-                .getApplicationContext(),
-            {=> JsonValue.fromStr("{}")},
-            {
-                data => Hilog.info(0, "testTag", "${data.toString()}")
-            },
-            Path(this
-                .context
-                .cacheDir)
-        )
-        initScrollEventHandle({data =>})
-        initPageEventHandle(this.context, {data =>})
+        initCrashHandler(this.context.getApplicationContext(), {=> JsonValue.fromStr("{}")},
+            {=> unsafe { LibC.mallocCString("{}") }}, {data =>}, {data =>}, Path(this.context.cacheDir), true)
+        initFreezeHandler(this.context.getApplicationContext(), {=> JsonValue.fromStr("{}")}, {data =>},
+            Path(this.context.cacheDir))
+        initScrollEventHandler({data =>})
+        initTrafficHandler(this.context, {data =>})
         initStorageHandler({data: StorageInfo =>})
         initBatteryHandler(this, {data =>})
         initCpuHandler(this, {data =>})
@@ -77,7 +63,10 @@ class EntryAbility <: UIAbility {
                             .context
                             .getApplicationContext(), fromUIContextBase(x.getUIContext()), 10, 10, {data =>})
                         AppLog.info("initLaggyHandle")
+                        initScrollEventHandler(this.context, {data =>})
+                        AppLog.info("initScrollEventHandler")
                     case None => AppLog.info("initLaggyHandle error")
+                        AppLog.info("initScrollEventHandler error")
                 }
             })
     }
