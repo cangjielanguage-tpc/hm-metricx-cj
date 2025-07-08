@@ -292,7 +292,6 @@ class EntryAbility <: UIAbility {
             case AbilityConstant.LaunchReason.START_ABILITY => AppLog.info("START_ABILITY")
             case _ => ()
         }
-        initPageEventHandle(this.context, {data =>})
         initScrollEventHandler({data =>})
     }
 }
@@ -305,6 +304,14 @@ class EntryAbility <: UIAbility {
     public override func onWindowStageCreate(windowStage: window.WindowStage): Unit {
         windowStage.loadContent("pages/index", {err, data => ()})
         initPageEventHandler(windowStage, {data =>})
+        windowStage.getMainWindow(
+            {
+                err, data => match(data) {
+                    case Some(x) => initPageEventHandler(this.context, {data =>})
+                    case None => AppLog.info("initPageEventHandler error)
+                }
+            }
+        )
     }
 }
 ```
@@ -535,6 +542,16 @@ class EntryAbility <: UIAbility {
 ```
 
 ### 监控流量
+
+流量监控依赖正确配置对网络统计信息的访问权限，即需要在应用的 `module.json5` 中添加以下内容
+
+```text
+"requestPermissions": [
+    {
+        "name": "ohos.permission.GET_NETWORK_INFO"
+    }
+]
+```
 
 `hm_metricx_cj` 提供
 
