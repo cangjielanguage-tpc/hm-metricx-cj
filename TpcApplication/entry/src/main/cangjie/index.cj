@@ -106,7 +106,7 @@ class Index {
                         }
                     )
                 }.scrollBar(BarState.Off).width(90)
-            }.width(100).height(300).padding(top: 5.px)
+            }.width(100).height(300.vp).padding(top: 5.px)
 //            Web(src: "https://www.baidu.com/", controller: webviewController)
         }
     }
