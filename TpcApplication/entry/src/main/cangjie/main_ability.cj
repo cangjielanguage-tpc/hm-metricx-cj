@@ -36,7 +36,7 @@ class EntryAbility <: UIAbility {
         initCrashHandler(this
             .context
             .getApplicationContext(), {=> JsonValue.fromStr("{}")}, {=> unsafe { LibC.mallocCString("{}") }}, {data =>},
-            {data =>}, Path(this
+            Path(this
                 .context
                 .cacheDir), true)
         initFreezeHandler(
@@ -45,8 +45,7 @@ class EntryAbility <: UIAbility {
                 .getApplicationContext(),
             {=> JsonValue.fromStr("{}")},
             {
-                data =>
-                Hilog.info(0, "testTag", "${data.toString()}")
+                data => Hilog.info(0, "testTag", "${data.toString()}")
             },
             Path(this
                 .context

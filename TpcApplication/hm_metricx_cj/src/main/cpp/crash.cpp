@@ -36,11 +36,7 @@ typedef const char *(*CollectCrashInfo)();
 
 CollectCrashInfo cjCollectCrashInfo;
 
-typedef void (*ReportCrashInfo)(const char *);
-
-ReportCrashInfo cjReportCrashInfo;
-
-typedef void (*Callback)(const char *, const char *, CollectCrashInfo, ReportCrashInfo, const char *, char *);
+typedef void (*Callback)(const char *, const char *, CollectCrashInfo, const char *, char *);
 
 Callback cjcb;
 
@@ -87,7 +83,7 @@ static void CrashSignalHandler(int sig, siginfo_t *si, void *context) {
             }
         }
     }
-    cjcb(persistentFilePath, cjLimits, cjCollectCrashInfo, cjReportCrashInfo, fds.c_str(),
+    cjcb(persistentFilePath, cjLimits, cjCollectCrashInfo, fds.c_str(),
          OH_NativeBundle_GetCurrentApplicationInfo().bundleName);
     RemoveSignalHandler();
     pthread_mutex_unlock(&signalHandlerMutex);
@@ -96,7 +92,7 @@ static void CrashSignalHandler(int sig, siginfo_t *si, void *context) {
 
 extern "C" {
 int8_t InitNativeSignalHandler(const char *pFilePath, const char *limits, CollectCrashInfo collectCrashInfo,
-                               ReportCrashInfo reportCrashInfo, Callback cb) {
+                               Callback cb) {
     struct sigaction act;
     memset(&act, 0, sizeof(act));
     sigfillset(&act.sa_mask);
@@ -120,7 +116,6 @@ int8_t InitNativeSignalHandler(const char *pFilePath, const char *limits, Collec
     strncpy(cjLimits, limits, limitsLen);
     cjLimits[limitsLen] = '\0';
     cjCollectCrashInfo = collectCrashInfo;
-    cjReportCrashInfo = reportCrashInfo;
     cjcb = cb;
     return SUCCESS;
 }
