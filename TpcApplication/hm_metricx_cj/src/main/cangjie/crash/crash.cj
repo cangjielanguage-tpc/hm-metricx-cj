@@ -252,7 +252,7 @@ public func initCrashHandler(
     initErrorObserver(crashInfo, applicationContext, collectCrashInfo, persistentFilePath)
     initNativeSignalHandler(persistentFilePath.toString(), applicationContext, crashInfo.limits.getOrThrow(),
         collectNativeCrashInfo)
-    initCrashWatcher(crashInfo, applicationContext, reportCrashInfo, persistentFilePath, persistentDir)
+    initCrashWatcher(applicationContext, reportCrashInfo, persistentFilePath, persistentDir)
     if (enableDumpOnOOM) {
         initOOMHandler(persistentDir.toString())
     }
@@ -414,7 +414,7 @@ private func collectFDInfo() {
     fds
 }
 
-private func initCrashWatcher(crashinfo: CrashInfo, applicationContext: ApplicationContext,
+private func initCrashWatcher(applicationContext: ApplicationContext,
     reportCrashInfo: (crashInfo: CrashInfo) -> Unit, persistentFilePath: Path, persistentDir: Path) {
     let watcher = Watcher(
         "crashWatcher",
@@ -424,19 +424,20 @@ private func initCrashWatcher(crashinfo: CrashInfo, applicationContext: Applicat
             if (domain != OS) {
                 return
             }
-            var crashInfo = crashinfo
+            var crashInfo = CrashInfo()
             var nativeCrashReported = true
             if (exists(persistentFilePath)) {
                 nativeCrashReported = false
-                if (crashInfo.language.isNone()) {
-                    try {
-                        let jsonObj = JsonValue.fromStr(String.fromUtf8(File.readFrom(persistentFilePath))).asObject()
-                        crashInfo = CrashInfo.fromJson(jsonObj)
-                    } catch (e: JsonException) {
-                        AppLog.warn(e.toString())
-                    }
+                try {
+                    let jsonObj = JsonValue.fromStr(String.fromUtf8(File.readFrom(persistentFilePath))).asObject()
+                    crashInfo = CrashInfo.fromJson(jsonObj)
+                } catch (e: JsonException) {
+                    AppLog.warn(e.toString())
                 }
                 deleteFile(persistentFilePath)
+            }
+            else {
+                AppLog.warn("No persistent file.")
             }
             let faultlogDir = Path("/data/log/faultlog/faultlogger")
             if (!exists(faultlogDir)) {
@@ -492,11 +493,6 @@ private func initCrashWatcher(crashinfo: CrashInfo, applicationContext: Applicat
                 }
             }
             reportCrashInfo(crashInfo)
-            if (Process.current.pid.toString() == crashInfo.pid.getOrDefault({=> ""})) {
-                exit(applicationContext)
-            } else {
-                crashInfo.reset()
-            }
         }
     )
     addWatcher(watcher)
