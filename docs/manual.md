@@ -34,7 +34,6 @@ public func initCrashHandler(
     collectCrashInfo: () -> JsonValue,
     collectNativeCrashInfo: CFunc<() -> CString>,
     reportCrashInfo: (crashInfo: CrashInfo) -> Unit,
-    reportNativeCrashInfo: CFunc<(CString) -> Unit>,
     persistentDir: Path,
     enableDumpOnOOM: Bool
 ): Unit
@@ -47,12 +46,13 @@ public func initCrashHandler(
 - `collectCrashInfo: () -> JsonValue` 用于在发生ArkTS/仓颉层引发的crash时，收集若干自定义的业务/系统信息(比如页面浏览路径等)，以json形式返回。
 - `collectNativeCrashInfo: CFunc<() -> CString` 用于在发生Native层引发的crash时，收集若干自定义的业务/系统信息(比如页面浏览路径等)，以json字符串形式返回。
 - `reportCrashInfo: (crashInfo: CrashInfo) -> Unit` 用于在发生ArkTS/仓颉层引发的crash时，将收集完毕的崩溃信息进行上报，入参为 `CrashInfo` 类型对象。 
-- `reportNativeCrashInfo: CFunc<(CString) -> Unit` 用于在发生Native层引发的crash时，将收集完毕的崩溃信息进行上报，入参为包含 `CrashInfo` 信息的json字符串。
 - `persistentDir: Path` 指定中间日志文件和内存快照的持久化目录。
 - `enableDumpOnOOM: Bool` 指定是否在发生OOM时导出仓颉内存快照。
 
 `CrashInfo` 包含以下信息：
 
+- `language` 崩溃发生所处的语言层
+- `meminfo` 崩溃发生时的应用内存信息
 - `timestamp` 崩溃发生的时间戳
 - `pid` 崩溃进程ID
 - `pname` 崩溃进程名
@@ -94,7 +94,6 @@ class EntryAbility <: UIAbility {
             this.context.getApplicationContext(),
             { => JsonValue.fromStr("{}") },
             { => unsafe { LibC.mallocCString("{}") } },
-            { crashInfo => },
             { crashInfo => },
             Path(this.context.cacheDir),
             true)
