@@ -8,6 +8,7 @@
 #include "common.h"
 #include <bundle/native_interface_bundle.h>
 #include <filesystem>
+#include <fstream>
 #include <hilog/log.h>
 #include <iostream>
 #include <malloc.h>
@@ -36,7 +37,7 @@ typedef const char *(*CollectCrashInfo)();
 
 CollectCrashInfo cjCollectCrashInfo;
 
-typedef void (*Callback)(const char *, const char *, CollectCrashInfo, const char *, char *);
+typedef void (*Callback)(const char *, const char *, CollectCrashInfo, const char *, const char *, char *);
 
 Callback cjcb;
 
@@ -83,7 +84,15 @@ static void CrashSignalHandler(int sig, siginfo_t *si, void *context) {
             }
         }
     }
-    cjcb(persistentFilePath, cjLimits, cjCollectCrashInfo, fds.c_str(),
+    std::string threads = "";
+    if (std::__fs::filesystem::exists("/proc/self/tids")) {
+        std::ifstream file("/proc/self/tids");
+        if (file.is_open()) {
+            std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+            threads = content;
+        }
+    }
+    cjcb(persistentFilePath, cjLimits, cjCollectCrashInfo, fds.c_str(), threads.c_str(),
          OH_NativeBundle_GetCurrentApplicationInfo().bundleName);
     RemoveSignalHandler();
     pthread_mutex_unlock(&signalHandlerMutex);

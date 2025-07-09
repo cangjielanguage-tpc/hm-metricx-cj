@@ -290,12 +290,13 @@ private func initNativeSignalHandler(persistentFilePath: String, applicationCont
             lmts,
             collectCrashInfo,
             {
-                persistentFilePath, limits, collectCrashInfo, fds, bundleName =>
+                persistentFilePath, limits, collectCrashInfo, fds, threads, bundleName =>
                 let crashInfo = CrashInfo()
                 crashInfo.language = "CPP"
                 crashInfo.limits = limits.toString()
                 crashInfo.fds = parseFDs(fds.toString())
-                crashInfo.threads = collectThreads()
+                // sometimes invoking collectThreads will crash, so read tids in native side
+                crashInfo.threads = threads.toString()
                 let extraInfo = collectCrashInfo()
                 try {
                     crashInfo.extraInfo = JsonValue.fromStr(extraInfo.toString())
@@ -600,6 +601,6 @@ private func compressFile(src: String, dest: String): Bool {
 
 foreign func InitNativeSignalHandler(persistentFilePath: CString, limits: CString,
     collectCrashInfo: CFunc<() -> CString>,
-    cb: CFunc<(CString, CString, CFunc<() -> CString>, CString, CString) -> Unit>): Int8
+    cb: CFunc<(CString, CString, CFunc<() -> CString>, CString, CString, CString) -> Unit>): Int8
 
 foreign func InitOOMHandler(targetFile: CString, zlibFile: CString, compressFile: CFunc<(CString, CString) -> Unit>): Int8
