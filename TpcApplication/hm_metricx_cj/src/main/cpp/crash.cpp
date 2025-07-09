@@ -21,6 +21,7 @@
 #include <sys/eventfd.h>
 #include <syscall.h>
 #include <unistd.h>
+#include <sstream>
 
 typedef struct {
     int sigNum;
@@ -37,7 +38,7 @@ typedef const char *(*CollectCrashInfo)();
 
 CollectCrashInfo cjCollectCrashInfo;
 
-typedef void (*Callback)(const char *, const char *, CollectCrashInfo, const char *, const char *, char *);
+typedef void (*Callback)(const char *, const char *, CollectCrashInfo, const char *, const char *, const char *, char *);
 
 Callback cjcb;
 
@@ -58,6 +59,26 @@ int RemoveSignalHandler() {
         }
     }
     return r;
+}
+
+static std::string readFile(std::string filePath) {
+    if (std::__fs::filesystem::exists(filePath)) {
+        std::ifstream file(filePath);
+        if (file.is_open()) {
+            std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+            return content;
+        }
+    }
+    return "";
+}
+
+static std::string getVss(const std::string& s, char delimiter) {
+    std::string token;
+    std::istringstream tokenStream(s);
+    if (std::getline(tokenStream, token, delimiter)) {
+        return std::to_string(std::stoi(token) * 4);
+    }
+    return "";
 }
 
 static void CrashSignalHandler(int sig, siginfo_t *si, void *context) {
@@ -84,15 +105,11 @@ static void CrashSignalHandler(int sig, siginfo_t *si, void *context) {
             }
         }
     }
-    std::string threads = "";
-    if (std::__fs::filesystem::exists("/proc/self/tids")) {
-        std::ifstream file("/proc/self/tids");
-        if (file.is_open()) {
-            std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
-            threads = content;
-        }
-    }
-    cjcb(persistentFilePath, cjLimits, cjCollectCrashInfo, fds.c_str(), threads.c_str(),
+    std::string threads = readFile("/proc/self/tids");
+    std::string smaps_rollup = readFile("/proc/self/smaps_rollup");
+    std::string vss = "Vss:\t\t\t\t" + getVss(readFile("/proc/self/statm"), ' ') + " KB";
+    std::string meminfo = smaps_rollup + "\n" + vss;
+    cjcb(persistentFilePath, cjLimits, cjCollectCrashInfo, fds.c_str(), threads.c_str(), meminfo.c_str(),
          OH_NativeBundle_GetCurrentApplicationInfo().bundleName);
     RemoveSignalHandler();
     pthread_mutex_unlock(&signalHandlerMutex);

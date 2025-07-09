@@ -25,6 +25,7 @@ import std.sync.*
 
 public class CrashInfo {
     private var languageValue: ?String = None
+    private var meminfoValue: ?String = None
     private var timestampValue: ?String = None
     private var pidValue: ?String = None
     private var pnameValue: ?String = None
@@ -46,6 +47,15 @@ public class CrashInfo {
         }
         set(value) {
             languageValue = value
+        }
+    }
+
+    public mut prop meminfo: ?String {
+        get() {
+            meminfoValue
+        }
+        set(value) {
+            meminfoValue = value
         }
     }
 
@@ -180,6 +190,9 @@ public class CrashInfo {
         if (languageValue.isSome()) {
             jsonObj.put("language", JsonString(languageValue.getOrThrow()))
         }
+        if (meminfoValue.isSome()) {
+            jsonObj.put("meminfo", JsonString(meminfoValue.getOrThrow()))
+        }
         if (fdsValue.isSome()) {
             jsonObj.put("fds", map2json(fdsValue.getOrThrow()))
         }
@@ -200,6 +213,9 @@ public class CrashInfo {
         if (jsonObject.get("language").isSome()) {
             crashInfo.language = jsonObject.get("language").getOrThrow().toString()
         }
+        if (jsonObject.get("meminfo").isSome()) {
+            crashInfo.meminfo = jsonObject.get("meminfo").getOrThrow().toString()
+        }
         if (jsonObject.get("fds").isSome()) {
             let fields: HashMap<String, JsonValue> = jsonObject.get("fds").getOrThrow().asObject().getFields()
             crashInfo.fds = json2map(fields)
@@ -215,6 +231,7 @@ public class CrashInfo {
     }
 
     func reset() {
+        this.meminfoValue = None
         this.languageValue = None
         this.timestampValue = None
         this.pidValue = None
@@ -290,13 +307,15 @@ private func initNativeSignalHandler(persistentFilePath: String, applicationCont
             lmts,
             collectCrashInfo,
             {
-                persistentFilePath, limits, collectCrashInfo, fds, threads, bundleName =>
+                persistentFilePath, limits, collectCrashInfo, fds, threads, meminfo, bundleName =>
                 let crashInfo = CrashInfo()
                 crashInfo.language = "CPP"
                 crashInfo.limits = limits.toString()
                 crashInfo.fds = parseFDs(fds.toString())
-                // sometimes invoking collectThreads will crash, so read tids in native side
+                // sometimes invoking collectThreads will crash, so read tids at native side
                 crashInfo.threads = threads.toString()
+                // sometimes invoking collectMemInfo will crash, so read meminfo at native side
+                crashInfo.meminfo = meminfo.toString()
                 let extraInfo = collectCrashInfo()
                 try {
                     crashInfo.extraInfo = JsonValue.fromStr(extraInfo.toString())
@@ -337,6 +356,7 @@ private func initErrorObserver(crashInfo: CrashInfo, applicationContext: Applica
         onException: {
             errObject =>
             crashInfo.language = "JS"
+            crashInfo.meminfo = collectMemInfo()
             crashInfo.fds = collectFDInfo()
             crashInfo.threads = collectThreads()
             crashInfo.extraInfo = collectCrashInfo()
@@ -413,6 +433,25 @@ private func collectFDInfo() {
         AppLog.warn("collectFDInfo failed: " + e.toString())
     }
     fds
+}
+
+private func collectMemInfo() {
+    var smaps_rollup = ""
+    let rollupPath = Path("/proc/self/smaps_rollup")
+    try {
+        smaps_rollup = String.fromUtf8(File.readFrom(rollupPath))
+    } catch (e:Exception) {
+        AppLog.warn("smaps_rollup failed: " + e.toString())
+    }
+    var vss = ""
+    let statmPath = Path("/proc/self/statm")
+    try {
+        let statm = String.fromUtf8(File.readFrom(statmPath))
+        vss = "Vss:\t\t\t\t" + (Int32.tryParse(statm.split(" ", removeEmpty: true)[0]).getOrThrow() * 4).toString() + " KB"
+    } catch (e:Exception) {
+        AppLog.warn("statm failed: " + e.toString())
+    }
+    smaps_rollup + "\n" + vss
 }
 
 private func initCrashWatcher(applicationContext: ApplicationContext,
@@ -601,6 +640,6 @@ private func compressFile(src: String, dest: String): Bool {
 
 foreign func InitNativeSignalHandler(persistentFilePath: CString, limits: CString,
     collectCrashInfo: CFunc<() -> CString>,
-    cb: CFunc<(CString, CString, CFunc<() -> CString>, CString, CString, CString) -> Unit>): Int8
+    cb: CFunc<(CString, CString, CFunc<() -> CString>, CString, CString, CString, CString) -> Unit>): Int8
 
 foreign func InitOOMHandler(targetFile: CString, zlibFile: CString, compressFile: CFunc<(CString, CString) -> Unit>): Int8
