@@ -24,6 +24,7 @@ import std.time.*
 import std.sync.*
 
 public class CrashInfo {
+    private var languageValue: ?String = None
     private var timestampValue: ?String = None
     private var pidValue: ?String = None
     private var pnameValue: ?String = None
@@ -38,6 +39,15 @@ public class CrashInfo {
     private var crashLogPathValue: ?String = None
     private var dumpOnOOMPathValue: ?String = None
     private var appVersionValue: ?String = None
+
+    public mut prop language: ?String {
+        get() {
+            languageValue
+        }
+        set(value) {
+            languageValue = value
+        }
+    }
 
     public mut prop timestamp: ?String {
         get() {
@@ -167,6 +177,9 @@ public class CrashInfo {
 
     func toString(): String {
         let jsonObj = JsonObject()
+        if (languageValue.isSome()) {
+            jsonObj.put("language", JsonString(languageValue.getOrThrow()))
+        }
         if (fdsValue.isSome()) {
             jsonObj.put("fds", map2json(fdsValue.getOrThrow()))
         }
@@ -184,6 +197,9 @@ public class CrashInfo {
 
     static func fromJson(jsonObject: JsonObject): CrashInfo {
         let crashInfo = CrashInfo()
+        if (jsonObject.get("language").isSome()) {
+            crashInfo.language = jsonObject.get("language").getOrThrow().toString()
+        }
         if (jsonObject.get("fds").isSome()) {
             let fields: HashMap<String, JsonValue> = jsonObject.get("fds").getOrThrow().asObject().getFields()
             crashInfo.fds = json2map(fields)
@@ -199,6 +215,7 @@ public class CrashInfo {
     }
 
     func reset() {
+        this.languageValue = None
         this.timestampValue = None
         this.pidValue = None
         this.pnameValue = None
@@ -278,6 +295,7 @@ private func initNativeSignalHandler(persistentFilePath: String, applicationCont
             {
                 persistentFilePath, limits, collectCrashInfo, reportCrashInfo, fds, bundleName =>
                 let crashInfo = CrashInfo()
+                crashInfo.language = "CPP"
                 crashInfo.limits = limits.toString()
                 crashInfo.fds = parseFDs(fds.toString())
                 crashInfo.threads = collectThreads()
@@ -370,6 +388,7 @@ private func initErrorObserver(crashInfo: CrashInfo, applicationContext: Applica
         {errMsg: String =>},
         onException: {
             errObject =>
+            crashInfo.language = "JS"
             crashInfo.fds = collectFDInfo()
             crashInfo.threads = collectThreads()
             crashInfo.extraInfo = collectCrashInfo()
@@ -464,7 +483,7 @@ private func initCrashWatcher(crashinfo: CrashInfo, applicationContext: Applicat
             var nativeCrashReported = true
             if (exists(persistentFilePath)) {
                 nativeCrashReported = false
-                if (crashInfo.fds.isNone()) {
+                if (crashInfo.language.isNone()) {
                     try {
                         let jsonObj = JsonValue.fromStr(String.fromUtf8(File.readFrom(persistentFilePath))).asObject()
                         crashInfo = CrashInfo.fromJson(jsonObj)
