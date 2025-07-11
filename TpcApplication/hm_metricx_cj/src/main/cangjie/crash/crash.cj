@@ -6,12 +6,9 @@ package ohos_app_cangjie_hm_metricx_cj.crash
 import ohos_app_cangjie_hm_metricx_cj.*
 import tpc.PerformanceAnalysisKit.hiAppEvent.*
 import tpc.AbilityKit.ApplicationContext
-import tpc.AbilityKit.getRunningProcessInformation
 import std.fs.*
 import std.collection.*
 import ohos.hilog.Hilog
-import tpc.CoreFileKit.fs.listFile
-import tpc.CoreFileKit.fs.dup
 import ohos.base.AppLog
 import std.convert.*
 import std.process.*
@@ -398,14 +395,24 @@ private func deleteFile(path: Path) {
     }
 }
 
+private func readFile(path: Path) {
+    if (!exists(path)) {
+        return ""
+    }
+    try {
+        return String.fromUtf8(File.readFrom(path))
+    } catch (e: Exception) {
+        AppLog.warn("reading ${path} failed: " + e.toString())
+    }
+    ""
+}
+
 private func collectThreads() {
-    let path = Path("/proc/self/tids")
-    String.fromUtf8(File.readFrom(path))
+    readFile(Path("/proc/self/tids"))
 }
 
 private func collectLimits() {
-    let path = Path("/proc/self/limits")
-    String.fromUtf8(File.readFrom(path))
+    readFile(Path("/proc/self/limits"))
 }
 
 private func collectFDInfo() {
@@ -436,17 +443,12 @@ private func collectFDInfo() {
 }
 
 private func collectMemInfo() {
-    var smaps_rollup = ""
     let rollupPath = Path("/proc/self/smaps_rollup")
-    try {
-        smaps_rollup = String.fromUtf8(File.readFrom(rollupPath))
-    } catch (e:Exception) {
-        AppLog.warn("smaps_rollup failed: " + e.toString())
-    }
+    let smaps_rollup = readFile(rollupPath)
     var vss = ""
     let statmPath = Path("/proc/self/statm")
     try {
-        let statm = String.fromUtf8(File.readFrom(statmPath))
+        let statm = readFile(statmPath)
         vss = "Vss:\t\t\t\t" + (Int32.tryParse(statm.split(" ", removeEmpty: true)[0]).getOrThrow() * 4).toString() + " KB"
     } catch (e:Exception) {
         AppLog.warn("statm failed: " + e.toString())
@@ -479,10 +481,6 @@ private func initCrashWatcher(applicationContext: ApplicationContext,
             else {
                 AppLog.warn("No persistent file.")
             }
-            let faultlogDir = Path("/data/log/faultlog/faultlogger")
-            if (!exists(faultlogDir)) {
-                AppLog.warn("No permission to access faultlog.")
-            }
             for (eventGroup in appEventGroups) {
                 if (eventGroup.name != APP_CRASH) {
                     continue
@@ -503,7 +501,6 @@ private func initCrashWatcher(applicationContext: ApplicationContext,
                         case Some(value) => value.toString()
                         case _ => None
                     }
-                    AppLog.error(crashInfo.stacktrace.getOrThrow())
                     crashInfo.hilog = match (eventInfo.params.get("hilog")) {
                         case Some(value) => value.toString()
                         case _ => None
@@ -512,13 +509,13 @@ private func initCrashWatcher(applicationContext: ApplicationContext,
                         case Some(value) => value.toString()
                         case _ => None
                     }
-                    let crashLogPath: String = eventInfo.params.get("external_log").getOrThrow().toString()
+                    let crashLogPath: String = eventInfo.params.get("external_log")
+                        .getOrThrow().toString().removePrefix("[").removeSuffix("]")
                     if (!exists(crashLogPath)) {
                         continue
                     }
-
                     crashInfo.crashLogPath = crashLogPath
-                    let content = String.fromUtf8(File.readFrom(crashLogPath))
+                    let content = readFile(Path(crashLogPath))
                     let res = extractFromCrashLog(content.split("\n", removeEmpty: true), crashInfo.pid,
                         crashInfo.threads)
                     crashInfo.pname = res[0]
