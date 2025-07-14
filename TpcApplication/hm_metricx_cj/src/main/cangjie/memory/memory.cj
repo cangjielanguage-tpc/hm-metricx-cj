@@ -9,7 +9,7 @@ import tpc.BasicServicesKit.*
 import tpc.UIKit.Observer.*
 import tpc.PerformanceAnalysisKit.hidebug.*
 import tpc.UIKit.global.*
-import tpc.UIKit.component_interop.ResourceStr
+//import tpc.UIKit.component_interop.ResourceStr
 import std.convert.*
 import stdx.encoding.json.*
 import std.posix.*

@@ -19,6 +19,7 @@ import stdx.compress.zlib.*
 import stdx.encoding.json.*
 import std.time.*
 import std.sync.*
+import std.ast.Node
 
 public class CrashInfo {
     private var languageValue: ?String = None
@@ -37,6 +38,7 @@ public class CrashInfo {
     private var crashLogPathValue: ?String = None
     private var dumpOnOOMPathValue: ?String = None
     private var appVersionValue: ?String = None
+    private var rawFileValue: ?String = None
 
     public mut prop language: ?String {
         get() {
@@ -182,13 +184,43 @@ public class CrashInfo {
         }
     }
 
-    func toString(): String {
+    public mut prop rawFile: ?String {
+        get() {
+            rawFileValue
+        }
+        set(value) {
+            rawFileValue = value
+        }
+    }
+
+    public func toString(): String {
         let jsonObj = JsonObject()
         if (languageValue.isSome()) {
             jsonObj.put("language", JsonString(languageValue.getOrThrow()))
         }
         if (meminfoValue.isSome()) {
             jsonObj.put("meminfo", JsonString(meminfoValue.getOrThrow()))
+        }
+        if (timestampValue.isSome()) {
+            jsonObj.put("timestamp", JsonString(timestampValue.getOrThrow()))
+        }
+        if (pidValue.isSome()) {
+            jsonObj.put("pid", JsonString(pidValue.getOrThrow()))
+        }
+        if (pnameValue.isSome()) {
+            jsonObj.put("pname", JsonString(pnameValue.getOrThrow()))
+        }
+        if (stacktraceValue.isSome()) {
+            jsonObj.put("stacktrace", JsonString(stacktraceValue.getOrThrow()))
+        }
+        if (hilogValue.isSome()) {
+            jsonObj.put("hilog", JsonString(hilogValue.getOrThrow()))
+        }
+        if (tidValue.isSome()) {
+            jsonObj.put("tid", JsonString(tidValue.getOrThrow()))
+        }
+        if (tnameValue.isSome()) {
+            jsonObj.put("tname", JsonString(tnameValue.getOrThrow()))
         }
         if (fdsValue.isSome()) {
             jsonObj.put("fds", map2json(fdsValue.getOrThrow()))
@@ -202,28 +234,164 @@ public class CrashInfo {
         if (extraInfoValue.isSome()) {
             jsonObj.put("extraInfo", extraInfoValue.getOrThrow())
         }
+        if (crashLogPathValue.isSome()) {
+            jsonObj.put("crashLogPath", JsonString(crashLogPathValue.getOrThrow()))
+        }
+        if (dumpOnOOMPathValue.isSome()) {
+            jsonObj.put("dumpOnOOMPath", JsonString(dumpOnOOMPathValue.getOrThrow()))
+        }
+        if (appVersionValue.isSome()) {
+            jsonObj.put("appVersion", JsonString(appVersionValue.getOrThrow()))
+        }
+        if (rawFileValue.isSome()) {
+            jsonObj.put("rawFile", JsonString(rawFileValue.getOrThrow()))
+        } else {
+            AppLog.error("rawFile is  null")
+        }
         jsonObj.toString()
     }
 
-    static func fromJson(jsonObject: JsonObject): CrashInfo {
+    public static func fromJson(jsonObject: JsonObject): CrashInfo {
         let crashInfo = CrashInfo()
-        if (jsonObject.get("language").isSome()) {
-            crashInfo.language = jsonObject.get("language").getOrThrow().toString()
+        if (jsonObject
+            .get("language")
+            .isSome()) {
+            crashInfo.language = jsonObject
+                .get("language")
+                .getOrThrow()
+                .toString()
         }
-        if (jsonObject.get("meminfo").isSome()) {
-            crashInfo.meminfo = jsonObject.get("meminfo").getOrThrow().toString()
+        if (jsonObject
+            .get("meminfo")
+            .isSome()) {
+            crashInfo.meminfo = jsonObject
+                .get("meminfo")
+                .getOrThrow()
+                .toString()
         }
-        if (jsonObject.get("fds").isSome()) {
-            let fields: HashMap<String, JsonValue> = jsonObject.get("fds").getOrThrow().asObject().getFields()
+        if (jsonObject
+            .get("timestamp")
+            .isSome()) {
+            crashInfo.timestamp = jsonObject
+                .get("timestamp")
+                .getOrThrow()
+                .toString()
+        }
+        if (jsonObject
+            .get("pid")
+            .isSome()) {
+            crashInfo.pid = jsonObject
+                .get("pid")
+                .getOrThrow()
+                .toString()
+        } else {
+            AppLog.error("pid fromJson is null")
+        }
+        if (jsonObject
+            .get("pname")
+            .isSome()) {
+            crashInfo.pname = jsonObject
+                .get("pname")
+                .getOrThrow()
+                .toString()
+        }
+        if (jsonObject
+            .get("stacktrace")
+            .isSome()) {
+            crashInfo.stacktrace = jsonObject
+                .get("stacktrace")
+                .getOrThrow()
+                .toString()
+        }
+        if (jsonObject
+            .get("hilog")
+            .isSome()) {
+            crashInfo.hilog = jsonObject
+                .get("hilog")
+                .getOrThrow()
+                .toString()
+        }
+        if (jsonObject
+            .get("tid")
+            .isSome()) {
+            crashInfo.tid = jsonObject
+                .get("tid")
+                .getOrThrow()
+                .toString()
+        }
+        if (jsonObject
+            .get("tname")
+            .isSome()) {
+            crashInfo.tname = jsonObject
+                .get("tname")
+                .getOrThrow()
+                .toString()
+        }
+        if (jsonObject
+            .get("fds")
+            .isSome()) {
+            let fields: HashMap<String, JsonValue> = jsonObject
+                .get("fds")
+                .getOrThrow()
+                .asObject()
+                .getFields()
             crashInfo.fds = json2map(fields)
         }
-        if (jsonObject.get("limits").isSome()) {
-            crashInfo.limits = jsonObject.get("limits").getOrThrow().toString()
+        if (jsonObject
+            .get("limits")
+            .isSome()) {
+            crashInfo.limits = jsonObject
+                .get("limits")
+                .getOrThrow()
+                .toString()
         }
-        if (jsonObject.get("threads").isSome()) {
-            crashInfo.threads = jsonObject.get("threads").getOrThrow().toString()
+        if (jsonObject
+            .get("threads")
+            .isSome()) {
+            crashInfo.threads = jsonObject
+                .get("threads")
+                .getOrThrow()
+                .toString()
         }
-        crashInfo.extraInfo = jsonObject.get("extraInfo")
+        if (jsonObject
+            .get("threads")
+            .isSome()) {
+            crashInfo.extraInfo = jsonObject.get("extraInfo")
+        }
+        if (jsonObject
+            .get("crashLogPath")
+            .isSome()) {
+            crashInfo.crashLogPath = jsonObject
+                .get("crashLogPath")
+                .getOrThrow()
+                .toString()
+        }
+        if (jsonObject
+            .get("dumpOnOOMPath")
+            .isSome()) {
+            crashInfo.dumpOnOOMPath = jsonObject
+                .get("dumpOnOOMPath")
+                .getOrThrow()
+                .toString()
+        }
+        if (jsonObject
+            .get("appVersion")
+            .isSome()) {
+            crashInfo.appVersion = jsonObject
+                .get("appVersion")
+                .getOrThrow()
+                .toString()
+        }
+        if (jsonObject
+            .get("rawFile")
+            .isSome()) {
+            crashInfo.rawFile = jsonObject
+                .get("rawFile")
+                .getOrThrow()
+                .toString()
+        } else {
+            AppLog.error("rawFile fromJson is null")
+        }
         crashInfo
     }
 
@@ -244,6 +412,7 @@ public class CrashInfo {
         this.crashLogPathValue = None
         this.dumpOnOOMPathValue = None
         this.appVersionValue = None
+        this.rawFileValue = None
     }
 }
 
@@ -264,8 +433,9 @@ public func initCrashHandler(
     crashInfo.limits = collectLimits()
     let persistentFilePath = persistentDir.join("crash.json")
     initErrorObserver(crashInfo, applicationContext, collectCrashInfo, persistentFilePath)
-    initNativeSignalHandler(persistentFilePath.toString(), applicationContext, crashInfo.limits.getOrThrow(),
-        collectNativeCrashInfo)
+    initNativeSignalHandler(persistentFilePath.toString(), applicationContext, crashInfo
+        .limits
+        .getOrThrow(), collectNativeCrashInfo)
     initCrashWatcher(applicationContext, reportCrashInfo, persistentFilePath, persistentDir)
     if (enableDumpOnOOM) {
         initOOMHandler(persistentDir.toString())
@@ -277,8 +447,14 @@ private func initOOMHandler(persistentDir: String) {
     setVariable("cjHeapDumpOnOOM", "on")
     setVariable("cjHeapDumpLog", persistentDir)
     unsafe {
-        let targetFile = LibC.mallocCString(persistentDir + "/cj_OOM_pid" + Process.current.pid.toString() + ".dat")
-        let zlibFile = LibC.mallocCString(persistentDir + "/cj_OOM_pid" + Process.current.pid.toString() + ".zlib")
+        let targetFile = LibC.mallocCString(persistentDir + "/cj_OOM_pid" + Process
+            .current
+            .pid
+            .toString() + ".dat")
+        let zlibFile = LibC.mallocCString(persistentDir + "/cj_OOM_pid" + Process
+            .current
+            .pid
+            .toString() + ".zlib")
         if (InitOOMHandler(targetFile, zlibFile,
             {
                 src, dest => if (compressFile(src.toString(), dest.toString())) {
@@ -449,15 +625,17 @@ private func collectMemInfo() {
     let statmPath = Path("/proc/self/statm")
     try {
         let statm = readFile(statmPath)
-        vss = "Vss:\t\t\t\t" + (Int32.tryParse(statm.split(" ", removeEmpty: true)[0]).getOrThrow() * 4).toString() + " KB"
-    } catch (e:Exception) {
+        vss = "Vss:\t\t\t\t" + (Int32
+            .tryParse(statm.split(" ", removeEmpty: true)[0])
+            .getOrThrow() * 4).toString() + " KB"
+    } catch (e: Exception) {
         AppLog.warn("statm failed: " + e.toString())
     }
     smaps_rollup + "\n" + vss
 }
 
-private func initCrashWatcher(applicationContext: ApplicationContext,
-    reportCrashInfo: (crashInfo: CrashInfo) -> Unit, persistentFilePath: Path, persistentDir: Path) {
+private func initCrashWatcher(applicationContext: ApplicationContext, reportCrashInfo: (crashInfo: CrashInfo) -> Unit,
+    persistentFilePath: Path, persistentDir: Path) {
     let watcher = Watcher(
         "crashWatcher",
         appEventFilters: [AppEventFilter(OS, names: [APP_CRASH], eventTypes: [FAULT])],
@@ -471,14 +649,15 @@ private func initCrashWatcher(applicationContext: ApplicationContext,
             if (exists(persistentFilePath)) {
                 nativeCrashReported = false
                 try {
-                    let jsonObj = JsonValue.fromStr(String.fromUtf8(File.readFrom(persistentFilePath))).asObject()
+                    let jsonObj = JsonValue
+                        .fromStr(String.fromUtf8(File.readFrom(persistentFilePath)))
+                        .asObject()
                     crashInfo = CrashInfo.fromJson(jsonObj)
                 } catch (e: JsonException) {
                     AppLog.warn(e.toString())
                 }
                 deleteFile(persistentFilePath)
-            }
-            else {
+            } else {
                 AppLog.warn("No persistent file.")
             }
             for (eventGroup in appEventGroups) {
@@ -486,36 +665,57 @@ private func initCrashWatcher(applicationContext: ApplicationContext,
                     continue
                 }
                 for (eventInfo in eventGroup.appEventInfos) {
-                    if (eventInfo.params.get("external_log").isNone()) {
+                    if (eventInfo
+                        .params
+                        .get("external_log")
+                        .isNone()) {
                         continue
                     }
-                    crashInfo.timestamp = match (eventInfo.params.get("time")) {
+                    crashInfo.timestamp = match (eventInfo
+                        .params
+                        .get("time")) {
                         case Some(value) => value.toString()
                         case _ => None
                     }
-                    crashInfo.pid = match (eventInfo.params.get("pid")) {
-                        case Some(value) => value.toString().removeSuffix(".000000")
+                    crashInfo.pid = match (eventInfo
+                        .params
+                        .get("pid")) {
+                        case Some(value) => value
+                            .toString()
+                            .removeSuffix(".000000")
                         case _ => None
                     }
-                    crashInfo.stacktrace = match (eventInfo.params.get("exception")) {
+                    crashInfo.stacktrace = match (eventInfo
+                        .params
+                        .get("exception")) {
                         case Some(value) => value.toString()
                         case _ => None
                     }
-                    crashInfo.hilog = match (eventInfo.params.get("hilog")) {
+                    crashInfo.hilog = match (eventInfo
+                        .params
+                        .get("hilog")) {
                         case Some(value) => value.toString()
                         case _ => None
                     }
-                    crashInfo.appVersion = match (eventInfo.params.get("bundle_version")) {
+                    crashInfo.appVersion = match (eventInfo
+                        .params
+                        .get("bundle_version")) {
                         case Some(value) => value.toString()
                         case _ => None
                     }
-                    let crashLogPath: String = eventInfo.params.get("external_log")
-                        .getOrThrow().toString().removePrefix("[").removeSuffix("]")
+                    let crashLogPath: String = eventInfo
+                        .params
+                        .get("external_log")
+                        .getOrThrow()
+                        .toString()
+                        .removePrefix("[")
+                        .removeSuffix("]")
                     if (!exists(crashLogPath)) {
                         continue
                     }
                     crashInfo.crashLogPath = crashLogPath
                     let content = readFile(Path(crashLogPath))
+                    crashInfo.rawFile = content
                     let res = extractFromCrashLog(content.split("\n", removeEmpty: true), crashInfo.pid,
                         crashInfo.threads)
                     crashInfo.pname = res[0]
@@ -523,8 +723,12 @@ private func initCrashWatcher(applicationContext: ApplicationContext,
                     crashInfo.tname = res[2]
                 }
             }
-            if (crashInfo.pid.isSome()) {
-                let dumpOnOOMPath = persistentDir.join("cj_OOM_pid" + crashInfo.pid.getOrThrow() + ".zlib")
+            if (crashInfo
+                .pid
+                .isSome()) {
+                let dumpOnOOMPath = persistentDir.join("cj_OOM_pid" + crashInfo
+                    .pid
+                    .getOrThrow() + ".zlib")
                 if (exists(dumpOnOOMPath)) {
                     crashInfo.dumpOnOOMPath = dumpOnOOMPath.toString()
                 }
@@ -570,7 +774,9 @@ private func extractFromCrashLog(lines: Array<String>, pid: ?String, threads: ?S
     if (tid.isEmpty() && pid.isSome()) {
         tid = pid.getOrThrow()
         if (threads.isSome()) {
-            let arr = threads.getOrThrow().split("\n")
+            let arr = threads
+                .getOrThrow()
+                .split("\n")
             for (thread in arr) {
                 let prefix = tid + ":"
                 if (thread.startsWith(prefix)) {
@@ -621,7 +827,9 @@ private func compressFile(src: String, dest: String): Bool {
     while (true) {
         var readNum = srcFile.read(tempBuf)
         if (readNum > 0) {
-            compressOutputStream.write(tempBuf.slice(0, readNum).toArray())
+            compressOutputStream.write(tempBuf
+                .slice(0, readNum)
+                .toArray())
             count += readNum
         } else {
             break

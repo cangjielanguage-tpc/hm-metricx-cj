@@ -7,13 +7,13 @@ import ohos.base.{Callback1Argument}
 import tpc.UIKit.Observer.{ScrollEventInfo, NavDestinationSwitchInfo, on, ObserverListenerType}
 import tpc.ArkGraphics2D.displaySync.{IntervalInfo, DisplaySync, create, OnOffType}
 import ohos.hilog.Hilog
-import tpc.UIKit.arkui_node.*
+//import tpc.UIKit.arkui_node.*
 import tpc.AbilityKit.common.UIAbilityContext
 import stdx.encoding.json.{JsonObject, JsonString}
-import ohos.component.Scroll
-import tpc.UIKit.component_interop.Scroll
+//import ohos.component.Scroll
+//import tpc.UIKit.component_interop.Scroll
 import tpc.UIKit.window.{WindowStage, WindowCallbackType, WindowEventType}
-import tpc.WeatherServiceKit.weatherService.Wind
+//import tpc.WeatherServiceKit.weatherService.Wind
 
 const NANOS_IN_SECOND = 1000000000
 const SCROLL_HITCH_COEFF = 1000

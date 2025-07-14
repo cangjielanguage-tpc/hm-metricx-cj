@@ -58,7 +58,7 @@ class Index {
                 msg = "world"
                 sayHello()
                 //let xxx = ArrayList<Int64>(222222222222222222)
-                //crash()
+                crash()
                 //                unsafe {
                 //                    Crash()
                 //                }
@@ -116,6 +116,7 @@ func crash() {
         flag--
     }
     let qqq = xxx / flag
+
 }
 
 foreign func Crash(): Unit

@@ -1,6 +1,20 @@
 {
   "app": {
-    "signingConfigs": [],
+    "signingConfigs": [
+      {
+        "name": "default",
+        "type": "HarmonyOS",
+        "material": {
+          "certpath": "/Users/liuzheng/.ohos/config/default_TpcApplication_oTg53BBAx6nVSfQIEIiqiYo1G-AWGtP5Jm4wlxrfmmU=.cer",
+          "keyAlias": "debugKey",
+          "keyPassword": "0000001A9499160CAD3803240B7448F3AD0FAA63D4D13899AD83207B1FAACF970D9658E4E3BBD4FBA540",
+          "profile": "/Users/liuzheng/.ohos/config/default_TpcApplication_oTg53BBAx6nVSfQIEIiqiYo1G-AWGtP5Jm4wlxrfmmU=.p7b",
+          "signAlg": "SHA256withECDSA",
+          "storeFile": "/Users/liuzheng/.ohos/config/default_TpcApplication_oTg53BBAx6nVSfQIEIiqiYo1G-AWGtP5Jm4wlxrfmmU=.p12",
+          "storePassword": "0000001A6E0885D511F808B67283412E0286158BFFCF4C929F53E6A6E1C5E8D0604A7CF9B0B3F74CA3B1"
+        }
+      }
+    ],
     "products": [
       {
         "name": "default",

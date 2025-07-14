@@ -3,8 +3,8 @@
  */
 package ohos_app_cangjie_hm_metricx_cj.storage
 
-import tpc.AbilityKit.UIAbility
-import tpc.AbilityKit.ApplicationContext
+//import tpc.AbilityKit.UIAbility
+//import tpc.AbilityKit.ApplicationContext
 import tpc.CoreFileKit.storageStatistics.*
 import tpc.CoreFileKit.fs.*
 import stdx.encoding.json.*

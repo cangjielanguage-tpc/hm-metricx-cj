@@ -8,7 +8,7 @@ import tpc.AbilityKit.UIAbility
 import tpc.BasicServicesKit.*
 import tpc.UIKit.Observer.*
 import tpc.PerformanceAnalysisKit.hidebug.*
-import tpc.UIKit.component_interop.ResourceStr
+//import tpc.UIKit.component_interop.ResourceStr
 import tpc.UIKit.global.*
 import std.convert.*
 import stdx.encoding.json.*

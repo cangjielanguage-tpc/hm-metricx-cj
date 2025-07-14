@@ -10,12 +10,12 @@ import tpc.BasicServicesKit.batteryInfo.*
 import tpc.BasicServicesKit.commonEventManager.*
 import tpc.BasicServicesKit.systemDateTime.*
 import tpc.BasicServicesKit.settings.*
-import tpc.BasicServicesKit.power.*
+//import tpc.BasicServicesKit.power.*
 import tpc.AbilityKit.kit_common.*
 import tpc.AbilityKit.ApplicationContextType
 import tpc.UIKit.Observer.*
 import stdx.encoding.json.*
-import tpc.UIKit.component_interop.ResourceStr
+//import tpc.UIKit.component_interop.ResourceStr
 import std.convert.*
 import std.fs.*
 import std.io.*
@@ -407,7 +407,7 @@ public func destroyBatteryHandler(): Unit {
     reportBatteryCallback = {data: BatteryUsageInfo =>}
     let context = uiAbility.context
     let applicationContext = context.getApplicationContext()
-    applicationContext.off(ApplicationContextType.APPLICATION_STATE_CHANGE, callback: applicationCallback)
-    off(navDestinationSwitch, context, pageSwitchCallback)
-    unsubscribe(eventSubscriber, callback: {err,_ => })
+//    applicationContext.off(ApplicationContextType.APPLICATION_STATE_CHANGE, callback: applicationCallback)
+//    off(navDestinationSwitch, context, pageSwitchCallback)
+//    unsubscribe(eventSubscriber, callback: {err,_ => })
 }

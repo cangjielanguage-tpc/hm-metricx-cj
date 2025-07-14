@@ -4,18 +4,18 @@
 package ohos_app_cangjie_hm_metricx_cj.freeze
 
 import ohos_app_cangjie_hm_metricx_cj.*
-import tpc.AbilityKit.kit_common.*
-import tpc.AbilityKit.errorManager.*
+//import tpc.AbilityKit.kit_common.*
+//import tpc.AbilityKit.errorManager.*
 import tpc.PerformanceAnalysisKit.hiAppEvent.*
 import tpc.PerformanceAnalysisKit.hidebug.*
 import tpc.AbilityKit.ApplicationContext
-import tpc.AbilityKit.getRunningProcessInformation
+//import tpc.AbilityKit.getRunningProcessInformation
 import stdx.encoding.json.*
 import std.fs.*
 import std.collection.*
 import ohos.hilog.Hilog
-import tpc.CoreFileKit.fs.listFile
-import tpc.CoreFileKit.fs.dup
+//import tpc.CoreFileKit.fs.listFile
+//import tpc.CoreFileKit.fs.dup
 import ohos.base.AppLog
 import std.convert.*
 import std.posix.getpid

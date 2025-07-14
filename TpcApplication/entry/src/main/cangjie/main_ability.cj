@@ -21,6 +21,7 @@ import ohos.hilog.*
 import ohos.base.BusinessException
 import tpc.UIKit.UIContext.fromUIContextBase
 import tpc.UIKit.UIContext.*
+import tpc.UIKit.global.console
 
 let ENTRYABILITY_REGISTER_RESULT = UIAbility.registerCreator("EntryAbility", {=> EntryAbility()})
 
@@ -35,7 +36,7 @@ class EntryAbility <: UIAbility {
         }
         initCrashHandler(this
             .context
-            .getApplicationContext(), {=> JsonValue.fromStr("{}")}, {=> unsafe { LibC.mallocCString("{}") }}, {data =>},
+            .getApplicationContext(), {=> JsonValue.fromStr("{}")}, {=> unsafe { LibC.mallocCString("{}") }},{data => AppLog.error("zhangyu:" + data.toString())},
             Path(this
                 .context
                 .cacheDir), true)
