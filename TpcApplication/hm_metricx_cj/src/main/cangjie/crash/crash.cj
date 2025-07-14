@@ -37,6 +37,7 @@ public class CrashInfo {
     private var crashLogPathValue: ?String = None
     private var dumpOnOOMPathValue: ?String = None
     private var appVersionValue: ?String = None
+    private var rawFileValue: ?String = None
 
     public mut prop language: ?String {
         get() {
@@ -182,13 +183,43 @@ public class CrashInfo {
         }
     }
 
-    func toString(): String {
+    public mut prop rawFile: ?String {
+        get() {
+            rawFileValue
+        }
+        set(value) {
+            rawFileValue = value
+        }
+    }
+
+    public func toString(): String {
         let jsonObj = JsonObject()
         if (languageValue.isSome()) {
             jsonObj.put("language", JsonString(languageValue.getOrThrow()))
         }
         if (meminfoValue.isSome()) {
             jsonObj.put("meminfo", JsonString(meminfoValue.getOrThrow()))
+        }
+        if (timestampValue.isSome()) {
+            jsonObj.put("timestamp", JsonString(timestampValue.getOrThrow()))
+        }
+        if (pidValue.isSome()) {
+            jsonObj.put("pid", JsonString(pidValue.getOrThrow()))
+        }
+        if (pnameValue.isSome()) {
+            jsonObj.put("pname", JsonString(pnameValue.getOrThrow()))
+        }
+        if (stacktraceValue.isSome()) {
+            jsonObj.put("stacktrace", JsonString(stacktraceValue.getOrThrow()))
+        }
+        if (hilogValue.isSome()) {
+            jsonObj.put("hilog", JsonString(hilogValue.getOrThrow()))
+        }
+        if (tidValue.isSome()) {
+            jsonObj.put("tid", JsonString(tidValue.getOrThrow()))
+        }
+        if (tnameValue.isSome()) {
+            jsonObj.put("tname", JsonString(tnameValue.getOrThrow()))
         }
         if (fdsValue.isSome()) {
             jsonObj.put("fds", map2json(fdsValue.getOrThrow()))
@@ -202,16 +233,49 @@ public class CrashInfo {
         if (extraInfoValue.isSome()) {
             jsonObj.put("extraInfo", extraInfoValue.getOrThrow())
         }
+        if (crashLogPathValue.isSome()) {
+            jsonObj.put("crashLogPath", JsonString(crashLogPathValue.getOrThrow()))
+        }
+        if (dumpOnOOMPathValue.isSome()) {
+            jsonObj.put("dumpOnOOMPath", JsonString(dumpOnOOMPathValue.getOrThrow()))
+        }
+        if (appVersionValue.isSome()) {
+            jsonObj.put("appVersion", JsonString(appVersionValue.getOrThrow()))
+        }
+        if (rawFileValue.isSome()) {
+            jsonObj.put("rawFile", JsonString(rawFileValue.getOrThrow()))
+        }
         jsonObj.toString()
     }
 
-    static func fromJson(jsonObject: JsonObject): CrashInfo {
+    public static func fromJson(jsonObject: JsonObject): CrashInfo {
         let crashInfo = CrashInfo()
         if (jsonObject.get("language").isSome()) {
             crashInfo.language = jsonObject.get("language").getOrThrow().toString()
         }
         if (jsonObject.get("meminfo").isSome()) {
             crashInfo.meminfo = jsonObject.get("meminfo").getOrThrow().toString()
+        }
+        if (jsonObject.get("timestamp").isSome()) {
+            crashInfo.timestamp = jsonObject.get("timestamp").getOrThrow().toString()
+        }
+        if (jsonObject.get("pid").isSome()) {
+            crashInfo.pid = jsonObject.get("pid").getOrThrow().toString()
+        }
+        if (jsonObject.get("pname").isSome()) {
+            crashInfo.pname = jsonObject.get("pname").getOrThrow().toString()
+        }
+        if (jsonObject.get("stacktrace").isSome()) {
+            crashInfo.stacktrace = jsonObject.get("stacktrace").getOrThrow().toString()
+        }
+        if (jsonObject.get("hilog").isSome()) {
+            crashInfo.hilog = jsonObject.get("hilog").getOrThrow().toString()
+        }
+        if (jsonObject.get("tid").isSome()) {
+            crashInfo.tid = jsonObject.get("tid").getOrThrow().toString()
+        }
+        if (jsonObject.get("tname").isSome()) {
+            crashInfo.tname = jsonObject.get("tname").getOrThrow().toString()
         }
         if (jsonObject.get("fds").isSome()) {
             let fields: HashMap<String, JsonValue> = jsonObject.get("fds").getOrThrow().asObject().getFields()
@@ -223,7 +287,21 @@ public class CrashInfo {
         if (jsonObject.get("threads").isSome()) {
             crashInfo.threads = jsonObject.get("threads").getOrThrow().toString()
         }
-        crashInfo.extraInfo = jsonObject.get("extraInfo")
+        if (jsonObject.get("extraInfo").isSome()) {
+            crashInfo.extraInfo = jsonObject.get("extraInfo")
+        }
+        if (jsonObject.get("crashLogPath").isSome()) {
+            crashInfo.crashLogPath = jsonObject.get("crashLogPath").getOrThrow().toString()
+        }
+        if (jsonObject.get("dumpOnOOMPath").isSome()) {
+            crashInfo.dumpOnOOMPath = jsonObject.get("dumpOnOOMPath").getOrThrow().toString()
+        }
+        if (jsonObject.get("appVersion").isSome()) {
+            crashInfo.appVersion = jsonObject.get("appVersion").getOrThrow().toString()
+        }
+        if (jsonObject.get("rawFile").isSome()) {
+            crashInfo.rawFile = jsonObject.get("rawFile").getOrThrow().toString()
+        }
         crashInfo
     }
 
@@ -244,6 +322,7 @@ public class CrashInfo {
         this.crashLogPathValue = None
         this.dumpOnOOMPathValue = None
         this.appVersionValue = None
+        this.rawFileValue = None
     }
 }
 
@@ -516,6 +595,7 @@ private func initCrashWatcher(applicationContext: ApplicationContext,
                     }
                     crashInfo.crashLogPath = crashLogPath
                     let content = readFile(Path(crashLogPath))
+                    crashInfo.rawFile = content
                     let res = extractFromCrashLog(content.split("\n", removeEmpty: true), crashInfo.pid,
                         crashInfo.threads)
                     crashInfo.pname = res[0]
