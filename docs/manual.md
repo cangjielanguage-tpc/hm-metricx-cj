@@ -67,20 +67,11 @@ public func initCrashHandler(
 - `crashLogPath` 系统生成的faultlog文件路径
 - `dumpOnOOMPath` 导出的仓颉内存快照地址
 - `appVersion` 应用版本
+- `rawFile` 系统生成的faultlog文件的原始内容
 
 使用示例：
 
 i.
-在主模块的 `module.json5` 中添加权限配置：
-```text
-"requestPermissions":[
-	{
-		"name":"ohos.permission.ACCESS_ANALYTICS"
-	}
-]
-```
-
-ii.
 在主模块的 `main_ability.cj` 的 `onCreate` 回调中调用 `initCrashHandler` ：
 ```text
 class EntryAbility <: UIAbility {
