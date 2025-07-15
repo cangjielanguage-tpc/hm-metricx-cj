@@ -8,7 +8,7 @@ import tpc.AbilityKit.bundleManager.BundleFlag
 import tpc.AbilityKit.UIAbilityContext
 import tpc.NetworkKit.statistics
 import ohos.base.BusinessException
-import std.time.{DateTime, month}
+import std.time.DateTime
 import tpc.ArkData.preferences
 import tpc.ArkData.preferences.*
 import tpc.UIKit.global.setInterval

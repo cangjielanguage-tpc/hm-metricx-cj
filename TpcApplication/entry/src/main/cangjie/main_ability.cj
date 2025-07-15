@@ -15,6 +15,7 @@ import ohos_app_cangjie_hm_metricx_cj.battery.*
 import ohos_app_cangjie_hm_metricx_cj.cpu.*
 import ohos_app_cangjie_hm_metricx_cj.memory.*
 import ohos_app_cangjie_hm_metricx_cj.laggy.*
+import ohos_app_cangjie_hm_metricx_cj.traffic.*
 import stdx.encoding.json.*
 import std.fs.*
 import ohos.hilog.*
@@ -33,12 +34,26 @@ class EntryAbility <: UIAbility {
                     .START_ABILITY => AppLog.info("START_ABILITY")
             case _ => ()
         }
-        initCrashHandler(this.context.getApplicationContext(), {=> JsonValue.fromStr("{}")},
-            {=> unsafe { LibC.mallocCString("{}") }}, {data =>}, {data =>}, Path(this.context.cacheDir), true)
-        initFreezeHandler(this.context.getApplicationContext(), {=> JsonValue.fromStr("{}")}, {data =>},
-            Path(this.context.cacheDir))
+        initCrashHandler(this
+            .context
+            .getApplicationContext(), {=> JsonValue.fromStr("{}")}, {=> unsafe { LibC.mallocCString("{}") }}, {data =>},
+            Path(this
+                .context
+                .cacheDir), true)
+        initFreezeHandler(
+            this
+                .context
+                .getApplicationContext(),
+            {=> JsonValue.fromStr("{}")},
+            {
+                data => Hilog.info(0, "testTag", "${data.toString()}")
+            },
+            Path(this
+                .context
+                .cacheDir)
+        )
         initScrollEventHandler({data =>})
-        initTrafficHandler(this.context, {data =>})
+        initTrafficHandler(this.context, {data =>}, 1000 * 1024 * 1024)
         initStorageHandler({data: StorageInfo =>})
         initBatteryHandler(this, {data =>})
         initCpuHandler(this, {data =>})
@@ -54,7 +69,6 @@ class EntryAbility <: UIAbility {
 
     public override func onWindowStageCreate(windowStage: window.WindowStage): Unit {
         windowStage.loadContent("pages/index", {err, data => ()})
-        initPageEventHandle(windowStage, {data =>})
         windowStage.getMainWindow(
             {
                 err: ?BusinessException, data: ?window.Window => match (data) {
@@ -63,7 +77,7 @@ class EntryAbility <: UIAbility {
                             .context
                             .getApplicationContext(), fromUIContextBase(x.getUIContext()), 10, 10, {data =>})
                         AppLog.info("initLaggyHandle")
-                        initScrollEventHandler(this.context, {data =>})
+                        initPageEventHandler(this.context, {data =>})
                         AppLog.info("initScrollEventHandler")
                     case None => AppLog.info("initLaggyHandle error")
                         AppLog.info("initScrollEventHandler error")

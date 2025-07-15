@@ -14,7 +14,7 @@ import ohos.component.Scroll
 import tpc.UIKit.component_interop.Scroll
 import tpc.UIKit.window.{WindowStage, WindowCallbackType, WindowEventType}
 import tpc.WeatherServiceKit.weatherService.Wind
-import std.collection.ArrayList
+import std.collection.ArrayDeque
 import ohos.base.AppLog
 
 const NANOS_IN_SECOND = 1000000000
@@ -225,12 +225,12 @@ public class PageFpsEvent <: FpsEvent {
     }
     // 监控指标
     private var minFps: Int64 = 0
-    private var framesInOnePer = ArrayList<Int64>()
+    private var framesInOnePer = ArrayDeque<Int64>()
     private var fpsEventInfo: ?FpsEventInfo = None
     public func reset() {
         super.reset()
         this.minFps = 0
-        this.framesInOnePer = ArrayList<Int64>()
+        this.framesInOnePer = ArrayDeque<Int64>()
         this.fpsEventInfo = None
     }
     // 监控每一帧，计算Fps
@@ -246,10 +246,10 @@ public class PageFpsEvent <: FpsEvent {
                 // avgFps
                 totalStatisticsTime += realTimeInterval
                 // minFps
-                while (!framesInOnePer.isEmpty() && framesInOnePer.get(0).getOrThrow() < frameInfo.timestamp - NANOS_IN_SECOND) {
-                    framesInOnePer.remove(0)
+                while (!framesInOnePer.isEmpty() && framesInOnePer.first.getOrThrow() < frameInfo.timestamp - NANOS_IN_SECOND) {
+                    framesInOnePer.removeFirst()
                 }
-                framesInOnePer.append(frameInfo.timestamp)
+                framesInOnePer.addLast(frameInfo.timestamp)
                 if (totalStatisticsTime >= NANOS_IN_SECOND) {
                     var fpsCount = framesInOnePer.size
                     if (fpsCount < minFps || minFps == 0) {
@@ -283,14 +283,14 @@ public class ScrollFpsEvent <: FpsEvent {
     // 监控指标
     private var minFps: Int64 = 0
     private var totalFrameDropTime: Int64 = 0
-    private var framesInOnePer = ArrayList<Int64>()
+    private var framesInOnePer = ArrayDeque<Int64>()
     private var scrollHitchInfo: ?ScrollHitchInfo = None
     public func reset() {
         super.reset()
         this.minFps = 0
         this.totalFrameDropTime = 0
         this.scrollHitchInfo = None
-        this.framesInOnePer = ArrayList<Int64>()
+        this.framesInOnePer = ArrayDeque<Int64>()
     }
     // 监控每一帧，计算Fps和滑动掉帧时间
     public func frameEventListener() {
@@ -305,10 +305,10 @@ public class ScrollFpsEvent <: FpsEvent {
                 // avgFps
                 totalStatisticsTime += realTimeInterval
                 // minFps
-                while (!framesInOnePer.isEmpty() && framesInOnePer.get(0).getOrThrow() < frameInfo.timestamp - NANOS_IN_SECOND) {
-                    framesInOnePer.remove(0)
+                while (!framesInOnePer.isEmpty() && framesInOnePer.first.getOrThrow() < frameInfo.timestamp - NANOS_IN_SECOND) {
+                    framesInOnePer.removeFirst()
                 }
-                framesInOnePer.append(frameInfo.timestamp)
+                framesInOnePer.addLast(frameInfo.timestamp)
                 if (totalStatisticsTime >= NANOS_IN_SECOND) {
                     var fpsCount = framesInOnePer.size
                     if (fpsCount < minFps || minFps == 0) {
