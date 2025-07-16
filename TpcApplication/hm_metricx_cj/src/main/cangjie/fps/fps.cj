@@ -276,9 +276,9 @@ public class PageFpsEvent <: FpsEvent {
         backDisplaySync.on(OnOffType.DS_FRAME, IntervalInfoCallback(callback))
     }
     // 统计minFps和avgFps
-    public func report(): FpsEventInfo {
+    public func report(): Option<FpsEventInfo> {
         if (totalStatisticsTime <= 0) {
-            return FpsEventInfo()
+            return None
         }
         let avgFps = NANOS_IN_SECOND * totalFrameCount / totalStatisticsTime
         if (totalStatisticsTime < NANOS_IN_SECOND || minFps > avgFps) {
@@ -339,9 +339,9 @@ public class ScrollFpsEvent <: FpsEvent {
         backDisplaySync.on(OnOffType.DS_FRAME, IntervalInfoCallback(callback))
     }
     // 统计minFps和avgFps
-    public func report(): ScrollHitchInfo {
+    public func report(): Option<ScrollHitchInfo> {
         if (totalStatisticsTime <= 0) {
-            return ScrollHitchInfo()
+            return None
         }
         let avgFps = NANOS_IN_SECOND * totalFrameCount / totalStatisticsTime
         if (totalStatisticsTime < NANOS_IN_SECOND) {
@@ -365,7 +365,9 @@ public func initScrollEventHandler(uiContext: UIAbilityContext, reportScrollInfo
         =>
         instance.stopDisplaySync()
         let scrollInfo = instance.report()
-        reportScrollInfo(scrollInfo)
+        if (scrollInfo.isSome()) {
+            reportScrollInfo(scrollInfo.getOrThrow())
+        }
         instance.reset()
     }
     on(
@@ -399,7 +401,9 @@ public func initPageEventHandler(uiContext: UIAbilityContext, reportFpsInfo: (fp
         =>
         instance.stopDisplaySync()
         let fpsInfo = instance.report()
-        reportFpsInfo(fpsInfo)
+        if (fpsInfo.isSome()) {
+            reportFpsInfo(fpsInfo.getOrThrow())
+        }
         instance.reset()
     }
     pageCallback1(defaultPageName)
@@ -426,7 +430,9 @@ public func initPageEventHandler(windowStage: WindowStage, reportFpsInfo: (fpsIn
         =>
         instance.stopDisplaySync()
         let fpsInfo = instance.report()
-        reportFpsInfo(fpsInfo)
+        if (fpsInfo.isSome()) {
+            reportFpsInfo(fpsInfo.getOrThrow())
+        }
         instance.reset()
     }
     let window = windowStage.getMainWindowSync()
