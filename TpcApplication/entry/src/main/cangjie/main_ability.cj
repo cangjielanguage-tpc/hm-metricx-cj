@@ -52,7 +52,6 @@ class EntryAbility <: UIAbility {
                 .context
                 .cacheDir)
         )
-        initScrollEventHandler({data =>})
         initTrafficHandler(this.context, {data =>}, 1000 * 1024 * 1024)
         initStorageHandler({data: StorageInfo =>})
         initBatteryHandler(this, {data =>})
@@ -77,9 +76,16 @@ class EntryAbility <: UIAbility {
                             .context
                             .getApplicationContext(), fromUIContextBase(x.getUIContext()), 10, 10, {data =>})
                         AppLog.info("initLaggyHandle")
-                        initPageEventHandler(this.context, {data =>})
+                        initPageEventHandler(
+                            this.context,
+                            {
+                                data => AppLog.error("fps: " + data.toString())
+                            }
+                        )
                         AppLog.info("initScrollEventHandler")
-                    case None => AppLog.info("initLaggyHandle error")
+                        initScrollEventHandler(this.context, {data =>})
+                    case None =>
+                        AppLog.info("initLaggyHandle error")
                         AppLog.info("initScrollEventHandler error")
                 }
             })

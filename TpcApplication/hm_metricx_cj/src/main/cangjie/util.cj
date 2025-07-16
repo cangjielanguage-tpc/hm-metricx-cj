@@ -30,3 +30,19 @@ public class PageSwitchCallBack <: Callback1Argument<NavDestinationSwitchInfo> {
         this.elementInfoCallback(res)
     }
 }
+
+public func getTargetPageName(info: NavDestinationSwitchInfo, defaultName!: String = "") {
+    var name = defaultName
+    match (info.to) {
+        case NavigationInfo =>
+            try {
+                name = (((info.to as NavDestinationInfo).getOrThrow()).name as String).getOrThrow()
+            } catch (e: Exception) {
+                AppLog.warn(e.toString())
+            }
+        case  NavBar => name = "navRoot"
+    }
+    name
+}
+
+public const defaultPageName = "mainPage"

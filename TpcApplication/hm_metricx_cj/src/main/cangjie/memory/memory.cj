@@ -132,7 +132,7 @@ public class ProcessMemoryInfo <: MemoryInfo {
 
 var MEMOMRY_THRESHOLD: Int64 = 1024 * 100
 var thresholdReported: Bool = false
-var pageMemoryInfo = PageMemoryInfo("mainPage")
+var pageMemoryInfo = PageMemoryInfo(defaultPageName)
 var processMemoryInfo = ProcessMemoryInfo()
 var uiAbility: UIAbility = UIAbility()
 var reportMemory: (memoryInfo: MemoryInfo) -> Unit = {info: MemoryInfo =>}
@@ -152,19 +152,11 @@ let doMemorySample: (param: Array<String>) -> Unit = {
 let handleMemoryReport: (param: Array<String>) -> Unit = {
     param: Array<String> => reportMemory(processMemoryInfo)
 }
-var currentPageName: String = "mainPage"
+var currentPageName: String = defaultPageName
 let pageSwitchCallback: PageSwitchCallBack = PageSwitchCallBack(
     {
         info: NavDestinationSwitchInfo =>
-        match (info.to) {
-            case to: NavBar => currentPageName = "navRoot"
-            case to: NavDestinationInfo => try {
-                currentPageName = (((to as NavDestinationInfo).getOrThrow()).name as String).getOrThrow()
-            } catch (e: Exception) {
-                AppLog.warn(e.toString())
-            }
-            case _ => ()
-        }
+        currentPageName = getTargetPageName(info, defaultName: currentPageName)
         doMemorySample()
         reportMemory(pageMemoryInfo)
         pageMemoryInfo.reset()

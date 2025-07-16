@@ -136,10 +136,10 @@ public class ProcessCpuInfo <: CpuInfo {
     }
 }
 
-var pageCpuInfo = PageCpuInfo("mainPage")
+var pageCpuInfo = PageCpuInfo(defaultPageName)
 var processCpuInfo = ProcessCpuInfo()
 var uiAbility: UIAbility = UIAbility()
-var currentPageName: String = "mainPage"
+var currentPageName: String = defaultPageName
 let doCpuSample: (param: Array<String>) -> Unit = {
     param: Array<String> =>
     let cpuUsage = getCpuUsage()
@@ -150,16 +150,7 @@ var reportCpu: (infp: CpuInfo) -> Unit = {event: CpuInfo =>}
 let pageSwitchCallback: PageSwitchCallBack = PageSwitchCallBack(
     {
         info: NavDestinationSwitchInfo =>
-        match (info.to) {
-            case to: NavBar => currentPageName = "navRoot"
-            case to: NavDestinationInfo => try {
-                currentPageName = (((to as NavDestinationInfo).getOrThrow()).name as String).getOrThrow()
-            } catch (e: Exception) {
-                AppLog.warn(e.toString())
-            }
-            case _ => ()
-
-        }
+        currentPageName = getTargetPageName(info, defaultName: currentPageName)
         doCpuSample()
         reportCpu(pageCpuInfo)
         pageCpuInfo.reset()

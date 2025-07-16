@@ -282,7 +282,7 @@ var lastTime: Int64 = getUptime(TimeType.STARTUP)
 var lastScreenOnTimeStamp: Int64 = getUptime(TimeType.STARTUP)
 var screenOnTotalSecond: Int64 = 0
 var frontStatus: Bool = true
-var currentPageName: String = "mainPage"
+var currentPageName: String = defaultPageName
 
 private func reset() {
     lastLevel = -1
@@ -318,15 +318,7 @@ let applicationCallback: ApplicationStateChangeCallback = ApplicationStateChange
 )
 let pageSwitchCallback: PageSwitchCallBack = PageSwitchCallBack(
     {
-        info: NavDestinationSwitchInfo => match (info.to) {
-            case to: NavBar => currentPageName = "navRoot"
-            case to: NavDestinationInfo => try {
-                currentPageName = (((to as NavDestinationInfo).getOrThrow()).name as String).getOrThrow()
-            } catch (e: Exception) {
-                AppLog.warn(e.toString())
-            }
-            case _ => ()
-        }
+        info: NavDestinationSwitchInfo => currentPageName = getTargetPageName(info, defaultName: currentPageName)
     })
 let commonEventCallback: AsyncCallback<CommonEventData> = {
     err, data =>

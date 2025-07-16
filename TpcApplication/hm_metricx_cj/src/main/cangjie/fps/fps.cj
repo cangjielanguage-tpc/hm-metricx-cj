@@ -16,6 +16,8 @@ import tpc.UIKit.window.{WindowStage, WindowCallbackType, WindowEventType}
 import tpc.WeatherServiceKit.weatherService.Wind
 import std.collection.ArrayDeque
 import ohos.base.AppLog
+import ohos_app_cangjie_hm_metricx_cj.getTargetPageName
+import ohos_app_cangjie_hm_metricx_cj.defaultPageName
 
 const NANOS_IN_SECOND = 1000000000
 const SCROLL_HITCH_COEFF = 1000
@@ -68,6 +70,7 @@ public class IntervalInfoCallback <: Callback1Argument<IntervalInfo> {
 public open class FpsEventInfo {
     private var minFpsValue: ?Int64 = None
     private var avgFpsValue: ?Int64 = None
+    private var pageNameValue: ?String = None
 
     mut prop minFps: ?Int64 {
         get() {
@@ -87,11 +90,21 @@ public open class FpsEventInfo {
         }
     }
 
+    mut prop pageName: ?String {
+        get() {
+            pageNameValue
+        }
+        set(value) {
+            pageNameValue = value
+        }
+    }
+
     public init() {}
 
-    public init(minFpsValue: Int64, avgFpsValue: Int64) {
-        this.minFpsValue = minFpsValue
-        this.avgFpsValue = avgFpsValue
+    public init(minFps: Int64, avgFps: Int64, pageName: String) {
+        this.minFpsValue = minFps
+        this.avgFpsValue = avgFps
+        this.pageNameValue = pageName
     }
 
     public open func toString(): String {
@@ -104,6 +117,9 @@ public open class FpsEventInfo {
             let str: String = "${avgFpsValue.getOrThrow()}"
             jsonObj.put("avgFps", JsonString(str))
         }
+        if (pageNameValue.isSome()) {
+            jsonObj.put("pageName", JsonString(pageNameValue.getOrThrow()))
+        }
         jsonObj.toString()
     }
 
@@ -115,12 +131,10 @@ public open class FpsEventInfo {
         if (jsonObject.get("avgFps").isSome()) {
             fpsEventInfo.avgFps = jsonObject.get("avgFps").getOrThrow().toString() as Int64
         }
+        if (jsonObject.get("pageName").isSome()) {
+            fpsEventInfo.pageName = jsonObject.get("pageName").getOrThrow().toString()
+        }
         fpsEventInfo
-    }
-
-    public open func reset(): Unit {
-        this.minFpsValue = None
-        this.avgFpsValue = None
     }
 }
 
@@ -139,8 +153,8 @@ public class ScrollHitchInfo <: FpsEventInfo {
 
     public init() {}
 
-    public init(minFpsValue: Int64, avgFpsValue: Int64, frameDropRatioValue: Float64) {
-        super(minFpsValue, avgFpsValue)
+    public init(minFpsValue: Int64, avgFpsValue: Int64, frameDropRatioValue: Float64, currentPageName: String) {
+        super(minFpsValue, avgFpsValue, currentPageName)
         this.frameDropRatioValue = frameDropRatioValue
     }
 
@@ -169,15 +183,13 @@ public class ScrollHitchInfo <: FpsEventInfo {
         if (jsonObject.get("avgFps").isSome()) {
             scrollHitchInfo.avgFps = jsonObject.get("avgFps").getOrThrow().toString() as Int64
         }
+        if (jsonObject.get("pageName").isSome()) {
+            scrollHitchInfo.pageName = jsonObject.get("pageName").getOrThrow().toString()
+        }
         if (jsonObject.get("frameDropRatio").isSome()) {
             scrollHitchInfo.frameDropRatio = jsonObject.get("frameDropRatio").getOrThrow().toString() as Float64
         }
         scrollHitchInfo
-    }
-
-    public override func reset(): Unit {
-        super.reset()
-        this.frameDropRatioValue = None
     }
 }
 
@@ -193,6 +205,8 @@ public open class FpsEvent {
     protected var totalStatisticsTimePerSec: Int64 = 0
     // 是否是第一帧
     protected var isFirstFrame: Bool = true
+    // 当前页面名
+    protected var currentPageName: String = ""
     // 重置当前Frame
     public func resetFrameInfo(timestamp: Int64, targetTimestamp: Int64): Unit {
         this.timestamp = timestamp
@@ -270,7 +284,7 @@ public class PageFpsEvent <: FpsEvent {
         if (totalStatisticsTime < NANOS_IN_SECOND || minFps > avgFps) {
             minFps = avgFps
         }
-        FpsEventInfo(minFps, avgFps)
+        FpsEventInfo(minFps, avgFps, currentPageName)
     }
 }
 
@@ -334,13 +348,14 @@ public class ScrollFpsEvent <: FpsEvent {
             minFps = avgFps
         }
         let frameDropRatio: Float64 = Float64(SCROLL_HITCH_COEFF * totalFrameDropTime) / Float64(totalStatisticsTime)
-        ScrollHitchInfo(minFps, avgFps, frameDropRatio)
+        ScrollHitchInfo(minFps, avgFps, frameDropRatio, currentPageName)
     }
 }
 
 // 滑动时间监听
-public func initScrollEventHandler(reportScrollInfo: (scrollInfo: ScrollHitchInfo) -> Unit) {
+public func initScrollEventHandler(uiContext: UIAbilityContext, reportScrollInfo: (scrollInfo: ScrollHitchInfo) -> Unit) {
     let instance = ScrollFpsEvent.GetInstance()
+    instance.currentPageName = defaultPageName
     let scrollCallback1 = {
         =>
         instance.startDisplaySync()
@@ -362,13 +377,21 @@ public func initScrollEventHandler(reportScrollInfo: (scrollInfo: ScrollHitchInf
             }
         }
     )
+    on(
+        navDestinationSwitch,
+        uiContext,
+        NavDestinationSwitchCallBack {
+            info: NavDestinationSwitchInfo => instance.currentPageName = getTargetPageName(info)
+        }
+    )
 }
 
 // 页面停留监听
 public func initPageEventHandler(uiContext: UIAbilityContext, reportFpsInfo: (fpsInfo: FpsEventInfo) -> Unit) {
     let instance = PageFpsEvent.GetInstance()
     let pageCallback1 = {
-        =>
+        currentPageName: String =>
+        instance.currentPageName = currentPageName
         instance.startDisplaySync()
         instance.frameEventListener()
     }
@@ -379,14 +402,14 @@ public func initPageEventHandler(uiContext: UIAbilityContext, reportFpsInfo: (fp
         reportFpsInfo(fpsInfo)
         instance.reset()
     }
-    pageCallback1()
+    pageCallback1(defaultPageName)
     on(
         navDestinationSwitch,
         uiContext,
         NavDestinationSwitchCallBack {
             info: NavDestinationSwitchInfo =>
             pageCallback2()
-            pageCallback1()
+            pageCallback1(getTargetPageName(info))
         }
     )
 }

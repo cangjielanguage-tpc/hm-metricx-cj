@@ -28,7 +28,7 @@ var laggyMap = HashMap<String, PageResponseLaggyModel>()
 var eventMap = HashMap<Float64, ResponseEvent>()
 var uploadLaggyinfo: (JsonObject) -> Unit = { info: JsonObject => () }
 var timeBegain: Float64 = 0.0
-var currentPageName = "mainPage"
+var currentPageName = defaultPageName
 var isFirstCallBack = true
 var isComplite = false
 var maxResponsesTime = 0
@@ -153,16 +153,7 @@ public func didClickCallBack(event: ClickEventEnhanced, node: ?FrameNode)
 
 public func navDestinationSwitchCallBack(info:NavDestinationSwitchInfo)
 {
-    var name = ""
-    match (info.to) {
-        case NavigationInfo =>
-            try {
-                name = (((info.to as NavDestinationInfo).getOrThrow()).name as String).getOrThrow()
-            } catch (e: NoneValueException) {
-                println(e.toString())
-            }
-        case  NavBar => name = "navRoot"
-    }
+    let name = getTargetPageName(info)
     if (laggyMap.contains(currentPageName)) {
         var res = laggyMap[currentPageName]
         uploadLaggyinfo(res.ToJsonValue())
