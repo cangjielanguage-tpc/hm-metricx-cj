@@ -573,7 +573,7 @@ private func initCrashWatcher(applicationContext: ApplicationContext,
                     }
                     let crashLogPath: String = eventInfo.params.get("external_log")
                         .getOrThrow().toString().removePrefix("[").removeSuffix("]")
-                    if (!exists(crashLogPath)) {
+                    if (crashLogPath.isEmpty() || !exists(crashLogPath)) {
                         continue
                     }
                     crashInfo.crashLogPath = crashLogPath

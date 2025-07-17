@@ -275,10 +275,9 @@ private func initFreezeWatcher(
                         continue
                     }
 
-                    var freezeLogPath: String = eventInfo.params.get("external_log").getOrThrow().toString()
-                    freezeLogPath = freezeLogPath.removePrefix("[")
-                    freezeLogPath = freezeLogPath.removeSuffix("]")
-                    if (!exists(freezeLogPath)) {
+                    var freezeLogPath: String = eventInfo.params.get("external_log")
+                        .getOrThrow().toString().removePrefix("[").removeSuffix("]")
+                    if (freezeLogPath.isEmpty() || !exists(freezeLogPath)) {
                         continue
                     }
                     freezeInfo.freezeLogPath = freezeLogPath
