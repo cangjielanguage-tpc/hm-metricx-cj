@@ -19,6 +19,7 @@ import stdx.compress.zlib.*
 import stdx.encoding.json.*
 import std.time.*
 import std.sync.*
+import ohos_app_cangjie_hm_metricx_cj.deleteFile
 
 public class CrashInfo {
     private var languageValue: ?String = None
@@ -458,22 +459,6 @@ private func writeFile(path: String, data: String) {
     }
 }
 
-private func deleteFile(path: String) {
-    try {
-        remove(path)
-    } catch (e: FSException) {
-        AppLog.warn(e.toString())
-    }
-}
-
-private func deleteFile(path: Path) {
-    try {
-        remove(path)
-    } catch (e: FSException) {
-        AppLog.warn(e.toString())
-    }
-}
-
 private func readFile(path: Path) {
     if (!exists(path)) {
         return ""
@@ -546,9 +531,7 @@ private func initCrashWatcher(applicationContext: ApplicationContext,
                 return
             }
             var crashInfo = CrashInfo()
-            var nativeCrashReported = true
             if (exists(persistentFilePath)) {
-                nativeCrashReported = false
                 try {
                     let jsonObj = JsonValue.fromStr(String.fromUtf8(File.readFrom(persistentFilePath))).asObject()
                     crashInfo = CrashInfo.fromJson(jsonObj)
@@ -558,7 +541,7 @@ private func initCrashWatcher(applicationContext: ApplicationContext,
                 deleteFile(persistentFilePath)
             }
             else {
-                AppLog.warn("No persistent file.")
+                AppLog.warn("No persistent crash file.")
             }
             for (eventGroup in appEventGroups) {
                 if (eventGroup.name != APP_CRASH) {

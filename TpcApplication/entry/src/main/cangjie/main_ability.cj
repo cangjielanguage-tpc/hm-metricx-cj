@@ -44,9 +44,10 @@ class EntryAbility <: UIAbility {
             this
                 .context
                 .getApplicationContext(),
-            {=> JsonValue.fromStr("{}")},
+            {=>
+                JsonValue.fromStr("{\"xxx\":\"yyy\"}")},
             {
-                data => Hilog.info(0, "testTag", "${data.toString()}")
+                data => AppLog.error("freeze "+data.extraInfo.toString())
             },
             Path(this
                 .context

@@ -36,7 +36,7 @@ public class FreezeInfo {
     private var cpuValue: ?HashMap<String, String> = None
     private var stacktraceValue: ?ArrayList<String> = None
 
-    mut prop timestamp: ?String {
+    public mut prop timestamp: ?String {
         get() {
             timestampValue
         }
@@ -45,7 +45,7 @@ public class FreezeInfo {
         }
     }
 
-    mut prop pid: ?String {
+    public mut prop pid: ?String {
         get() {
             pidValue
         }
@@ -54,7 +54,7 @@ public class FreezeInfo {
         }
     }
 
-    mut prop exception: ?String {
+    public mut prop exception: ?String {
         get() {
             exceptionValue
         }
@@ -63,7 +63,7 @@ public class FreezeInfo {
         }
     }
 
-    mut prop hilog: ?String {
+    public mut prop hilog: ?String {
         get() {
             hilogValue
         }
@@ -72,7 +72,7 @@ public class FreezeInfo {
         }
     }
 
-    mut prop tid: ?String {
+    public mut prop tid: ?String {
         get() {
             tidValue
         }
@@ -81,7 +81,7 @@ public class FreezeInfo {
         }
     }
 
-    mut prop tname: ?String {
+    public mut prop tname: ?String {
         get() {
             tnameValue
         }
@@ -90,7 +90,7 @@ public class FreezeInfo {
         }
     }
 
-    mut prop extraInfo: ?JsonValue {
+    public mut prop extraInfo: ?JsonValue {
         get() {
             extraInfoValue
         }
@@ -99,7 +99,7 @@ public class FreezeInfo {
         }
     }
 
-    mut prop freezeLogPath: ?String {
+    public mut prop freezeLogPath: ?String {
         get() {
             freezeLogPathValue
         }
@@ -108,7 +108,7 @@ public class FreezeInfo {
         }
     }
 
-    mut prop cpuThread: ?HashMap<String, String> {
+    public mut prop cpuThread: ?HashMap<String, String> {
         get() {
             cpuThreadValue
         }
@@ -117,7 +117,7 @@ public class FreezeInfo {
         }
     }
 
-    mut prop cpu: ?HashMap<String, String> {
+    public mut prop cpu: ?HashMap<String, String> {
         get() {
             cpuValue
         }
@@ -126,7 +126,7 @@ public class FreezeInfo {
         }
     }
 
-    mut prop stacktrace: ?ArrayList<String> {
+    public mut prop stacktrace: ?ArrayList<String> {
         get() {
             stacktraceValue
         }
@@ -180,21 +180,10 @@ public class FreezeInfo {
         }
         jsonObj.toString()
     }
-
-    static func fromJson(jsonObject: JsonObject): FreezeInfo {
-        let freezeInfo = FreezeInfo()
-
-        if (jsonObject.get("cpuThread").isSome()) {
-            let fields: HashMap<String, JsonValue> = jsonObject.get("cpuThread").getOrThrow().asObject().getFields()
-            freezeInfo.cpuThread = json2map(fields)
-        }
-
-        freezeInfo
-    }
 }
 
 private var freezeInited = false
-private var jsonPath: Path = Path("")
+private var iCollectFreezeInfo: () -> JsonValue = { => JsonValue.fromStr("{}") }
 
 public func initFreezeHandler(
     applicationContext: ApplicationContext,
@@ -205,28 +194,23 @@ public func initFreezeHandler(
     if (freezeInited) {
         return
     }
-    let freezeInfo = FreezeInfo()
-    let persistentFilePath = persistentDir.join("freeze.json")
-    jsonPath = persistentFilePath
-    let persistentBackFilePath = persistentDir.join("freeze-back.json")
-    try {
-        if (exists(persistentFilePath)) {
-            copy(persistentFilePath, to: persistentBackFilePath, overwrite: true)
-        }
-    } catch (e: Exception) {
-        AppLog.warn(e.toString())
-    }
-    initFreezeWatcher(freezeInfo, applicationContext, collectFreezeInfo, reportFreezeInfo, persistentBackFilePath)
-    initHilogWatcher(persistentFilePath)
+    iCollectFreezeInfo = collectFreezeInfo
+    let cpuUsageFilePath = persistentDir.join("cpuUsageFreeze.txt")
+    let cpuUsageBakFilePath = persistentDir.join("cpuUsageFreeze-bak.txt")
+    renameFile(cpuUsageFilePath, cpuUsageBakFilePath)
+    let extraInfoFilePath = persistentDir.join("extraInfoFreeze.json")
+    let extraInfoBakFilePath = persistentDir.join("extraInfoFreeze-bak.json")
+    renameFile(extraInfoFilePath, extraInfoBakFilePath)
+    initFreezeWatcher(applicationContext, reportFreezeInfo, cpuUsageBakFilePath, extraInfoBakFilePath)
+    initHilogWatcher(cpuUsageFilePath, extraInfoFilePath)
     freezeInited = true
 }
 
 private func initFreezeWatcher(
-    freezeinfo: FreezeInfo,
     applicationContext: ApplicationContext,
-    collectFreezeInfo: () -> JsonValue,
     reportFreezeInfo: (freeezeInfo: FreezeInfo) -> Unit,
-    persistentFilePath: Path
+    cpuUsageFilePath: Path,
+    extraInfoFilePath: Path
 ) {
     let watcher = Watcher(
         "freezeWatcher",
@@ -236,19 +220,34 @@ private func initFreezeWatcher(
             if (domain != OS) {
                 return
             }
-            let freezeInfo = freezeinfo
-            freezeInfo.extraInfo = collectFreezeInfo()
-            try {
-                if (exists(persistentFilePath)) {
+            let freezeInfo = FreezeInfo()
+            if (exists(cpuUsageFilePath)) {
+                try {
                     if (freezeInfo.cpuThread.isNone()) {
-                        let fileContent = String.fromUtf8(File.readFrom(persistentFilePath))
-                        let cpuUsageMap = extractDataFromLog(fileContent)
-                        freezeInfo.cpuThread = cpuUsageMap
+                        let fileContent = String.fromUtf8(File.readFrom(cpuUsageFilePath))
+                        freezeInfo.cpuThread = extractDataFromLog(fileContent)
                     }
-                    remove(persistentFilePath)
+                } catch (e: Exception) {
+                    AppLog.warn(e.toString())
                 }
-            } catch (e: Exception) {
-                AppLog.warn(e.toString())
+                deleteFile(cpuUsageFilePath)
+            }
+            else {
+                AppLog.warn("No persistent cpuUsage file.")
+            }
+            if (exists(extraInfoFilePath)) {
+                try {
+                    if (freezeInfo.extraInfo.isNone()) {
+                        let jsonObj = JsonValue.fromStr(String.fromUtf8(File.readFrom(extraInfoFilePath))).asObject()
+                        freezeInfo.extraInfo = jsonObj.get("extraInfo")
+                    }
+                } catch (e: Exception) {
+                    AppLog.warn(e.toString())
+                }
+                deleteFile(extraInfoFilePath)
+            }
+            else {
+                AppLog.warn("No persistent extraInfo file.")
             }
             for (eventGroup in appEventGroups) {
                 if (eventGroup.name != APP_FREEZE) {
@@ -360,22 +359,8 @@ private func extractFromFreezeLog(content: String) {
 }
 
 private func extractDataFromLog(content: String): HashMap<String, String> {
-    let lines = content.split("\n", removeEmpty: true)
-    var cpuUsageMap = HashMap<String, String>()
-    var curLine: Int64 = -1
-    for (i in 0..lines.size) {
-        if (lines[i].startsWith("ThreadCpuUsage")) {
-            curLine = i
-            break
-        }
-    }
-    if (curLine == -1) {
-        cpuUsageMap
-    }
-
-    curLine = curLine + 1
-    let cpuUsageStr = lines[curLine]
-    let cpuUsageStrs = cpuUsageStr.split(",", removeEmpty: true)
+    let cpuUsageMap = HashMap<String, String>()
+    let cpuUsageStrs = content.split(",", removeEmpty: true)
     let cpuSize = cpuUsageStrs.size / 2
     for (i in 0..cpuSize) {
         cpuUsageMap.add(cpuUsageStrs[2 * i], cpuUsageStrs[2 * i + 1])
@@ -383,31 +368,30 @@ private func extractDataFromLog(content: String): HashMap<String, String> {
     cpuUsageMap
 }
 
-foreign func registerHilogCallback(logPath: CString, cb: CFunc<() -> Unit>): Unit
+foreign func registerHilogCallback(cpuUsageFilePath: CString, extraInfoFile: CString, cb: CFunc<() -> CString>): Int8
 
 @C
-func CallbackHilogHandler(): Unit {
-    let cpuThreadUsage = getAppThreadCpuUsage()
-
-    let cpuThreadJson = HashMap<String, JsonValue>()
-    cpuThreadUsage
-        .iterator()
-        .forEach({entry => cpuThreadJson.add(entry.threadId.toString(), JsonValue.fromStr(entry.cpuUsage.toString()))})
-    let cpuThreadObject = JsonObject(cpuThreadJson)
-
-    let obJect = JsonObject()
-    obJect.put("cpuThread", cpuThreadObject)
-
-    let file = File(jsonPath, OpenMode.Write)
-    file.write(obJect.toJsonString().toArray())
-    file.close()
+func collectExtraFreezeInfo(): CString {
+    let jsonObj = JsonObject()
+    try {
+        jsonObj.put("extraInfo", iCollectFreezeInfo())
+    } catch (e: Exception) {
+        AppLog.error(e.toString())
+    }
+    unsafe {
+        let crashInfoCStr = LibC.mallocCString(jsonObj.toString())
+        crashInfoCStr
+    }
 }
 
-public func initHilogWatcher(persistentFilePath: Path): Unit {
-    let logStr = persistentFilePath.toString()
+public func initHilogWatcher(cpuUsageFilePath: Path, extraInfoFilePath: Path): Unit {
     unsafe {
-        let cPath = LibC.mallocCString(logStr)
-        registerHilogCallback(cPath, CallbackHilogHandler)
-        LibC.free(cPath)
+        let cpuUsageFilePath = LibC.mallocCString(cpuUsageFilePath.toString())
+        let extraInfoFilePath = LibC.mallocCString(extraInfoFilePath.toString())
+        if (registerHilogCallback(cpuUsageFilePath, extraInfoFilePath, collectExtraFreezeInfo) != 0) {
+            AppLog.warn("registerHilogCallback failed.")
+        }
+        LibC.free(cpuUsageFilePath)
+        LibC.free(extraInfoFilePath)
     }
 }

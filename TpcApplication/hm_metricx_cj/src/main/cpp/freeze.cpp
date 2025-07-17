@@ -4,33 +4,22 @@
 // Node APIs are not fully supported. To solve the compilation error of the interface cannot be found,
 // please include "napi/native_api.h".
 
-#include "hiappevent/hiappevent.h"
-#include "hicollie/hicollie.h"
+#include "common.h"
 #include "hidebug/hidebug.h"
 #include "hilog/log.h"
-#include <cctype>
 #include <cstdio>
 #include <cstdlib>
 #include <cstdint>
-#include <climits>
 #include <cstring>
 #include <ctime>
 #include <string>
 #include <vector>
 
-typedef void (*HilogHandler)(void);
-HilogHandler hilogHandler;
+typedef const char *(*CollectExtraFreezeInfo)();
+CollectExtraFreezeInfo cjCollectExtraFreezeInfo;
 
-FILE *m_file = nullptr;
-int32_t OpenFile(const char *logPath)
-{
-    std::string logStr(logPath);
-    m_file = std::fopen(logStr.c_str(), "w+");
-    if (m_file == nullptr) {
-        return -1;
-    }
-    return 0;
-}
+FILE *cpuUsageFile = nullptr;
+FILE *extraInfoFile = nullptr;
 
 const int FREEZE_TYPE = 3;
 const unsigned int FREEZE_DOMAIN = 218108688;
@@ -48,9 +37,12 @@ bool containFreezeTag(const std::vector<std::string> &msgTags, const std::string
     return false;
 }
 
-bool ThreadCpuUsageGet = false;
+bool freezeCaught = false;
 void HilogCallback(const LogType type, const LogLevel level, const unsigned int domain, const char *tag, const char *msg)
 {
+    if (freezeCaught) {
+        return;
+    }
     int typeValue = static_cast<int>(type);
     if (typeValue != FREEZE_TYPE) {
         return;
@@ -71,32 +63,37 @@ void HilogCallback(const LogType type, const LogLevel level, const unsigned int 
         return;
     }
     
-    std::string saveStr = "";
-    if(ThreadCpuUsageGet == false) {
-        saveStr += "ThreadCpuUsage\n";
-        HiDebug_ThreadCpuUsagePtr usagePtr = OH_HiDebug_GetAppThreadCpuUsage();
-        while (usagePtr != nullptr)
-        {
-            saveStr += std::to_string(usagePtr->threadId) + "," + std::to_string(usagePtr->cpuUsage) + ",";
-            usagePtr = usagePtr->next;
-        }
-        saveStr += "\n";
-        
-        if (m_file != nullptr) {
-            fwrite(saveStr.c_str(), sizeof(char), saveStr.size(), m_file);
-            fflush(m_file);
-            ThreadCpuUsageGet = true;
-        }
+    freezeCaught = true;
+    auto extraInfo = cjCollectExtraFreezeInfo();
+    if (extraInfoFile != nullptr) {
+        fwrite(extraInfo, sizeof(char), strlen(extraInfo), extraInfoFile);
+        fflush(extraInfoFile);
     }
-    return;
+    std::string saveStr = "";
+    HiDebug_ThreadCpuUsagePtr usagePtr = OH_HiDebug_GetAppThreadCpuUsage();
+    while (usagePtr != nullptr) {
+        saveStr += std::to_string(usagePtr->threadId) + "," + std::to_string(usagePtr->cpuUsage) + ",";
+        usagePtr = usagePtr->next;
+    }
+        
+    if (cpuUsageFile != nullptr) {
+        fwrite(saveStr.c_str(), sizeof(char), saveStr.size(), cpuUsageFile);
+        fflush(cpuUsageFile);
+    }
 }
 
-extern "C" void registerHilogCallback(const char * logPath, HilogHandler handler)
+extern "C" int8_t registerHilogCallback(const char * cpuUsageFilePath,
+                                        const char * extraInfoFilePath, CollectExtraFreezeInfo collectExtraFreezeInfo)
 {
-    int32_t status = OpenFile(logPath);
-    if(status == 0) {
-        hilogHandler = handler;
-        OH_LOG_SetCallback(HilogCallback);
+    cpuUsageFile = std::fopen(cpuUsageFilePath, "w+");
+    if (cpuUsageFile == NULL) {
+        return FAIL;
     }
-    return;
+    extraInfoFile = std::fopen(extraInfoFilePath, "w+");
+    if (cpuUsageFile == NULL) {
+        return FAIL;
+    }
+    cjCollectExtraFreezeInfo = collectExtraFreezeInfo;
+    OH_LOG_SetCallback(HilogCallback);
+    return SUCCESS;
 }

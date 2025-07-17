@@ -4,6 +4,7 @@
 package ohos_app_cangjie_hm_metricx_cj
 
 import std.collection.*
+import std.fs.*
 import stdx.encoding.json.*
 
 import tpc.UIKit.Observer.*
@@ -43,6 +44,32 @@ public func getTargetPageName(info: NavDestinationSwitchInfo, defaultName!: Stri
         case  NavBar => name = "navRoot"
     }
     name
+}
+
+public func deleteFile(path: String) {
+    try {
+        remove(path)
+    } catch (e: FSException) {
+        AppLog.warn(e.toString())
+    }
+}
+
+public func deleteFile(path: Path) {
+    try {
+        remove(path)
+    } catch (e: FSException) {
+        AppLog.warn(e.toString())
+    }
+}
+
+public func renameFile(sourceFile: Path, targetFile: Path) {
+    try {
+        if (exists(sourceFile)) {
+            rename(sourceFile, to: targetFile, overwrite: true)
+        }
+    } catch (e: Exception) {
+        AppLog.warn(e.toString())
+    }
 }
 
 public const defaultPageName = "mainPage"
