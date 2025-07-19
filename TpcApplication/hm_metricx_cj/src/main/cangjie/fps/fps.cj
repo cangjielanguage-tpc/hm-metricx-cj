@@ -6,14 +6,9 @@ package ohos_app_cangjie_hm_metricx_cj.fps
 import ohos.base.{Callback1Argument}
 import tpc.UIKit.Observer.{ScrollEventInfo, NavDestinationSwitchInfo, on, ObserverListenerType}
 import tpc.ArkGraphics2D.displaySync.{IntervalInfo, DisplaySync, create, OnOffType}
-import ohos.hilog.Hilog
-import tpc.UIKit.arkui_node.*
 import tpc.AbilityKit.common.UIAbilityContext
 import stdx.encoding.json.{JsonObject, JsonString}
-import ohos.component.Scroll
-import tpc.UIKit.component_interop.Scroll
 import tpc.UIKit.window.{WindowStage, WindowCallbackType, WindowEventType}
-import tpc.WeatherServiceKit.weatherService.Wind
 import std.collection.ArrayDeque
 import ohos.base.AppLog
 import ohos_app_cangjie_hm_metricx_cj.getTargetPageName
@@ -21,6 +16,7 @@ import ohos_app_cangjie_hm_metricx_cj.defaultPageName
 
 const NANOS_IN_SECOND = 1000000000
 const SCROLL_HITCH_COEFF = 1000
+var IS_SCROLL_START = false
 
 // 滚动时间回调类
 public class ScrollEventCallback <: Callback1Argument<ScrollEventInfo> {
@@ -167,6 +163,9 @@ public class ScrollHitchInfo <: FpsEventInfo {
         if (avgFps.isSome()) {
             let str: String = "${avgFps.getOrThrow()}"
             jsonObj.put("avgFps", JsonString(str))
+        }
+        if (pageName.isSome()) {
+            jsonObj.put("pageName", JsonString(pageName.getOrThrow()))
         }
         if (frameDropRatioValue.isSome()) {
             let str: String = "${frameDropRatioValue.getOrThrow()}"
@@ -373,10 +372,19 @@ public func initScrollEventHandler(uiContext: UIAbilityContext, reportScrollInfo
     on(
         scrollEvent,
         ScrollEventCallback {
-            info: ScrollEventInfo => match (info.scrollEvent) {
-                case SCROLL_START => scrollCallback1()
-                case SCROLL_STOP => scrollCallback2()
+            info: ScrollEventInfo =>
+            IS_SCROLL_START = !IS_SCROLL_START
+            if (IS_SCROLL_START) {
+                scrollCallback1()
             }
+            else {
+                scrollCallback2()
+            }
+            // TODO: The following code is commented out due to unknown system bug
+//            match (info.scrollEvent) {
+//                case SCROLL_START => scrollCallback1()
+//                case SCROLL_STOP => scrollCallback2()
+//            }
         }
     )
     on(
