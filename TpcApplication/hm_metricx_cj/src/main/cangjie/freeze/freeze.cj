@@ -267,7 +267,7 @@ private func initFreezeWatcher(
                         case _ => None
                     }
                     freezeInfo.hilog = match (eventInfo.params.get("hilog")) {
-                        case Some(value) => value.toString()
+                        case Some(value) => hilogWordWrap(value.toString())
                         case _ => None
                     }
 

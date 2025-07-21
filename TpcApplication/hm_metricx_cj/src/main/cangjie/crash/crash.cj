@@ -564,7 +564,7 @@ private func initCrashWatcher(applicationContext: ApplicationContext,
                         case _ => None
                     }
                     crashInfo.hilog = match (eventInfo.params.get("hilog")) {
-                        case Some(value) => value.toString()
+                        case Some(value) => hilogWordWrap(value.toString())
                         case _ => None
                     }
                     crashInfo.appVersion = match (eventInfo.params.get("bundle_version")) {
