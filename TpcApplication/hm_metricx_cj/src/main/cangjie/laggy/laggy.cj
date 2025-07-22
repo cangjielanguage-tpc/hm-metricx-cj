@@ -158,7 +158,6 @@ public func navDestinationSwitchCallBack(info:NavDestinationSwitchInfo)
         var res = laggyMap[currentPageName]
         uploadLaggyinfo(res.ToJsonValue())
         laggyMap.remove(currentPageName)
-        return
     }
     if (!name.isEmpty()) {
         var res = PageResponseLaggyModel()
