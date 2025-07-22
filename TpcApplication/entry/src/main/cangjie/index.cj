@@ -50,7 +50,11 @@ class Index {
 
     @Builder
     public func PageMap(name: String): Unit {
-        pageOneTmp()
+        if (name == "pageOne"){
+            PageOne()
+        }else {
+        	PageTwo()
+        }
     }
 
     public func build() {
@@ -100,14 +104,55 @@ class Index {
                                     .borderRadius(10)
                                     .backgroundColor(0xFFFFFF)
                                     .onClick(
-                                        {event => this.pageInfos.pushPath(NavPathInfo(name: item.toString(), param: ""))}
+                                        {event => this.pageInfos.pushPath(NavPathInfo(name: "pageOne", param: ""))}
                                     )
                             }
                         }
                     )
                 }.scrollBar(BarState.Off).width(90)
             }.width(100).height(300.vp).padding(top: 5.px)
+            .navDestination(bind<String>(PageMap, this))
 //            Web(src: "https://www.baidu.com/", controller: webviewController)
+        }
+    }
+}
+
+@Component
+class PageOne{
+    var pageInfos:NavPathStack = NavPathStack()
+    public func build() {
+        NavDestination() {
+            Text("cur page is PageOne")
+            Text("enter page two").onClick {
+                evt => pageInfos.pushPath(NavPathInfo(name:"pageTwo",param:""))
+            }
+        }
+        .onReady {
+            context => pageInfos=context.pathStack
+        }
+        .onBackPressed {
+            pageInfos.pop()
+            true
+        }
+    }
+}
+
+@Component
+class PageTwo{
+    var pageInfos:NavPathStack = NavPathStack()
+    public func build() {
+        NavDestination() {
+            Text("cur page is PageTwo")
+            Text("enter page one").onClick {
+                evt => pageInfos.pushPath(NavPathInfo(name:"pageOne",param:""))
+            }
+        }
+        .onReady {
+            context => pageInfos=context.pathStack
+        }
+        .onBackPressed {
+            pageInfos.pop()
+            true
         }
     }
 }
