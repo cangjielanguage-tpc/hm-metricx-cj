@@ -236,12 +236,12 @@ public class PageFpsEvent <: FpsEvent {
         instance
     }
     // 监控指标
-    private var minFps: Int64 = 0
+    private var minFps: Int64 = Int64.Max
     private var framesInOnePer = ArrayDeque<Int64>()
     private var fpsEventInfo: ?FpsEventInfo = None
     public func reset() {
         super.reset()
-        this.minFps = 0
+        this.minFps = Int64.Max
         this.framesInOnePer = ArrayDeque<Int64>()
         this.fpsEventInfo = None
     }
@@ -262,10 +262,7 @@ public class PageFpsEvent <: FpsEvent {
                 }
                 framesInOnePer.addLast(frameInfo.timestamp)
                 if (totalStatisticsTime >= NANOS_IN_SECOND) {
-                    var fpsCount = framesInOnePer.size
-                    if (fpsCount < minFps || minFps == 0) {
-                        minFps = fpsCount
-                    }
+                    minFps = min(minFps, framesInOnePer.size)
                 }
             }
             updateFrameInfo(frameInfo.timestamp, frameInfo.targetTimestamp)
@@ -278,9 +275,7 @@ public class PageFpsEvent <: FpsEvent {
             return None
         }
         let avgFps = NANOS_IN_SECOND * totalFrameCount / totalStatisticsTime
-        if (totalStatisticsTime < NANOS_IN_SECOND || minFps > avgFps) {
-            minFps = avgFps
-        }
+        minFps = min(minFps, avgFps)
         FpsEventInfo(minFps, avgFps, currentPageName)
     }
 }
@@ -292,13 +287,13 @@ public class ScrollFpsEvent <: FpsEvent {
         instance
     }
     // 监控指标
-    private var minFps: Int64 = 0
+    private var minFps: Int64 = Int64.Max
     private var totalFrameDropTime: Int64 = 0
     private var framesInOnePer = ArrayDeque<Int64>()
     private var scrollHitchInfo: ?ScrollHitchInfo = None
     public func reset() {
         super.reset()
-        this.minFps = 0
+        this.minFps = Int64.Max
         this.totalFrameDropTime = 0
         this.scrollHitchInfo = None
         this.framesInOnePer = ArrayDeque<Int64>()
@@ -320,10 +315,7 @@ public class ScrollFpsEvent <: FpsEvent {
                 }
                 framesInOnePer.addLast(frameInfo.timestamp)
                 if (totalStatisticsTime >= NANOS_IN_SECOND) {
-                    var fpsCount = framesInOnePer.size
-                    if (fpsCount < minFps || minFps == 0) {
-                        minFps = fpsCount
-                    }
+                    minFps = min(minFps, framesInOnePer.size)
                 }
                 // 滑动掉帧率, 值为负时不纳入统计
                 if (targetTimestamp < frameInfo.timestamp) {
@@ -340,9 +332,7 @@ public class ScrollFpsEvent <: FpsEvent {
             return None
         }
         let avgFps = NANOS_IN_SECOND * totalFrameCount / totalStatisticsTime
-        if (totalStatisticsTime < NANOS_IN_SECOND || minFps > avgFps) {
-            minFps = avgFps
-        }
+        minFps = min(minFps, avgFps)
         let frameDropRatio: Float64 = Float64(SCROLL_HITCH_COEFF * totalFrameDropTime) / Float64(totalStatisticsTime)
         ScrollHitchInfo(minFps, avgFps, frameDropRatio, currentPageName)
     }
