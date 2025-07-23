@@ -249,10 +249,10 @@ public class PageFpsEvent <: FpsEvent {
     public func frameEventListener() {
         let callback = {
             frameInfo: IntervalInfo =>
-            totalFrameCount += 1
             if (isFirstFrame) {
                 isFirstFrame = false
             } else {
+                totalFrameCount += 1
                 let realTimeInterval = frameInfo.timestamp - timestamp
                 // avgFps
                 totalStatisticsTime += realTimeInterval
@@ -307,10 +307,10 @@ public class ScrollFpsEvent <: FpsEvent {
     public func frameEventListener() {
         let callback = {
             frameInfo: IntervalInfo =>
-            totalFrameCount += 1
             if (isFirstFrame) {
                 isFirstFrame = false
             } else {
+                totalFrameCount += 1
                 let realTimeInterval = frameInfo.timestamp - timestamp
                 // avgFps
                 totalStatisticsTime += realTimeInterval
