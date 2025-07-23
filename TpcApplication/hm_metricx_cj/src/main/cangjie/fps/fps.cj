@@ -206,7 +206,7 @@ public open class FpsEvent {
     // 当前页面名
     protected var currentPageName: String = ""
     // 重置当前Frame
-    public func resetFrameInfo(timestamp: Int64, targetTimestamp: Int64): Unit {
+    public func updateFrameInfo(timestamp: Int64, targetTimestamp: Int64): Unit {
         this.timestamp = timestamp
         this.targetTimestamp = targetTimestamp
     }
@@ -251,7 +251,6 @@ public class PageFpsEvent <: FpsEvent {
             frameInfo: IntervalInfo =>
             totalFrameCount += 1
             if (isFirstFrame) {
-                resetFrameInfo(frameInfo.timestamp, frameInfo.targetTimestamp)
                 isFirstFrame = false
             } else {
                 let realTimeInterval = frameInfo.timestamp - timestamp
@@ -268,8 +267,8 @@ public class PageFpsEvent <: FpsEvent {
                         minFps = fpsCount
                     }
                 }
-                resetFrameInfo(frameInfo.timestamp, frameInfo.targetTimestamp)
             }
+            updateFrameInfo(frameInfo.timestamp, frameInfo.targetTimestamp)
         }
         backDisplaySync.on(OnOffType.DS_FRAME, IntervalInfoCallback(callback))
     }
@@ -310,7 +309,6 @@ public class ScrollFpsEvent <: FpsEvent {
             frameInfo: IntervalInfo =>
             totalFrameCount += 1
             if (isFirstFrame) {
-                resetFrameInfo(frameInfo.timestamp, frameInfo.targetTimestamp)
                 isFirstFrame = false
             } else {
                 let realTimeInterval = frameInfo.timestamp - timestamp
@@ -331,8 +329,8 @@ public class ScrollFpsEvent <: FpsEvent {
                 if (targetTimestamp < frameInfo.timestamp) {
                     totalFrameDropTime += (frameInfo.timestamp - targetTimestamp)
                 }
-                resetFrameInfo(frameInfo.timestamp, frameInfo.targetTimestamp)
             }
+            updateFrameInfo(frameInfo.timestamp, frameInfo.targetTimestamp)
         }
         backDisplaySync.on(OnOffType.DS_FRAME, IntervalInfoCallback(callback))
     }
@@ -342,7 +340,7 @@ public class ScrollFpsEvent <: FpsEvent {
             return None
         }
         let avgFps = NANOS_IN_SECOND * totalFrameCount / totalStatisticsTime
-        if (totalStatisticsTime < NANOS_IN_SECOND) {
+        if (totalStatisticsTime < NANOS_IN_SECOND || minFps > avgFps) {
             minFps = avgFps
         }
         let frameDropRatio: Float64 = Float64(SCROLL_HITCH_COEFF * totalFrameDropTime) / Float64(totalStatisticsTime)
