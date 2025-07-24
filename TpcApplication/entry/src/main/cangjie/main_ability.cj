@@ -80,12 +80,12 @@ class EntryAbility <: UIAbility {
                         initPageEventHandler(
                             this.context,
                             {
-                                data => AppLog.error("fps: " + data.toString())
+                                data => AppLog.error("page fps: " + data.toString())
                             }
                         )
-                        initPageEventHandler(windowStage, {data => AppLog.error("fps: " + data.toString())})
+                        initPageEventHandler(windowStage, {data => AppLog.error("window fps: " + data.toString())})
                         AppLog.info("initScrollEventHandler")
-                        initScrollEventHandler(this.context, {data => AppLog.error("fps: " + data.toString())})
+                        initScrollEventHandler(this.context, {data => AppLog.error("scroll fps: " + data.toString())})
                     case None =>
                         AppLog.info("initLaggyHandle error")
                         AppLog.info("initScrollEventHandler error")

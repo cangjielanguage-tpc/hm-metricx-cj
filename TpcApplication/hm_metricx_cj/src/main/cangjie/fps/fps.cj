@@ -9,10 +9,11 @@ import tpc.ArkGraphics2D.displaySync.{IntervalInfo, DisplaySync, create, OnOffTy
 import tpc.AbilityKit.common.UIAbilityContext
 import stdx.encoding.json.{JsonObject, JsonString}
 import tpc.UIKit.window.{WindowStage, WindowCallbackType, WindowEventType}
-import std.collection.ArrayDeque
+import std.collection.*
 import ohos.base.AppLog
 import ohos_app_cangjie_hm_metricx_cj.getTargetPageName
 import ohos_app_cangjie_hm_metricx_cj.defaultPageName
+import ohos_app_cangjie_hm_metricx_cj.getArrayListSum
 
 const NANOS_IN_SECOND = 1000000000
 const SCROLL_HITCH_COEFF = 1000
@@ -280,6 +281,11 @@ public class PageFpsEvent <: FpsEvent {
     }
 }
 
+let minFpsList: ArrayList<Int64> = ArrayList<Int64>()
+let frameCountList: ArrayList<Int64> = ArrayList<Int64>()
+let totalTimeList: ArrayList<Int64> = ArrayList<Int64>()
+let dropTimeList: ArrayList<Int64> = ArrayList<Int64>()
+
 public class ScrollFpsEvent <: FpsEvent {
     // 单例模式
     private static var instance = ScrollFpsEvent()
@@ -336,10 +342,43 @@ public class ScrollFpsEvent <: FpsEvent {
         let frameDropRatio: Float64 = Float64(SCROLL_HITCH_COEFF * totalFrameDropTime) / Float64(totalStatisticsTime)
         ScrollHitchInfo(minFps, avgFps, frameDropRatio, currentPageName)
     }
+
+    public func addList(): Unit {
+        if (totalStatisticsTime <= 0) {
+            return
+        }
+        let avgFps = NANOS_IN_SECOND * totalFrameCount / totalStatisticsTime
+        minFps = min(minFps, avgFps)
+        minFpsList.add(minFps)
+        frameCountList.add(totalFrameCount)
+        totalTimeList.add(totalStatisticsTime)
+        dropTimeList.add(totalFrameDropTime)
+    }
+
+    public func clearList(): Unit {
+        minFpsList.clear()
+        frameCountList.clear()
+        totalTimeList.clear()
+        dropTimeList.clear()
+    }
+}
+
+private func calPageScrollHitchInfo(): Option<ScrollHitchInfo> {
+    if (minFpsList.isEmpty() || frameCountList.isEmpty() || totalTimeList.isEmpty() || dropTimeList.isEmpty()) {
+        return None
+    }
+    let minFps: Int64 = min<Int64>(minFpsList.iterator()).getOrThrow()
+    let avgFps: Int64 = NANOS_IN_SECOND * getArrayListSum(frameCountList).getOrThrow() / getArrayListSum(totalTimeList).getOrThrow()
+    let frameDropRatio: Float64 = Float64(SCROLL_HITCH_COEFF * getArrayListSum(dropTimeList).getOrThrow()) /
+                                    Float64(getArrayListSum(totalTimeList).getOrThrow())
+    ScrollHitchInfo(minFps, avgFps, frameDropRatio, ScrollFpsEvent.GetInstance().currentPageName)
 }
 
 // 滑动时间监听
-public func initScrollEventHandler(uiContext: UIAbilityContext, reportScrollInfo: (scrollInfo: ScrollHitchInfo) -> Unit) {
+public func initScrollEventHandler(
+    uiContext: UIAbilityContext,
+    reportPageScrollInfo: (scrollInfo: ScrollHitchInfo) -> Unit
+) {
     let instance = ScrollFpsEvent.GetInstance()
     instance.currentPageName = defaultPageName
     let scrollCallback1 = {
@@ -350,10 +389,7 @@ public func initScrollEventHandler(uiContext: UIAbilityContext, reportScrollInfo
     let scrollCallback2 = {
         =>
         instance.stopDisplaySync()
-        let scrollInfo = instance.report()
-        if (scrollInfo.isSome()) {
-            reportScrollInfo(scrollInfo.getOrThrow())
-        }
+        instance.addList()
         instance.reset()
     }
     on(
@@ -370,13 +406,22 @@ public func initScrollEventHandler(uiContext: UIAbilityContext, reportScrollInfo
         navDestinationSwitch,
         uiContext,
         NavDestinationSwitchCallBack {
-            info: NavDestinationSwitchInfo => instance.currentPageName = getTargetPageName(info)
+            info: NavDestinationSwitchInfo =>
+                let pageScrollInfo = calPageScrollHitchInfo()
+                if (pageScrollInfo.isSome()) {
+                    reportPageScrollInfo(pageScrollInfo.getOrThrow())
+                }
+                instance.clearList()
+                instance.currentPageName = getTargetPageName(info)
         }
     )
 }
 
 // 页面停留监听
-public func initPageEventHandler(uiContext: UIAbilityContext, reportFpsInfo: (fpsInfo: FpsEventInfo) -> Unit) {
+public func initPageEventHandler(
+    uiContext: UIAbilityContext,
+    reportFpsInfo: (fpsInfo: FpsEventInfo) -> Unit
+) {
     let instance = PageFpsEvent.GetInstance()
     let pageCallback1 = {
         currentPageName: String =>
