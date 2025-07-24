@@ -281,10 +281,43 @@ public class PageFpsEvent <: FpsEvent {
     }
 }
 
-let minFpsList: ArrayList<Int64> = ArrayList<Int64>()
-let frameCountList: ArrayList<Int64> = ArrayList<Int64>()
-let totalTimeList: ArrayList<Int64> = ArrayList<Int64>()
-let dropTimeList: ArrayList<Int64> = ArrayList<Int64>()
+class PageScrollFps {
+    private let minFpsList: ArrayList<Int64> = ArrayList<Int64>()
+    private let frameCountList: ArrayList<Int64> = ArrayList<Int64>()
+    private let totalTimeList: ArrayList<Int64> = ArrayList<Int64>()
+    private let dropTimeList: ArrayList<Int64> = ArrayList<Int64>()
+
+    public func clear(): Unit {
+        minFpsList.clear()
+        frameCountList.clear()
+        totalTimeList.clear()
+        dropTimeList.clear()
+    }
+
+    public func addInfo(
+        minFps: Int64, totalFrameCount: Int64, totalStatisticsTime: Int64, totalFrameDropTime: Int64): Unit {
+        minFpsList.add(minFps)
+        frameCountList.add(totalFrameCount)
+        totalTimeList.add(totalStatisticsTime)
+        dropTimeList.add(totalFrameDropTime)
+    }
+
+    public func isEmpty(): Bool {
+        minFpsList.isEmpty()
+    }
+
+    public func report(): Option<ScrollHitchInfo> {
+        if (isEmpty()) {
+            return None
+        }
+        let minFps = min<Int64>(minFpsList.iterator()).getOrThrow()
+        let totalTime = getArrayListSum(totalTimeList)
+        let avgFps = NANOS_IN_SECOND * getArrayListSum(frameCountList) / totalTime
+        let frameDropRatio: Float64 = Float64(SCROLL_HITCH_COEFF * getArrayListSum(dropTimeList)) /
+                                        Float64(totalTime)
+        ScrollHitchInfo(minFps, avgFps, frameDropRatio, ScrollFpsEvent.GetInstance().currentPageName)
+    }
+}
 
 public class ScrollFpsEvent <: FpsEvent {
     // 单例模式
@@ -332,46 +365,15 @@ public class ScrollFpsEvent <: FpsEvent {
         }
         backDisplaySync.on(OnOffType.DS_FRAME, IntervalInfoCallback(callback))
     }
-    // 统计minFps和avgFps
-    public func report(): Option<ScrollHitchInfo> {
-        if (totalStatisticsTime <= 0) {
-            return None
-        }
-        let avgFps = NANOS_IN_SECOND * totalFrameCount / totalStatisticsTime
-        minFps = min(minFps, avgFps)
-        let frameDropRatio: Float64 = Float64(SCROLL_HITCH_COEFF * totalFrameDropTime) / Float64(totalStatisticsTime)
-        ScrollHitchInfo(minFps, avgFps, frameDropRatio, currentPageName)
-    }
 
-    public func addList(): Unit {
+    func report(pageScrollFps: PageScrollFps): Unit {
         if (totalStatisticsTime <= 0) {
             return
         }
         let avgFps = NANOS_IN_SECOND * totalFrameCount / totalStatisticsTime
         minFps = min(minFps, avgFps)
-        minFpsList.add(minFps)
-        frameCountList.add(totalFrameCount)
-        totalTimeList.add(totalStatisticsTime)
-        dropTimeList.add(totalFrameDropTime)
+        pageScrollFps.addInfo(minFps, totalFrameCount, totalStatisticsTime, totalFrameDropTime)
     }
-
-    public func clearList(): Unit {
-        minFpsList.clear()
-        frameCountList.clear()
-        totalTimeList.clear()
-        dropTimeList.clear()
-    }
-}
-
-private func calPageScrollHitchInfo(): Option<ScrollHitchInfo> {
-    if (minFpsList.isEmpty() || frameCountList.isEmpty() || totalTimeList.isEmpty() || dropTimeList.isEmpty()) {
-        return None
-    }
-    let minFps: Int64 = min<Int64>(minFpsList.iterator()).getOrThrow()
-    let avgFps: Int64 = NANOS_IN_SECOND * getArrayListSum(frameCountList).getOrThrow() / getArrayListSum(totalTimeList).getOrThrow()
-    let frameDropRatio: Float64 = Float64(SCROLL_HITCH_COEFF * getArrayListSum(dropTimeList).getOrThrow()) /
-                                    Float64(getArrayListSum(totalTimeList).getOrThrow())
-    ScrollHitchInfo(minFps, avgFps, frameDropRatio, ScrollFpsEvent.GetInstance().currentPageName)
 }
 
 // 滑动时间监听
@@ -380,6 +382,7 @@ public func initScrollEventHandler(
     reportPageScrollInfo: (scrollInfo: ScrollHitchInfo) -> Unit
 ) {
     let instance = ScrollFpsEvent.GetInstance()
+    let pageScrollFps = PageScrollFps()
     instance.currentPageName = defaultPageName
     let scrollCallback1 = {
         =>
@@ -389,7 +392,7 @@ public func initScrollEventHandler(
     let scrollCallback2 = {
         =>
         instance.stopDisplaySync()
-        instance.addList()
+        instance.report(pageScrollFps)
         instance.reset()
     }
     on(
@@ -407,11 +410,11 @@ public func initScrollEventHandler(
         uiContext,
         NavDestinationSwitchCallBack {
             info: NavDestinationSwitchInfo =>
-                let pageScrollInfo = calPageScrollHitchInfo()
+                let pageScrollInfo = pageScrollFps.report()
                 if (pageScrollInfo.isSome()) {
                     reportPageScrollInfo(pageScrollInfo.getOrThrow())
                 }
-                instance.clearList()
+                pageScrollFps.clear()
                 instance.currentPageName = getTargetPageName(info)
         }
     )
