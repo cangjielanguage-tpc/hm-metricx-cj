@@ -37,13 +37,14 @@ public class PageSwitchCallBack <: Callback1Argument<NavDestinationSwitchInfo> {
 public func getTargetPageName(info: NavDestinationSwitchInfo, defaultName!: String = "") {
     var name = defaultName
     match (info.to) {
-        case NavigationInfo =>
+        case to: NavDestinationInfo =>
             try {
-                name = (((info.to as NavDestinationInfo).getOrThrow()).name as String).getOrThrow()
+                name = (to.name as String).getOrThrow()
             } catch (e: Exception) {
                 AppLog.warn(e.toString())
             }
-        case  NavBar => name = "navRoot"
+        case to: NavBar => name = "navRoot"
+        case _ => throw Exception("")
     }
     name
 }
@@ -88,4 +89,15 @@ public func hilogWordWrap(str: String) {
         res = res + cur + "\n"
     }
     return res
+}
+
+public func getArrayListSum(array: ArrayList<Int64>): Option<Int64> {
+    if (array.isEmpty()) {
+        return None
+    }
+    var total: Int64 = 0
+    for (item in array) {
+        total += item
+    }
+    total
 }
