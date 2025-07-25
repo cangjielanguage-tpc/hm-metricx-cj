@@ -300,7 +300,7 @@ class PageScrollFps {
         let ht005To01 = Float64(ht005To01)/Float64(frameCount)
         let ht01To1 = Float64(ht01To1)/Float64(frameCount)
         let htBiggerThan1 = Float64(htBiggerThan1)/Float64(frameCount)
-        let targetFPS = Float64(1)/Float64(targetDuration)
+        let targetFPS = Float64(NANOS_IN_SECOND)/Float64(targetDuration)
         ScrollHitchInfo(
             minFps,
             avgFps,
