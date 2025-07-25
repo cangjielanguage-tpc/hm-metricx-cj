@@ -90,7 +90,3 @@ public func hilogWordWrap(str: String) {
     }
     return res
 }
-
-public func getArrayListSum(array: ArrayList<Int64>): Int64 {
-    array.iterator().fold(0, {a, b => a + b})
-}

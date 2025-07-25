@@ -13,7 +13,6 @@ import std.collection.*
 import ohos.base.AppLog
 import ohos_app_cangjie_hm_metricx_cj.getTargetPageName
 import ohos_app_cangjie_hm_metricx_cj.defaultPageName
-import ohos_app_cangjie_hm_metricx_cj.getArrayListSum
 
 const NANOS_IN_SECOND = 1000000000
 const SCROLL_HITCH_COEFF = 1000
@@ -63,132 +62,57 @@ public class IntervalInfoCallback <: Callback1Argument<IntervalInfo> {
 }
 
 // 页面Fps信息类
-public open class FpsEventInfo {
-    private var minFpsValue: ?Int64 = None
-    private var avgFpsValue: ?Int64 = None
-    private var pageNameValue: ?String = None
+public class FpsEventInfo {
+    public FpsEventInfo(let minFps: Int64, let avgFps: Int64, let pageName: String) {}
 
-    mut prop minFps: ?Int64 {
-        get() {
-            minFpsValue
-        }
-        set(value) {
-            minFpsValue = value
-        }
-    }
-
-    mut prop avgFps: ?Int64 {
-        get() {
-            avgFpsValue
-        }
-        set(value) {
-            avgFpsValue = value
-        }
-    }
-
-    mut prop pageName: ?String {
-        get() {
-            pageNameValue
-        }
-        set(value) {
-            pageNameValue = value
-        }
-    }
-
-    public init() {}
-
-    public init(minFps: Int64, avgFps: Int64, pageName: String) {
-        this.minFpsValue = minFps
-        this.avgFpsValue = avgFps
-        this.pageNameValue = pageName
-    }
-
-    public open func toString(): String {
+    public func toString(): String {
         let jsonObj = JsonObject()
-        if (minFpsValue.isSome()) {
-            let str: String = "${minFpsValue.getOrThrow()}"
-            jsonObj.put("minFps", JsonString(str))
-        }
-        if (avgFpsValue.isSome()) {
-            let str: String = "${avgFpsValue.getOrThrow()}"
-            jsonObj.put("avgFps", JsonString(str))
-        }
-        if (pageNameValue.isSome()) {
-            jsonObj.put("pageName", JsonString(pageNameValue.getOrThrow()))
-        }
+        jsonObj.put("minFps", JsonString("${minFps}"))
+        jsonObj.put("avgFps", JsonString("${avgFps}"))
+        jsonObj.put("pageName", JsonString(pageName))
         jsonObj.toString()
-    }
-
-    static func fromJson(jsonObject: JsonObject): FpsEventInfo {
-        let fpsEventInfo = FpsEventInfo()
-        if (jsonObject.get("minFps").isSome()) {
-            fpsEventInfo.minFps = jsonObject.get("minFps").getOrThrow().toString() as Int64
-        }
-        if (jsonObject.get("avgFps").isSome()) {
-            fpsEventInfo.avgFps = jsonObject.get("avgFps").getOrThrow().toString() as Int64
-        }
-        if (jsonObject.get("pageName").isSome()) {
-            fpsEventInfo.pageName = jsonObject.get("pageName").getOrThrow().toString()
-        }
-        fpsEventInfo
     }
 }
 
 // 滑动事件Fps&滑动掉帧率信息类
-public class ScrollHitchInfo <: FpsEventInfo {
-    private var frameDropRatioValue: ?Float64 = None
+public class ScrollHitchInfo {
+    public ScrollHitchInfo(
+        let minFps: Int64,
+        let avgFps: Int64,
+        let frameDropRatio: Float64,
+        let jankRate: Float64,
+        let bigJankRate: Float64,
+        let htLessThan0: Float64,
+        let ht0To00001: Float64,
+        let ht00001To0001: Float64,
+        let ht0001To001: Float64,
+        let ht001To005: Float64,
+        let ht005To01: Float64,
+        let ht01To1: Float64,
+        let htBiggerThan1: Float64,
+        let targetFPS: Float64,
+        let longestLostFrame: Float64,
+        let pageName: String) {}
 
-    mut prop frameDropRatio: ?Float64 {
-        get() {
-            frameDropRatioValue
-        }
-        set(value) {
-            frameDropRatioValue = value
-        }
-    }
-
-    public init() {}
-
-    public init(minFpsValue: Int64, avgFpsValue: Int64, frameDropRatioValue: Float64, currentPageName: String) {
-        super(minFpsValue, avgFpsValue, currentPageName)
-        this.frameDropRatioValue = frameDropRatioValue
-    }
-
-    public override func toString(): String {
+    public func toString(): String {
         let jsonObj = JsonObject()
-        if (minFps.isSome()) {
-            let str: String = "${minFps.getOrThrow()}"
-            jsonObj.put("minFps", JsonString(str))
-        }
-        if (avgFps.isSome()) {
-            let str: String = "${avgFps.getOrThrow()}"
-            jsonObj.put("avgFps", JsonString(str))
-        }
-        if (pageName.isSome()) {
-            jsonObj.put("pageName", JsonString(pageName.getOrThrow()))
-        }
-        if (frameDropRatioValue.isSome()) {
-            let str: String = "${frameDropRatioValue.getOrThrow()}"
-            jsonObj.put("frameDropRatio", JsonString(str))
-        }
+        jsonObj.put("minFps", JsonString("${minFps}"))
+        jsonObj.put("avgFps", JsonString("${avgFps}"))
+        jsonObj.put("pageName", JsonString(pageName))
+        jsonObj.put("frameDropRatio", JsonString("${frameDropRatio}"))
+        jsonObj.put("jankRate", JsonString("${jankRate}"))
+        jsonObj.put("bigJankRate", JsonString("${bigJankRate}"))
+        jsonObj.put("htLessThan0", JsonString("${htLessThan0}"))
+        jsonObj.put("ht0To00001", JsonString("${ht0To00001}"))
+        jsonObj.put("ht00001To0001", JsonString("${ht00001To0001}"))
+        jsonObj.put("ht0001To001", JsonString("${ht0001To001}"))
+        jsonObj.put("ht001To005", JsonString("${ht001To005}"))
+        jsonObj.put("ht005To01", JsonString("${ht005To01}"))
+        jsonObj.put("ht01To1", JsonString("${ht01To1}"))
+        jsonObj.put("htBiggerThan1", JsonString("${htBiggerThan1}"))
+        jsonObj.put("targetFPS", JsonString("${targetFPS}"))
+        jsonObj.put("longestLostFrame", JsonString("${longestLostFrame}"))
         jsonObj.toString()
-    }
-
-    static func fromJson(jsonObject: JsonObject): ScrollHitchInfo {
-        let scrollHitchInfo = ScrollHitchInfo()
-        if (jsonObject.get("minFps").isSome()) {
-            scrollHitchInfo.minFps = jsonObject.get("minFps").getOrThrow().toString() as Int64
-        }
-        if (jsonObject.get("avgFps").isSome()) {
-            scrollHitchInfo.avgFps = jsonObject.get("avgFps").getOrThrow().toString() as Int64
-        }
-        if (jsonObject.get("pageName").isSome()) {
-            scrollHitchInfo.pageName = jsonObject.get("pageName").getOrThrow().toString()
-        }
-        if (jsonObject.get("frameDropRatio").isSome()) {
-            scrollHitchInfo.frameDropRatio = jsonObject.get("frameDropRatio").getOrThrow().toString() as Float64
-        }
-        scrollHitchInfo
     }
 }
 
@@ -282,24 +206,76 @@ public class PageFpsEvent <: FpsEvent {
 }
 
 class PageScrollFps {
-    private let minFpsList: ArrayList<Int64> = ArrayList<Int64>()
-    private let frameCountList: ArrayList<Int64> = ArrayList<Int64>()
-    private let totalTimeList: ArrayList<Int64> = ArrayList<Int64>()
-    private let dropTimeList: ArrayList<Int64> = ArrayList<Int64>()
+    private let minFpsList = ArrayList<Int64>()
+    private var frameCount = 0
+    private var totalTime = 0
+    private var dropTime = 0
+    private var htLessThan0 = 0
+    private var ht0To00001 = 0
+    private var ht00001To0001 = 0
+    private var ht0001To001 = 0
+    private var ht001To005 = 0
+    private var ht005To01 = 0
+    private var ht01To1 = 0
+    private var htBiggerThan1 = 0
+    private var htBiggerThan0001 = 0
+    private var htBiggerThan07 = 0
+    private var targetDuration = 0
+    private var longestLostFrame = 0.0
+
 
     public func clear(): Unit {
         minFpsList.clear()
-        frameCountList.clear()
-        totalTimeList.clear()
-        dropTimeList.clear()
+        frameCount = 0
+        totalTime = 0
+        dropTime = 0
+        htLessThan0 = 0
+        ht0To00001 = 0
+        ht00001To0001 = 0
+        ht0001To001 = 0
+        ht001To005 = 0
+        ht005To01 = 0
+        ht01To1 = 0
+        htBiggerThan1 = 0
+        htBiggerThan0001 = 0
+        htBiggerThan07 = 0
+        targetDuration = 0
+        longestLostFrame = 0.0
     }
 
     public func addInfo(
-        minFps: Int64, totalFrameCount: Int64, totalStatisticsTime: Int64, totalFrameDropTime: Int64): Unit {
+        minFps: Int64,
+        totalFrameCount: Int64,
+        totalStatisticsTime: Int64,
+        totalFrameDropTime: Int64,
+        htLessThan0Cnt: Int64,
+        ht0To00001Cnt: Int64,
+        ht00001To0001Cnt: Int64,
+        ht0001To001Cnt: Int64,
+        ht001To005Cnt: Int64,
+        ht005To01Cnt: Int64,
+        ht01To1Cnt: Int64,
+        htBiggerThan1Cnt: Int64,
+        htBiggerThan0001Cnt: Int64,
+        htBiggerThan07Cnt: Int64,
+        targetDurationValue: Int64,
+        longestLostFrameValue: Float64): Unit {
         minFpsList.add(minFps)
-        frameCountList.add(totalFrameCount)
-        totalTimeList.add(totalStatisticsTime)
-        dropTimeList.add(totalFrameDropTime)
+        frameCount += totalFrameCount
+        totalTime += totalStatisticsTime
+        dropTime += totalFrameDropTime
+        htLessThan0 += htLessThan0Cnt
+        ht0To00001 += ht0To00001Cnt
+        ht00001To0001 += ht00001To0001Cnt
+        ht0001To001 += ht0001To001Cnt
+        ht001To005 += ht001To005Cnt
+        ht005To01 += ht005To01Cnt
+        ht01To1 += ht01To1Cnt
+        htBiggerThan1 += htBiggerThan1Cnt
+        htBiggerThan0001 += htBiggerThan0001Cnt
+        htBiggerThan07 += htBiggerThan07Cnt
+        targetDuration = targetDurationValue
+        longestLostFrame = max(longestLostFrame, longestLostFrameValue)
     }
 
     public func isEmpty(): Bool {
@@ -311,11 +287,37 @@ class PageScrollFps {
             return None
         }
         let minFps = min<Int64>(minFpsList.iterator()).getOrThrow()
-        let totalTime = getArrayListSum(totalTimeList)
-        let avgFps = NANOS_IN_SECOND * getArrayListSum(frameCountList) / totalTime
-        let frameDropRatio: Float64 = Float64(SCROLL_HITCH_COEFF * getArrayListSum(dropTimeList)) /
+        let avgFps = NANOS_IN_SECOND * frameCount / totalTime
+        let frameDropRatio: Float64 = Float64(SCROLL_HITCH_COEFF * dropTime) /
                                         Float64(totalTime)
-        ScrollHitchInfo(minFps, avgFps, frameDropRatio, ScrollFpsEvent.GetInstance().currentPageName)
+        let jankRate = Float64(htBiggerThan0001)/Float64(frameCount)
+        let bigJankRate = Float64(htBiggerThan07)/Float64(frameCount)
+        let htLessThan0 = Float64(htLessThan0)/Float64(frameCount)
+        let ht0To00001 = Float64(ht0To00001)/Float64(frameCount)
+        let ht00001To0001 = Float64(ht00001To0001)/Float64(frameCount)
+        let ht0001To001 = Float64(ht0001To001)/Float64(frameCount)
+        let ht001To005 = Float64(ht001To005)/Float64(frameCount)
+        let ht005To01 = Float64(ht005To01)/Float64(frameCount)
+        let ht01To1 = Float64(ht01To1)/Float64(frameCount)
+        let htBiggerThan1 = Float64(htBiggerThan1)/Float64(frameCount)
+        let targetFPS = Float64(1)/Float64(targetDuration)
+        ScrollHitchInfo(
+            minFps,
+            avgFps,
+            frameDropRatio,
+            jankRate,
+            bigJankRate,
+            htLessThan0,
+            ht0To00001,
+            ht00001To0001,
+            ht0001To001,
+            ht001To005,
+            ht005To01,
+            ht01To1,
+            htBiggerThan1,
+            targetFPS,
+            longestLostFrame,
+            ScrollFpsEvent.GetInstance().currentPageName)
     }
 }
 
@@ -330,12 +332,38 @@ public class ScrollFpsEvent <: FpsEvent {
     private var totalFrameDropTime: Int64 = 0
     private var framesInOnePer = ArrayDeque<Int64>()
     private var scrollHitchInfo: ?ScrollHitchInfo = None
+    private var htLessThan0 = 0
+    private var ht0To00001 = 0
+    private var ht00001To0001 = 0
+    private var ht0001To001 = 0
+    private var ht001To005 = 0
+    private var ht005To01 = 0
+    private var ht01To1 = 0
+    private var htBiggerThan1 = 0
+    private var htBiggerThan0001 = 0
+    private var htBiggerThan07 = 0
+    private var firstTargetDuration = 0
+    private var longestLostFrame = 0.0
+    private var targetDuration = 0
+
     public func reset() {
         super.reset()
         this.minFps = Int64.Max
         this.totalFrameDropTime = 0
         this.scrollHitchInfo = None
-        this.framesInOnePer = ArrayDeque<Int64>()
+        this.framesInOnePer.clear()
+        htLessThan0 = 0
+        ht0To00001 = 0
+        ht00001To0001 = 0
+        ht0001To001 = 0
+        ht001To005 = 0
+        ht005To01 = 0
+        ht01To1 = 0
+        htBiggerThan1 = 0
+        htBiggerThan0001 = 0
+        htBiggerThan07 = 0
+        firstTargetDuration = 0
+        longestLostFrame = 0.0
     }
     // 监控每一帧，计算Fps和滑动掉帧时间
     public func frameEventListener() {
@@ -343,6 +371,7 @@ public class ScrollFpsEvent <: FpsEvent {
             frameInfo: IntervalInfo =>
             if (isFirstFrame) {
                 isFirstFrame = false
+                firstTargetDuration = frameInfo.targetTimestamp - frameInfo.timestamp
             } else {
                 totalFrameCount += 1
                 let realTimeInterval = frameInfo.timestamp - timestamp
@@ -357,10 +386,12 @@ public class ScrollFpsEvent <: FpsEvent {
                     minFps = min(minFps, framesInOnePer.size)
                 }
                 // 滑动掉帧率, 值为负时不纳入统计
-                if (targetTimestamp < frameInfo.timestamp) {
-                    totalFrameDropTime += (frameInfo.timestamp - targetTimestamp)
-                }
+                let delta = frameInfo.timestamp - targetTimestamp
+                totalFrameDropTime += max(0, delta)
+                longestLostFrame = max(longestLostFrame, Float64(delta)/Float64(targetDuration) - 1.0)
+                updateHt(delta)
             }
+            targetDuration = frameInfo.targetTimestamp - frameInfo.timestamp
             updateFrameInfo(frameInfo.timestamp, frameInfo.targetTimestamp)
         }
         backDisplaySync.on(OnOffType.DS_FRAME, IntervalInfoCallback(callback))
@@ -372,7 +403,51 @@ public class ScrollFpsEvent <: FpsEvent {
         }
         let avgFps = NANOS_IN_SECOND * totalFrameCount / totalStatisticsTime
         minFps = min(minFps, avgFps)
-        pageScrollFps.addInfo(minFps, totalFrameCount, totalStatisticsTime, totalFrameDropTime)
+        pageScrollFps.addInfo(
+            minFps,
+            totalFrameCount,
+            totalStatisticsTime,
+            totalFrameDropTime,
+            htLessThan0,
+            ht0To00001,
+            ht00001To0001,
+            ht0001To001,
+            ht001To005,
+            ht005To01,
+            ht01To1,
+            htBiggerThan1,
+            htBiggerThan0001,
+            htBiggerThan07,
+            firstTargetDuration,
+            longestLostFrame)
+    }
+
+    func updateHt(delta: Int64) {
+        if (delta < 0) {
+            htLessThan0 += 1
+        } else if (delta < 100_000) { // 0.1ms
+            ht0To00001 += 1
+        } else if (delta < 1000_000) {
+            ht00001To0001 += 1
+        } else if (delta < 10_000_000) {
+            ht0001To001 += 1
+        } else if (delta < 50_000_000) {
+            ht001To005 += 1
+        } else if (delta < 100_000_000) {
+            ht005To01 += 1
+        } else if (delta < 1000_000_000) {
+            ht01To1 += 1
+        } else {
+            htBiggerThan1 += 1
+        }
+
+        if (delta > 1000_000) {
+            htBiggerThan0001 += 1
+        }
+
+        if (delta > 700_000_000) {
+            htBiggerThan07 += 1
+        }
     }
 }
 
