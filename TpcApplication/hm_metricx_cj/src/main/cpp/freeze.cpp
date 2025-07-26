@@ -38,7 +38,7 @@ bool containFreezeTag(const std::vector<std::string> &msgTags, const std::string
 }
 
 bool freezeCaught = false;
-void HilogCallback(const LogType type, const LogLevel level, const unsigned int domain, const char *tag, const char *msg)
+void FreezeHilogCallback(const LogType type, const LogLevel level, const unsigned int domain, const char *tag, const char *msg)
 {
     if (freezeCaught) {
         return;
@@ -82,7 +82,7 @@ void HilogCallback(const LogType type, const LogLevel level, const unsigned int 
     }
 }
 
-extern "C" int8_t registerHilogCallback(const char * cpuUsageFilePath,
+extern "C" int8_t registerFreezeHilogCallback(const char * cpuUsageFilePath,
                                         const char * extraInfoFilePath, CollectExtraFreezeInfo collectExtraFreezeInfo)
 {
     cpuUsageFile = std::fopen(cpuUsageFilePath, "w+");
@@ -94,6 +94,6 @@ extern "C" int8_t registerHilogCallback(const char * cpuUsageFilePath,
         return FAIL;
     }
     cjCollectExtraFreezeInfo = collectExtraFreezeInfo;
-    OH_LOG_SetCallback(HilogCallback);
+    registerHilogCallback(FreezeHilogCallback);
     return SUCCESS;
 }

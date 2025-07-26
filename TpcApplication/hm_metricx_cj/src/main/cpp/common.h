@@ -7,7 +7,9 @@
 #ifndef TPCAPPLICATION_COMMON_H
 #define TPCAPPLICATION_COMMON_H
 
+#include <hilog/log.h>
 #define SUCCESS (0)
 #define FAIL (-1)
 
+void registerHilogCallback(LogCallback logCallback);
 #endif //TPCAPPLICATION_COMMON_H
