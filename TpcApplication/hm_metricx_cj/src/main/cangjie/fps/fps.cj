@@ -92,6 +92,7 @@ public class ScrollHitchInfo {
         let htBiggerThan1: Float64,
         let targetFPS: Float64,
         let longestLostFrame: Float64,
+        let totalFrameCount: Int64,
         let pageName: String) {}
 
     public func toString(): String {
@@ -112,6 +113,7 @@ public class ScrollHitchInfo {
         jsonObj.put("htBiggerThan1", JsonString("${htBiggerThan1}"))
         jsonObj.put("targetFPS", JsonString("${targetFPS}"))
         jsonObj.put("longestLostFrame", JsonString("${longestLostFrame}"))
+        jsonObj.put("totalFrameCount", JsonString("${totalFrameCount}"))
         jsonObj.toString()
     }
 }
@@ -317,6 +319,7 @@ class PageScrollFps {
             htBiggerThan1,
             targetFPS,
             longestLostFrame,
+            frameCount,
             ScrollFpsEvent.GetInstance().currentPageName)
     }
 }
