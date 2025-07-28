@@ -367,7 +367,7 @@ private func extractDataFromLog(content: String): HashMap<String, String> {
     cpuUsageMap
 }
 
-foreign func registerHilogCallback(cpuUsageFilePath: CString, extraInfoFile: CString, cb: CFunc<() -> CString>): Int8
+foreign func registerFreezeHilogCallback(cpuUsageFilePath: CString, extraInfoFile: CString, cb: CFunc<() -> CString>): Int8
 
 @C
 func collectExtraFreezeInfo(): CString {
@@ -387,8 +387,8 @@ public func initHilogWatcher(cpuUsageFilePath: Path, extraInfoFilePath: Path): U
     unsafe {
         let cpuUsageFilePath = LibC.mallocCString(cpuUsageFilePath.toString())
         let extraInfoFilePath = LibC.mallocCString(extraInfoFilePath.toString())
-        if (registerHilogCallback(cpuUsageFilePath, extraInfoFilePath, collectExtraFreezeInfo) != 0) {
-            AppLog.warn("registerHilogCallback failed.")
+        if (registerFreezeHilogCallback(cpuUsageFilePath, extraInfoFilePath, collectExtraFreezeInfo) != 0) {
+            AppLog.warn("registerFreezeHilogCallback failed.")
         }
         LibC.free(cpuUsageFilePath)
         LibC.free(extraInfoFilePath)

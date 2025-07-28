@@ -14,6 +14,7 @@
 #include <malloc.h>
 #include <pthread.h>
 #include <signal.h>
+#include <sstream>
 #include <stdexcept>
 #include <stdlib.h>
 #include <string.h>
@@ -21,12 +22,19 @@
 #include <sys/eventfd.h>
 #include <syscall.h>
 #include <unistd.h>
-#include <sstream>
 
 typedef struct {
     int sigNum;
     struct sigaction oldact;
 } SignalCrashInfo;
+
+struct LogEntry {
+    std::chrono::time_point<std::chrono::system_clock> now;
+    LogLevel level;
+    unsigned int domain;
+    std::string tag;
+    std::string msg;
+};
 
 static pthread_mutex_t signalHandlerMutex = PTHREAD_MUTEX_INITIALIZER;
 
@@ -38,11 +46,18 @@ typedef const char *(*CollectCrashInfo)();
 
 CollectCrashInfo cjCollectCrashInfo;
 
-typedef void (*Callback)(const char *, const char *, CollectCrashInfo, const char *, const char *, const char *, char *);
+typedef void (*Callback)(const char *, const char *, CollectCrashInfo, const char *, const char *, const char *,
+                         char *);
 
 Callback cjcb;
 
 char *persistentFilePath;
+
+char *persistentSystemLogFilePath;
+
+const char *levelChars = "DIWEF"; // 3->D, 4->I, 5->W, 6->E, 7->F
+
+std::vector<LogEntry> logMessages;
 
 char *cjLimits;
 
@@ -72,13 +87,37 @@ static std::string readFile(std::string filePath) {
     return "";
 }
 
-static std::string getVss(const std::string& s, char delimiter) {
+static std::string getVss(const std::string &s, char delimiter) {
     std::string token;
     std::istringstream tokenStream(s);
     if (std::getline(tokenStream, token, delimiter)) {
         return std::to_string(std::stoi(token) * 4);
     }
     return "";
+}
+
+void CrashHilogCallback(const LogType type, const LogLevel level, const unsigned int domain, const char *tag,
+                        const char *msg) {
+
+    int typeValue = static_cast<int>(type);
+    if (typeValue != 3) {
+        return;
+    }
+
+    // current time
+    auto now = std::chrono::system_clock::now();
+
+    LogEntry entry;
+    entry.now = now;
+    entry.level = level;
+    entry.domain = domain;
+    entry.tag = tag;
+    entry.msg = msg;
+
+    logMessages.push_back(entry);
+}
+extern "C" {
+int8_t writeSystemLog(const char *pFilePath);
 }
 
 static void CrashSignalHandler(int sig, siginfo_t *si, void *context) {
@@ -111,6 +150,7 @@ static void CrashSignalHandler(int sig, siginfo_t *si, void *context) {
     std::string meminfo = smaps_rollup + "\n" + vss;
     cjcb(persistentFilePath, cjLimits, cjCollectCrashInfo, fds.c_str(), threads.c_str(), meminfo.c_str(),
          OH_NativeBundle_GetCurrentApplicationInfo().bundleName);
+    writeSystemLog(persistentSystemLogFilePath);
     RemoveSignalHandler();
     pthread_mutex_unlock(&signalHandlerMutex);
     signalCrashInfo[sig].oldact.sa_sigaction(sig, si, context);
@@ -118,7 +158,7 @@ static void CrashSignalHandler(int sig, siginfo_t *si, void *context) {
 
 extern "C" {
 int8_t InitNativeSignalHandler(const char *pFilePath, const char *limits, CollectCrashInfo collectCrashInfo,
-                               Callback cb) {
+                               const char *pSystemLogFilePath, Callback cb) {
     struct sigaction act;
     memset(&act, 0, sizeof(act));
     sigfillset(&act.sa_mask);
@@ -137,12 +177,72 @@ int8_t InitNativeSignalHandler(const char *pFilePath, const char *limits, Collec
     persistentFilePath = new char[pFilePathLen + 1];
     strncpy(persistentFilePath, pFilePath, pFilePathLen);
     persistentFilePath[pFilePathLen] = '\0';
+
+    auto pSystemLogFilePathLen = strlen(pSystemLogFilePath);
+    persistentSystemLogFilePath = new char[pSystemLogFilePathLen + 1];
+    strncpy(persistentSystemLogFilePath, pSystemLogFilePath, pSystemLogFilePathLen);
+    persistentSystemLogFilePath[pSystemLogFilePathLen] = '\0';
+
     auto limitsLen = strlen(limits);
     cjLimits = new char[limitsLen + 1];
     strncpy(cjLimits, limits, limitsLen);
     cjLimits[limitsLen] = '\0';
     cjCollectCrashInfo = collectCrashInfo;
     cjcb = cb;
+    return SUCCESS;
+}
+
+int8_t registerCrashHilogCallback() {
+    registerHilogCallback(CrashHilogCallback);
+    return SUCCESS;
+}
+
+int8_t writeSystemLog(const char *pFilePath) {
+    std::ofstream file(pFilePath);
+    if (!file.is_open()) {
+        return FAIL;
+    }   
+    for (const auto &entry : logMessages) {
+
+        // dateTime
+        std::time_t currentTime = std::chrono::system_clock::to_time_t(entry.now);
+        std::tm localTime = *std::localtime(&currentTime);
+
+        // millisecond
+        auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                      entry.now - std::chrono::system_clock::from_time_t(currentTime))
+                      .count() % 1000;
+        // format time
+        char timeBuffer[80];
+        std::strftime(timeBuffer, sizeof(timeBuffer), "%m-%d %H:%M:%S", &localTime);
+        std::ostringstream timeStream;
+        timeStream << timeBuffer << "." << std::setw(3) << std::setfill('0') << ms;
+        std::string formattedTime = timeStream.str();
+
+        // format level
+        char levelChar = '?';
+        if (entry.level >= LOG_DEBUG && entry.level <= LOG_FATAL) {
+            levelChar = levelChars[entry.level - LOG_DEBUG];
+        }
+
+        // format domain
+        std::stringstream domainStream;
+        domainStream << std::hex << std::uppercase << entry.domain;
+        std::string hexDomain = domainStream.str();
+        if (hexDomain.length() > 5) {
+            hexDomain = hexDomain.substr(hexDomain.length() - 5);
+        } else {
+            while (hexDomain.length() < 5) {
+                hexDomain = "0" + hexDomain;
+            }
+        }
+        hexDomain = "C" + hexDomain;
+
+        std::ostringstream logStream;
+        logStream << formattedTime << "  " << hexDomain << "/" << entry.tag << "  " << levelChar << " " << entry.msg;
+        file << logStream.str() << "\n";
+    }
+    file.close();
     return SUCCESS;
 }
 }
