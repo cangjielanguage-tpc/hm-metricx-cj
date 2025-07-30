@@ -62,7 +62,8 @@ class Index {
             Button("click to change Text").onClick {
                 =>
                 msg = "world"
-                sayHello()
+                oom()
+                //sayHello()
                 //let xxx = ArrayList<Int64>(222222222222222222)
                 //crash()
                 //                unsafe {
@@ -167,3 +168,7 @@ func crash() {
 }
 
 foreign func Crash(): Unit
+
+func oom() {
+    let arr = ArrayList<Int64>(4200000000000)
+}

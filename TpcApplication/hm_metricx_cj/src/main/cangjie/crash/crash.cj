@@ -205,119 +205,119 @@ public class CrashInfo {
 
     public func toString(): String {
         let jsonObj = JsonObject()
-        if (languageValue.isSome()) {
-            jsonObj.put("language", JsonString(languageValue.getOrThrow()))
+        if (let Some(v) <- languageValue) {
+            jsonObj.put("language", JsonString(v))
         }
-        if (meminfoValue.isSome()) {
-            jsonObj.put("meminfo", JsonString(meminfoValue.getOrThrow()))
+        if (let Some(v) <- meminfoValue) {
+            jsonObj.put("meminfo", JsonString(v))
         }
-        if (timestampValue.isSome()) {
-            jsonObj.put("timestamp", JsonString(timestampValue.getOrThrow()))
+        if (let Some(v) <- timestampValue) {
+            jsonObj.put("timestamp", JsonString(v))
         }
-        if (pidValue.isSome()) {
-            jsonObj.put("pid", JsonString(pidValue.getOrThrow()))
+        if (let Some(v) <- pidValue) {
+            jsonObj.put("pid", JsonString(v))
         }
-        if (pnameValue.isSome()) {
-            jsonObj.put("pname", JsonString(pnameValue.getOrThrow()))
+        if (let Some(v) <- pnameValue) {
+            jsonObj.put("pname", JsonString(v))
         }
-        if (stacktraceValue.isSome()) {
-            jsonObj.put("stacktrace", JsonString(stacktraceValue.getOrThrow()))
+        if (let Some(v) <- stacktraceValue) {
+            jsonObj.put("stacktrace", JsonString(v))
         }
-        if (hilogValue.isSome()) {
-            jsonObj.put("hilog", JsonString(hilogValue.getOrThrow()))
+        if (let Some(v) <- hilogValue) {
+            jsonObj.put("hilog", JsonString(v))
         }
-        if (tidValue.isSome()) {
-            jsonObj.put("tid", JsonString(tidValue.getOrThrow()))
+        if (let Some(v) <- tidValue) {
+            jsonObj.put("tid", JsonString(v))
         }
-        if (tnameValue.isSome()) {
-            jsonObj.put("tname", JsonString(tnameValue.getOrThrow()))
+        if (let Some(v) <- tnameValue) {
+            jsonObj.put("tname", JsonString(v))
         }
-        if (fdsValue.isSome()) {
-            jsonObj.put("fds", map2json(fdsValue.getOrThrow()))
+        if (let Some(v) <- fdsValue) {
+            jsonObj.put("fds", map2json(v))
         }
-        if (limitsValue.isSome()) {
-            jsonObj.put("limits", JsonString(limitsValue.getOrThrow()))
+        if (let Some(v) <- limitsValue) {
+            jsonObj.put("limits", JsonString(v))
         }
-        if (threadsValue.isSome()) {
-            jsonObj.put("threads", JsonString(threadsValue.getOrThrow()))
+        if (let Some(v) <- threadsValue) {
+            jsonObj.put("threads", JsonString(v))
         }
-        if (extraInfoValue.isSome()) {
-            jsonObj.put("extraInfo", extraInfoValue.getOrThrow())
+        if (let Some(v) <- extraInfoValue) {
+            jsonObj.put("extraInfo", v)
         }
-        if (crashLogPathValue.isSome()) {
-            jsonObj.put("crashLogPath", JsonString(crashLogPathValue.getOrThrow()))
+        if (let Some(v) <- crashLogPathValue) {
+            jsonObj.put("crashLogPath", JsonString(v))
         }
-        if (dumpOnOOMPathValue.isSome()) {
-            jsonObj.put("dumpOnOOMPath", JsonString(dumpOnOOMPathValue.getOrThrow()))
+        if (let Some(v) <- dumpOnOOMPathValue) {
+            jsonObj.put("dumpOnOOMPath", JsonString(v))
         }
-        if (appVersionValue.isSome()) {
-            jsonObj.put("appVersion", JsonString(appVersionValue.getOrThrow()))
+        if (let Some(v) <- appVersionValue) {
+            jsonObj.put("appVersion", JsonString(v))
         }
-        if (rawFileValue.isSome()) {
-            jsonObj.put("rawFile", JsonString(rawFileValue.getOrThrow()))
+        if (let Some(v) <- rawFileValue) {
+            jsonObj.put("rawFile", JsonString(v))
         }
-        if (systemLogValue.isSome()) {
-            jsonObj.put("systemLog", JsonString(systemLogValue.getOrThrow()))
+        if (let Some(v) <- systemLogValue) {
+            jsonObj.put("systemLog", JsonString(v))
         }
         jsonObj.toString()
     }
 
     public static func fromJson(jsonObject: JsonObject): CrashInfo {
         let crashInfo = CrashInfo()
-        if (jsonObject.get("language").isSome()) {
-            crashInfo.language = jsonObject.get("language").getOrThrow().toString()
+        if (let Some(v) <- jsonObject.get("language")) {
+            crashInfo.language = v.toString()
         }
-        if (jsonObject.get("meminfo").isSome()) {
-            crashInfo.meminfo = jsonObject.get("meminfo").getOrThrow().toString()
+        if (let Some(v) <- jsonObject.get("meminfo")) {
+            crashInfo.meminfo = v.toString()
         }
-        if (jsonObject.get("timestamp").isSome()) {
-            crashInfo.timestamp = jsonObject.get("timestamp").getOrThrow().toString()
+        if (let Some(v) <- jsonObject.get("timestamp")) {
+            crashInfo.timestamp = v.toString()
         }
-        if (jsonObject.get("pid").isSome()) {
-            crashInfo.pid = jsonObject.get("pid").getOrThrow().toString()
+        if (let Some(v) <- jsonObject.get("pid")) {
+            crashInfo.pid = v.toString()
         }
-        if (jsonObject.get("pname").isSome()) {
-            crashInfo.pname = jsonObject.get("pname").getOrThrow().toString()
+        if (let Some(v) <- jsonObject.get("pname")) {
+            crashInfo.pname = v.toString()
         }
-        if (jsonObject.get("stacktrace").isSome()) {
-            crashInfo.stacktrace = jsonObject.get("stacktrace").getOrThrow().toString()
+        if (let Some(v) <- jsonObject.get("stacktrace")) {
+            crashInfo.stacktrace = v.toString()
         }
-        if (jsonObject.get("hilog").isSome()) {
-            crashInfo.hilog = jsonObject.get("hilog").getOrThrow().toString()
+        if (let Some(v) <- jsonObject.get("hilog")) {
+            crashInfo.hilog = v.toString()
         }
-        if (jsonObject.get("tid").isSome()) {
-            crashInfo.tid = jsonObject.get("tid").getOrThrow().toString()
+        if (let Some(v) <- jsonObject.get("tid")) {
+            crashInfo.tid = v.toString()
         }
-        if (jsonObject.get("tname").isSome()) {
-            crashInfo.tname = jsonObject.get("tname").getOrThrow().toString()
+        if (let Some(v) <- jsonObject.get("tname")) {
+            crashInfo.tname = v.toString()
         }
-        if (jsonObject.get("fds").isSome()) {
-            let fields: HashMap<String, JsonValue> = jsonObject.get("fds").getOrThrow().asObject().getFields()
+        if (let Some(v) <- jsonObject.get("fds")) {
+            let fields: HashMap<String, JsonValue> = v.asObject().getFields()
             crashInfo.fds = json2map(fields)
         }
-        if (jsonObject.get("limits").isSome()) {
-            crashInfo.limits = jsonObject.get("limits").getOrThrow().toString()
+        if (let Some(v) <- jsonObject.get("limits")) {
+            crashInfo.limits = v.toString()
         }
-        if (jsonObject.get("threads").isSome()) {
-            crashInfo.threads = jsonObject.get("threads").getOrThrow().toString()
+        if (let Some(v) <- jsonObject.get("threads")) {
+            crashInfo.threads = v.toString()
         }
-        if (jsonObject.get("extraInfo").isSome()) {
-            crashInfo.extraInfo = jsonObject.get("extraInfo")
+        if (let Some(v) <- jsonObject.get("extraInfo")) {
+            crashInfo.extraInfo = v
         }
-        if (jsonObject.get("crashLogPath").isSome()) {
-            crashInfo.crashLogPath = jsonObject.get("crashLogPath").getOrThrow().toString()
+        if (let Some(v) <- jsonObject.get("crashLogPath")) {
+            crashInfo.crashLogPath = v.toString()
         }
-        if (jsonObject.get("dumpOnOOMPath").isSome()) {
-            crashInfo.dumpOnOOMPath = jsonObject.get("dumpOnOOMPath").getOrThrow().toString()
+        if (let Some(v) <- jsonObject.get("dumpOnOOMPath")) {
+            crashInfo.dumpOnOOMPath = v.toString()
         }
-        if (jsonObject.get("appVersion").isSome()) {
-            crashInfo.appVersion = jsonObject.get("appVersion").getOrThrow().toString()
+        if (let Some(v) <- jsonObject.get("appVersion")) {
+            crashInfo.appVersion = v.toString()
         }
-        if (jsonObject.get("rawFile").isSome()) {
-            crashInfo.rawFile = jsonObject.get("rawFile").getOrThrow().toString()
+        if (let Some(v) <- jsonObject.get("rawFile")) {
+            crashInfo.rawFile = v.toString()
         }
-        if (jsonObject.get("systemLog").isSome()) {
-            crashInfo.systemLog = jsonObject.get("systemLog").getOrThrow().toString()
+        if (let Some(v) <- jsonObject.get("systemLog")) {
+            crashInfo.systemLog = v.toString()
         }
         crashInfo
     }
@@ -344,6 +344,7 @@ public class CrashInfo {
 }
 
 private var inited = false
+private let TIMEOUT = Duration.second
 
 public func initCrashHandler(
     applicationContext: ApplicationContext,
@@ -360,7 +361,9 @@ public func initCrashHandler(
     crashInfo.limits = collectLimits()
     let persistentFilePath = persistentDir.join("crash.json")
     let persistentSystemLogPath = persistentDir.join("crashSystemLog.json")
-    initErrorObserver(crashInfo, applicationContext, collectCrashInfo, persistentFilePath, persistentSystemLogPath)
+    initErrorObserver(
+        crashInfo, applicationContext, collectCrashInfo, persistentFilePath, persistentSystemLogPath,
+        enableDumpOnOOM, persistentDir)
     initNativeSignalHandler(persistentFilePath.toString(), applicationContext, crashInfo.limits.getOrThrow(),
         collectNativeCrashInfo, persistentSystemLogPath.toString())
     initCrashWatcher(applicationContext, reportCrashInfo, persistentFilePath, persistentSystemLogPath, persistentDir)
@@ -448,7 +451,8 @@ private func parseFDs(fds: String) {
 }
 
 private func initErrorObserver(crashInfo: CrashInfo, applicationContext: ApplicationContext,
-    collectCrashInfo: () -> JsonValue, persistentFilePath: Path, persistentSystemLogPath: Path) {
+    collectCrashInfo: () -> JsonValue, persistentFilePath: Path, persistentSystemLogPath: Path, enableDumpOnOOM: Bool,
+    persistentDir: Path) {
     let errorObserver = ErrorObserver(
         {errMsg: String =>},
         onException: {
@@ -460,6 +464,13 @@ private func initErrorObserver(crashInfo: CrashInfo, applicationContext: Applica
             crashInfo.extraInfo = collectCrashInfo()
             writeFile(persistentFilePath.toString(), crashInfo.toString())
             writeSystemLog2File(persistentSystemLogPath.toString())
+            if (enableDumpOnOOM) {
+                let rawOomFile = persistentDir.join("cj_OOM_pid" + Process.current.pid.toString() + ".dat")
+                let oomFile = persistentDir.join("cj_OOM_pid" + Process.current.pid.toString() + ".zlib")
+                let startTime = DateTime.now()
+                while(!exists(oomFile) && DateTime.now() - startTime < Duration.second) {}
+                while(exists(rawOomFile) && DateTime.now() - startTime < Duration.second) {}
+            }
             exit(applicationContext)
         }
     )
@@ -619,10 +630,23 @@ private func initCrashWatcher(applicationContext: ApplicationContext,
                     crashInfo.tname = res[2]
                 }
             }
-            if (crashInfo.pid.isSome()) {
-                let dumpOnOOMPath = persistentDir.join("cj_OOM_pid" + crashInfo.pid.getOrThrow() + ".zlib")
+            if (let Some(pid) <- crashInfo.pid) {
+                let rawDumpOnOOMPath = persistentDir.join("cj_OOM_pid" + pid + ".dat")
+                let dumpOnOOMPath = persistentDir.join("cj_OOM_pid" + pid + ".zlib")
                 if (exists(dumpOnOOMPath)) {
                     crashInfo.dumpOnOOMPath = dumpOnOOMPath.toString()
+                }
+                else {
+                    if (exists(rawDumpOnOOMPath)) {
+                        if (compressFile(rawDumpOnOOMPath.toString(), dumpOnOOMPath.toString())) {
+                            crashInfo.dumpOnOOMPath = dumpOnOOMPath.toString()
+                        } else {
+                            AppLog.warn("compressFile failed.")
+                        }
+                    }
+                }
+                if (exists(rawDumpOnOOMPath)) {
+                    deleteFile(rawDumpOnOOMPath.toString())
                 }
             }
             reportCrashInfo(crashInfo)
@@ -665,8 +689,8 @@ private func extractFromCrashLog(lines: Array<String>, pid: ?String, threads: ?S
     }
     if (tid.isEmpty() && pid.isSome()) {
         tid = pid.getOrThrow()
-        if (threads.isSome()) {
-            let arr = threads.getOrThrow().split("\n")
+        if (let Some(ts) <- threads) {
+            let arr = ts.split("\n")
             for (thread in arr) {
                 let prefix = tid + ":"
                 if (thread.startsWith(prefix)) {

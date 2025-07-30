@@ -36,7 +36,7 @@ class EntryAbility <: UIAbility {
         }
         initCrashHandler(this
             .context
-            .getApplicationContext(), {=> JsonValue.fromStr("{}")}, {=> unsafe { LibC.mallocCString("{}") }}, {data =>},
+            .getApplicationContext(), {=> JsonValue.fromStr("{}")}, {=> unsafe { LibC.mallocCString("{}") }}, {data => AppLog.error("oom: " + data.dumpOnOOMPath.toString())},
             Path(this
                 .context
                 .cacheDir), true)
