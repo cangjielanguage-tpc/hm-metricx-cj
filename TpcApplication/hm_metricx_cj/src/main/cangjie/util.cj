@@ -50,6 +50,9 @@ public func getTargetPageName(info: NavDestinationSwitchInfo, defaultName!: Stri
 }
 
 public func deleteFile(path: String) {
+    if (!exists(path)) {
+        return
+    }
     try {
         remove(path)
     } catch (e: FSException) {
@@ -58,6 +61,9 @@ public func deleteFile(path: String) {
 }
 
 public func deleteFile(path: Path) {
+    if (!exists(path)) {
+        return
+    }
     try {
         remove(path)
     } catch (e: FSException) {

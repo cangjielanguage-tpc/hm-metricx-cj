@@ -357,21 +357,36 @@ public func initCrashHandler(
     if (inited) {
         return
     }
+    let lastCrashFilePath = persistentDir.join("lastCrash.json")
+    reportLastCrash(lastCrashFilePath, reportCrashInfo)
     let crashInfo = CrashInfo()
     crashInfo.limits = collectLimits()
     let persistentFilePath = persistentDir.join("crash.json")
-    let persistentSystemLogPath = persistentDir.join("crashSystemLog.json")
+    let persistentSystemLogPath = persistentDir.join("crashSystemLog.txt")
     initErrorObserver(
         crashInfo, applicationContext, collectCrashInfo, persistentFilePath, persistentSystemLogPath,
         enableDumpOnOOM, persistentDir)
     initNativeSignalHandler(persistentFilePath.toString(), applicationContext, crashInfo.limits.getOrThrow(),
         collectNativeCrashInfo, persistentSystemLogPath.toString())
-    initCrashWatcher(applicationContext, reportCrashInfo, persistentFilePath, persistentSystemLogPath, persistentDir)
+    initCrashWatcher(applicationContext, reportCrashInfo,
+        persistentFilePath, persistentSystemLogPath, persistentDir, lastCrashFilePath)
     initHilogWatcher()
     if (enableDumpOnOOM) {
         initOOMHandler(persistentDir.toString())
     }
     inited = true
+}
+
+private func reportLastCrash(lastCrashFilePath: Path, reportCrashInfo: (crashInfo: CrashInfo) -> Unit) {
+    if (exists(lastCrashFilePath)) {
+        try {
+            let jsonObj = JsonValue.fromStr(readFile(lastCrashFilePath)).asObject()
+            reportCrashInfo(CrashInfo.fromJson(jsonObj))
+        } catch (e: JsonException) {
+           AppLog.warn(e.toString())
+        }
+        deleteFile(lastCrashFilePath)
+    }
 }
 
 private func initOOMHandler(persistentDir: String) {
@@ -462,7 +477,7 @@ private func initErrorObserver(crashInfo: CrashInfo, applicationContext: Applica
             crashInfo.fds = collectFDInfo()
             crashInfo.threads = collectThreads()
             crashInfo.extraInfo = collectCrashInfo()
-            writeFile(persistentFilePath.toString(), crashInfo.toString())
+            writeFile(persistentFilePath, crashInfo.toString())
             writeSystemLog2File(persistentSystemLogPath.toString())
             if (enableDumpOnOOM) {
                 let rawOomFile = persistentDir.join("cj_OOM_pid" + Process.current.pid.toString() + ".dat")
@@ -483,6 +498,16 @@ private func initErrorObserver(crashInfo: CrashInfo, applicationContext: Applica
 }
 
 private func writeFile(path: String, data: String) {
+    try {
+        File.writeTo(path, data.toArray())
+    } catch (e: FSException) {
+        AppLog.warn(e.toString())
+    } catch (e: IllegalArgumentException) {
+        AppLog.warn(e.toString())
+    }
+}
+
+private func writeFile(path: Path, data: String) {
     try {
         File.writeTo(path, data.toArray())
     } catch (e: FSException) {
@@ -553,8 +578,8 @@ private func collectMemInfo() {
     smaps_rollup + "\n" + vss
 }
 
-private func initCrashWatcher(applicationContext: ApplicationContext,
-    reportCrashInfo: (crashInfo: CrashInfo) -> Unit, persistentFilePath: Path, persistentSystemLogPath: Path, persistentDir: Path) {
+private func initCrashWatcher(applicationContext: ApplicationContext, reportCrashInfo: (crashInfo: CrashInfo) -> Unit,
+    persistentFilePath: Path, persistentSystemLogPath: Path, persistentDir: Path, lastCrashFilePath: Path) {
     let watcher = Watcher(
         "crashWatcher",
         appEventFilters: [AppEventFilter(OS, names: [APP_CRASH], eventTypes: [FAULT])],
@@ -579,7 +604,7 @@ private func initCrashWatcher(applicationContext: ApplicationContext,
             if (exists(persistentSystemLogPath)) {
                 try {
                     crashInfo.systemLog = String.fromUtf8(File.readFrom(persistentSystemLogPath))
-                } catch (e: JsonException) {
+                } catch (e: Exception) {
                     AppLog.warn(e.toString())
                 }
                 deleteFile(persistentSystemLogPath)
@@ -649,7 +674,11 @@ private func initCrashWatcher(applicationContext: ApplicationContext,
                     deleteFile(rawDumpOnOOMPath.toString())
                 }
             }
-            reportCrashInfo(crashInfo)
+            if (Process.current.pid.toString() == crashInfo.pid.getOrDefault({=> ""})) {
+                writeFile(lastCrashFilePath, crashInfo.toString())
+            } else {
+                reportCrashInfo(crashInfo)
+            }
         }
     )
     addWatcher(watcher)
