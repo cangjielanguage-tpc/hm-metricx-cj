@@ -120,6 +120,8 @@ class Index {
 
 @Component
 class PageOne{
+    @State
+    var webviewController: WebviewController = WebviewController()
     var pageInfos:NavPathStack = NavPathStack()
     public func build() {
         NavDestination() {
@@ -127,6 +129,7 @@ class PageOne{
             Text("enter page two").onClick {
                 evt => pageInfos.pushPath(NavPathInfo(name:"pageTwo",param:""))
             }
+//            Web(src: "https://baidu.com", controller: webviewController)
         }
         .onReady {
             context => pageInfos=context.pathStack
