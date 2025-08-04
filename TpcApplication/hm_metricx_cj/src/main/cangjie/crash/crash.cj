@@ -343,6 +343,10 @@ public class CrashInfo {
     }
 }
 
+public enum OOMHandlerMode {
+    | Async | Sync
+}
+
 private var inited = false
 private let TIMEOUT = Duration.second
 
@@ -352,7 +356,7 @@ public func initCrashHandler(
     collectNativeCrashInfo: CFunc<() -> CString>,
     reportCrashInfo: (crashInfo: CrashInfo) -> Unit,
     persistentDir: Path,
-    enableDumpOnOOM: Bool
+    enableDumpOnOOM: Option<OOMHandlerMode>
 ) {
     if (inited) {
         return
@@ -371,8 +375,15 @@ public func initCrashHandler(
     initCrashWatcher(applicationContext, reportCrashInfo,
         persistentFilePath, persistentSystemLogPath, persistentDir, lastCrashFilePath)
     initHilogWatcher()
-    if (enableDumpOnOOM) {
-        initOOMHandler(persistentDir.toString())
+    if (let Some(handlerMode) <- enableDumpOnOOM) {
+        match (handlerMode) {
+            case OOMHandlerMode.Sync =>
+                initOOMHandler(persistentDir.toString())
+            case OOMHandlerMode.Async =>
+                spawn { =>
+                    initOOMHandler(persistentDir.toString())
+                }
+        }
     }
     inited = true
 }
@@ -466,7 +477,7 @@ private func parseFDs(fds: String) {
 }
 
 private func initErrorObserver(crashInfo: CrashInfo, applicationContext: ApplicationContext,
-    collectCrashInfo: () -> JsonValue, persistentFilePath: Path, persistentSystemLogPath: Path, enableDumpOnOOM: Bool,
+    collectCrashInfo: () -> JsonValue, persistentFilePath: Path, persistentSystemLogPath: Path, enableDumpOnOOM: Option<OOMHandlerMode>,
     persistentDir: Path) {
     let errorObserver = ErrorObserver(
         {errMsg: String =>},
@@ -479,7 +490,7 @@ private func initErrorObserver(crashInfo: CrashInfo, applicationContext: Applica
             crashInfo.extraInfo = collectCrashInfo()
             writeFile(persistentFilePath, crashInfo.toString())
             writeSystemLog2File(persistentSystemLogPath.toString())
-            if (enableDumpOnOOM) {
+            if (enableDumpOnOOM.isSome()) {
                 let rawOomFile = persistentDir.join("cj_OOM_pid" + Process.current.pid.toString() + ".dat")
                 let oomFile = persistentDir.join("cj_OOM_pid" + Process.current.pid.toString() + ".zlib")
                 let startTime = DateTime.now()
