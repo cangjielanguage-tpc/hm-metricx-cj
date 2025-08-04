@@ -15,6 +15,16 @@ import tpc.UIKit.global.setInterval
 import stdx.encoding.json.*
 import std.collection.ArrayList
 import ohos.base.AppLog
+import std.collection.HashMap
+import tpc.UIKit.Observer.{NavDestinationSwitchInfo, on, ObserverListenerType}
+import ohos_app_cangjie_hm_metricx_cj.getTargetPageName
+import ohos_app_cangjie_hm_metricx_cj.PageSwitchCallBack
+
+let pageTrafficMap: HashMap<String, PageTrafficData> = HashMap<String, PageTrafficData>()
+let uid: UInt32 = GetAppUid()
+var pageRxStart: Int64 = 0
+var pageTxStart: Int64 = 0
+var currentPageName = ""
 
 // 获取应用UID
 public func GetAppUid(): UInt32 {
@@ -22,6 +32,59 @@ public func GetAppUid(): UInt32 {
     let bundleInfo = bundleManager.getBundleInfoForSelf(flag)
     let uid = bundleInfo.appInfo.getOrThrow().uid
     UInt32(uid)
+}
+
+public open class TrafficData {
+    private var totalValue: Int64 = 0
+    private var upTotalValue: Int64 = 0
+    private var downTotalValue: Int64 =0
+
+    public init(upTotalValue!: Int64, downTotalValue!: Int64) {
+        this.upTotalValue = upTotalValue
+        this.downTotalValue = downTotalValue
+        this.totalValue = upTotalValue + downTotalValue
+    }
+    public prop total: Int64 {
+        get() {
+            totalValue
+        }
+    }
+    public mut prop upTotal: Int64 {
+        get() {
+            upTotalValue
+        }
+        set(value) {
+            upTotalValue = value
+            totalValue = upTotalValue + downTotalValue
+        }
+    }
+    public mut prop downTotal: Int64 {
+        get() {
+            downTotalValue
+        }
+        set(value) {
+            downTotalValue = value
+            totalValue = upTotalValue + downTotalValue
+        }
+    }
+}
+
+public class PageTrafficData <: TrafficData {
+    public var pageName = ""
+
+    public init(upTotalValue!: Int64, downTotalValue!: Int64, pageName!: String) {
+        super(upTotalValue: upTotalValue, downTotalValue: downTotalValue)
+        this.pageName = pageName
+    }
+
+    public func toString() {
+        let jsonObj = JsonObject()
+        jsonObj.put("pageName", JsonString(pageName))
+        jsonObj.put("total", JsonString(total.toString()))
+        jsonObj.put("upTotal", JsonString(upTotal.toString()))
+        jsonObj.put("downTotal", JsonString(downTotal.toString()))
+        jsonObj.toString()
+    }
 }
 
 // 流量信息上报类
@@ -244,4 +307,66 @@ public func initTrafficHandler(context: UIAbilityContext, report: (TrafficInfo) 
         )
     }
     setInterval(doTrafficSample, 1000, Array<String>())
+
+    initPageTraffic(context)
 }
+
+private func initPageTraffic(context: UIAbilityContext) {
+    statistics.getUidRxBytes(
+        uid,
+        {
+            err: ?BusinessException, data: ?Int64 =>
+            pageRxStart = data.getOrThrow()
+            statistics.getUidTxBytes(
+                uid,
+                {
+                    err: ?BusinessException, data: ?Int64 =>
+                    pageTxStart = data.getOrThrow()
+                    on(navDestinationSwitch, context, PageSwitchCallBack(navDestinationSwitchCallBack))
+                }
+            )
+        }
+    )
+
+
+}
+
+private func navDestinationSwitchCallBack(info: NavDestinationSwitchInfo) {
+    updatePageTraffic(currentPageName)
+    currentPageName = getTargetPageName(info)
+}
+
+private func updatePageTraffic(pageName: String) {
+     statistics.getUidRxBytes(
+        uid,
+        {
+            err: ?BusinessException, data: ?Int64 =>
+            let rxBytes = data.getOrThrow()
+            let curRx = rxBytes - pageRxStart
+            pageRxStart = rxBytes
+            statistics.getUidTxBytes(
+                uid,
+                {
+                    err: ?BusinessException, data: ?Int64 =>
+                    let txBytes = data.getOrThrow()
+                    let curTx = txBytes - pageTxStart
+                    pageTxStart = txBytes
+                    updatePageMap(pageName, curRx, curTx)
+                }
+            )
+        }
+    )
+}
+
+private func updatePageMap(pageName: String, curRx: Int64, curTx: Int64) {
+
+    if(!pageTrafficMap.contains(pageName)) {
+        let pageTrafficData = PageTrafficData(upTotalValue: curTx, downTotalValue: curRx, pageName: pageName)
+        pageTrafficMap.add(pageName, pageTrafficData)
+        return
+    }
+    let pageTrafficData = pageTrafficMap.get(pageName).getOrThrow()
+    pageTrafficData.upTotal += curTx
+    pageTrafficData.downTotal += curRx
+}
+
