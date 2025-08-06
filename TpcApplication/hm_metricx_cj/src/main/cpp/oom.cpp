@@ -6,6 +6,8 @@
 
 #include "oom.h"
 #include "common.h"
+#include "xhook/xh_elf.h"
+#include "xhook/xhook.h"
 #include <KOOM/kwai_linker/elf_reader.h>
 #include <cstdio>
 #include <dlfcn.h>
@@ -29,6 +31,10 @@
 #define PAGE_START(addr) ((addr) & PAGE_MASK)
 #define PAGE_END(addr) (PAGE_START(addr + sizeof(uintptr_t) - 1) + PAGE_SIZE)
 #define PAGE_COVER(addr) (PAGE_END(addr) - PAGE_START(addr))
+
+static pthread_mutex_t hook_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+const char *cj_runtime = "libcangjie-runtime.so";
 
 uintptr_t gBaseAddr = 0;
 
@@ -173,30 +179,30 @@ int8_t InitOOMHandler(const char *targetFile, const char *zlibFile, CompressFile
     }
 
     while (fgets(line, sizeof(line), fp)) {
-        if (NULL != strstr(line, "libcangjie-runtime.so") &&
+        if (NULL != strstr(line, cj_runtime) &&
             sscanf(line, "%" PRIxPTR "-%*lx %*4s 00000000", &baseAddr) == 1) {
             break;
         }
     }
     fclose(fp);
-
-    if (0 == baseAddr) {
+    
+    pthread_mutex_lock(&hook_mutex);
+    xhook_clear();
+    if (xhook_register(cj_runtime, "fopen", (void *)Fopen, nullptr) != EXIT_SUCCESS) {
+        pthread_mutex_unlock(&hook_mutex);
         return FAIL;
     }
-
-    int res = replaceFunc(baseAddr, 0x119978, (void *)Fopen);
-
-    if (res != 0) {
+    if (xhook_register(cj_runtime, "fclose", (void *)Fclose, nullptr) != EXIT_SUCCESS) {
+        pthread_mutex_unlock(&hook_mutex);
         return FAIL;
     }
-
-    res = replaceFunc(baseAddr, 0x119980, (void *)Fclose);
-
-    if (res != 0) {
+    if (xhook_refresh(0) != 0) {
+        pthread_mutex_unlock(&hook_mutex);
         return FAIL;
     }
+    pthread_mutex_unlock(&hook_mutex);
 
-    void *handle = Dlopen("libcangjie-runtime.so", RTLD_NOW);
+    void *handle = Dlopen(cj_runtime, RTLD_NOW);
     if (!handle) {
         return FAIL;
     }
