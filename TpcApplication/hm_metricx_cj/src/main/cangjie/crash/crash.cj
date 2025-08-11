@@ -629,6 +629,7 @@ private func initCrashWatcher(applicationContext: ApplicationContext, reportCras
                 }
                 for (eventInfo in eventGroup.appEventInfos) {
                     if (eventInfo.params.get("external_log").isNone()) {
+                        crashInfo.rawFile = "hm-metricx-cj error: external_log is none"
                         continue
                     }
                     crashInfo.timestamp = match (eventInfo.params.get("time")) {
@@ -641,7 +642,7 @@ private func initCrashWatcher(applicationContext: ApplicationContext, reportCras
                     }
                     crashInfo.stacktrace = match (eventInfo.params.get("exception")) {
                         case Some(value) => value.toString()
-                        case _ => "ExceptionInfo Empty!!!"
+                        case _ => "hm-metricx-cj error: exception is none"
                     }
                     crashInfo.hilog = match (eventInfo.params.get("hilog")) {
                         case Some(value) => hilogWordWrap(value.toString())
@@ -653,10 +654,12 @@ private func initCrashWatcher(applicationContext: ApplicationContext, reportCras
                     }
                     let crashLogPath: String = eventInfo.params.get("external_log")
                         .getOrThrow().toString().removePrefix("[").removeSuffix("]")
-                    if (crashLogPath.isEmpty() || !exists(crashLogPath)) {
-                        crashInfo.pname = "empty rawfile!!!"
-                        crashInfo.tid = "empty rawfile"
-                        crashInfo.tname = "empty rawfile"
+                    if (crashLogPath.isEmpty() ) {
+                        crashInfo.rawFile = "hm-metricx-cj error: crash log path is empty"
+                        continue
+                    }
+                    if (!exists(crashLogPath)) {
+                        crashInfo.rawFile = "hm-metricx-cj error: crash log path does not exist"
                         continue
                     }
                     crashInfo.crashLogPath = crashLogPath
