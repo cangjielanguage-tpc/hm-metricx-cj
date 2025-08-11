@@ -20,7 +20,7 @@ public func map2json(input: HashMap<String, String>) {
 
 public func json2map(input: HashMap<String, JsonValue>) {
     let map = HashMap<String, String>()
-    input.iterator().forEach({entry => map.add(entry[0], entry[1].toString())})
+    input.iterator().forEach({entry => map.add(entry[0], JsonValueToString(entry[1]))})
     map
 }
 
@@ -95,4 +95,17 @@ public func hilogWordWrap(str: String) {
         res = res + cur + "\n"
     }
     return res
+}
+
+public func JsonValueToString(value: JsonValue): String {
+    return value.asString().getValue()
+}
+
+let ESCAPE_MAP: HashMap<String, String> = HashMap<String, String>([("\\n", "\n"), ("\\t", "\t")])
+public func unescapeString(str: String): String {
+    var res: String = str
+    for (escape in ESCAPE_MAP) {
+        res = res.replace(escape[0], escape[1])
+    }
+    res
 }
