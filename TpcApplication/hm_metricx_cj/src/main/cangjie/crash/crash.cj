@@ -641,7 +641,7 @@ private func initCrashWatcher(applicationContext: ApplicationContext, reportCras
                     }
                     crashInfo.stacktrace = match (eventInfo.params.get("exception")) {
                         case Some(value) => value.toString()
-                        case _ => None
+                        case _ => "ExceptionInfo Empty!!!"
                     }
                     crashInfo.hilog = match (eventInfo.params.get("hilog")) {
                         case Some(value) => hilogWordWrap(value.toString())
@@ -654,6 +654,9 @@ private func initCrashWatcher(applicationContext: ApplicationContext, reportCras
                     let crashLogPath: String = eventInfo.params.get("external_log")
                         .getOrThrow().toString().removePrefix("[").removeSuffix("]")
                     if (crashLogPath.isEmpty() || !exists(crashLogPath)) {
+                        crashInfo.pname = "empty rawfile!!!"
+                        crashInfo.tid = "empty rawfile"
+                        crashInfo.tname = "empty rawfile"
                         continue
                     }
                     crashInfo.crashLogPath = crashLogPath
