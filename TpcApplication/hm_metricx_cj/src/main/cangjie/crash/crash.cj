@@ -625,6 +625,7 @@ private func initCrashWatcher(applicationContext: ApplicationContext, reportCras
             }
             for (eventGroup in appEventGroups) {
                 if (eventGroup.name != APP_CRASH) {
+                    crashInfo.rawFile = "hm-metricx-cj error: external_log is none"
                     continue
                 }
                 for (eventInfo in eventGroup.appEventInfos) {
@@ -641,7 +642,7 @@ private func initCrashWatcher(applicationContext: ApplicationContext, reportCras
                     }
                     crashInfo.stacktrace = match (eventInfo.params.get("exception")) {
                         case Some(value) => value.toString()
-                        case _ => None
+                        case _ => "hm-metricx-cj error: exception is none"
                     }
                     crashInfo.hilog = match (eventInfo.params.get("hilog")) {
                         case Some(value) => hilogWordWrap(value.toString())
@@ -653,7 +654,12 @@ private func initCrashWatcher(applicationContext: ApplicationContext, reportCras
                     }
                     let crashLogPath: String = eventInfo.params.get("external_log")
                         .getOrThrow().toString().removePrefix("[").removeSuffix("]")
-                    if (crashLogPath.isEmpty() || !exists(crashLogPath)) {
+                    if (crashLogPath.isEmpty() ) {
+                        crashInfo.rawFile = "hm-metricx-cj error: crash log path is empty"
+                        continue
+                    }
+                    if (!exists(crashLogPath)) {
+                        crashInfo.rawFile = "hm-metricx-cj error: crash log path does not exist"
                         continue
                     }
                     crashInfo.crashLogPath = crashLogPath
