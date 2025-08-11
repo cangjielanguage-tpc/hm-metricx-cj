@@ -96,3 +96,25 @@ public func hilogWordWrap(str: String) {
     }
     return res
 }
+
+public func formatWithCommasAndPadding(num: Int64, width: Int64): String {
+    let numStr = num.toString().toRuneArray()
+    let len = numStr.size
+    let withCommas = StringBuilder()
+    for (i in 0..len) {
+        if ((len - i) % 3 == 0 && i != 0) {
+            withCommas.append(",")
+        }
+        withCommas.append(numStr[i])
+    }
+    var result = withCommas.toString()
+    if (result.size < width) {
+        let paddingWidth = width - result.size
+        let padded = StringBuilder()
+        for (i in 0..paddingWidth) {
+            padded.append(' ')
+        }
+        result = padded.toString() + result
+    }
+    return result
+}

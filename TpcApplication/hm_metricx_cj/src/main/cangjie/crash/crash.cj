@@ -20,6 +20,10 @@ import stdx.encoding.json.*
 import std.time.*
 import std.sync.*
 import ohos_app_cangjie_hm_metricx_cj.deleteFile
+import std.io.*
+import std.convert.*
+import std.sort.*
+import std.unicode.UnicodeStringExtension
 
 public class CrashInfo {
     private var languageValue: ?String = None
@@ -40,6 +44,7 @@ public class CrashInfo {
     private var appVersionValue: ?String = None
     private var rawFileValue: ?String = None
     private var systemLogValue: ?String = None
+    private var nativeMemDetailValue: ?String = None
 
     public mut prop language: ?String {
         get() {
@@ -203,6 +208,15 @@ public class CrashInfo {
         }
     }
 
+    public mut prop nativeMemDetail: ?String {
+        get() {
+            nativeMemDetailValue
+        }
+        set(value) {
+            nativeMemDetailValue = value
+        }
+    }
+
     public func toString(): String {
         let jsonObj = JsonObject()
         if (let Some(v) <- languageValue) {
@@ -258,6 +272,9 @@ public class CrashInfo {
         }
         if (let Some(v) <- systemLogValue) {
             jsonObj.put("systemLog", JsonString(v))
+        }
+        if (let Some(v) <- nativeMemDetailValue) {
+            jsonObj.put("nativeMemDetail", JsonString(v))
         }
         jsonObj.toString()
     }
@@ -319,6 +336,9 @@ public class CrashInfo {
         if (let Some(v) <- jsonObject.get("systemLog")) {
             crashInfo.systemLog = v.toString()
         }
+        if (let Some(v) <- jsonObject.get("nativeMemDetail")) {
+            crashInfo.nativeMemDetail = v.toString()
+        }
         crashInfo
     }
 
@@ -340,6 +360,24 @@ public class CrashInfo {
         this.dumpOnOOMPathValue = None
         this.appVersionValue = None
         this.rawFileValue = None
+        this.systemLog = None
+        this.nativeMemDetail = None
+    }
+}
+
+struct PersistentPaths {
+    let dir: Path
+    let lastCrashFilePath: Path
+    let filePath: Path
+    let systemLogPath: Path
+    let memMapPath: Path
+
+    public init(persistentDir: Path) {
+        this.dir = persistentDir
+        this.lastCrashFilePath = persistentDir.join("lastCrash.json")
+        this.filePath = persistentDir.join("crash.json")
+        this.systemLogPath = persistentDir.join("crashSystemLog.txt")
+        this.memMapPath = persistentDir.join("crashMemMap.txt")
     }
 }
 
@@ -361,19 +399,15 @@ public func initCrashHandler(
     if (inited) {
         return
     }
-    let lastCrashFilePath = persistentDir.join("lastCrash.json")
-    reportLastCrash(lastCrashFilePath, reportCrashInfo)
+    let persistentPaths = PersistentPaths(persistentDir)
+    reportLastCrash(persistentPaths.lastCrashFilePath, reportCrashInfo)
     let crashInfo = CrashInfo()
     crashInfo.limits = collectLimits()
     let persistentFilePath = persistentDir.join("crash.json")
     let persistentSystemLogPath = persistentDir.join("crashSystemLog.txt")
-    initErrorObserver(
-        crashInfo, applicationContext, collectCrashInfo, persistentFilePath, persistentSystemLogPath,
-        enableDumpOnOOM, persistentDir)
-    initNativeSignalHandler(persistentFilePath.toString(), applicationContext, crashInfo.limits.getOrThrow(),
-        collectNativeCrashInfo, persistentSystemLogPath.toString())
-    initCrashWatcher(applicationContext, reportCrashInfo,
-        persistentFilePath, persistentSystemLogPath, persistentDir, lastCrashFilePath)
+    initErrorObserver(crashInfo, applicationContext, collectCrashInfo, enableDumpOnOOM, persistentPaths)
+    initNativeSignalHandler(applicationContext, crashInfo.limits.getOrThrow(), collectNativeCrashInfo, persistentPaths)
+    initCrashWatcher(applicationContext, reportCrashInfo, persistentPaths)
     initHilogWatcher()
     if (let Some(handlerMode) <- enableDumpOnOOM) {
         match (handlerMode) {
@@ -421,17 +455,19 @@ private func initOOMHandler(persistentDir: String) {
     }
 }
 
-private func initNativeSignalHandler(persistentFilePath: String, applicationContext: ApplicationContext, limits: String,
-    collectCrashInfo: CFunc<() -> CString>, persistentSystemLogPath: String) {
+private func initNativeSignalHandler(applicationContext: ApplicationContext, limits: String,
+    collectCrashInfo: CFunc<() -> CString>, persistentPaths: PersistentPaths) {
     unsafe {
-        let cstr = LibC.mallocCString(persistentFilePath)
+        let cstr = LibC.mallocCString(persistentPaths.filePath.toString())
         let lmts = LibC.mallocCString(limits)
-        let cSystemLogPath = LibC.mallocCString(persistentSystemLogPath)
+        let cSystemLogPath = LibC.mallocCString(persistentPaths.systemLogPath.toString())
+        let cMemMapPath = LibC.mallocCString(persistentPaths.memMapPath.toString())
         if (InitNativeSignalHandler(
             cstr,
             lmts,
             collectCrashInfo,
             cSystemLogPath,
+            cMemMapPath,
             {
                 persistentFilePath, limits, collectCrashInfo, fds, threads, meminfo, bundleName =>
                 let crashInfo = CrashInfo()
@@ -458,6 +494,7 @@ private func initNativeSignalHandler(persistentFilePath: String, applicationCont
         LibC.free(cstr)
         LibC.free(lmts)
         LibC.free(cSystemLogPath)
+        LibC.free(cMemMapPath)
     }
 }
 
@@ -477,8 +514,7 @@ private func parseFDs(fds: String) {
 }
 
 private func initErrorObserver(crashInfo: CrashInfo, applicationContext: ApplicationContext,
-    collectCrashInfo: () -> JsonValue, persistentFilePath: Path, persistentSystemLogPath: Path, enableDumpOnOOM: Option<OOMHandlerMode>,
-    persistentDir: Path) {
+    collectCrashInfo: () -> JsonValue, enableDumpOnOOM: Option<OOMHandlerMode>, persistentPaths: PersistentPaths) {
     let errorObserver = ErrorObserver(
         {errMsg: String =>},
         onException: {
@@ -488,11 +524,12 @@ private func initErrorObserver(crashInfo: CrashInfo, applicationContext: Applica
             crashInfo.fds = collectFDInfo()
             crashInfo.threads = collectThreads()
             crashInfo.extraInfo = collectCrashInfo()
-            writeFile(persistentFilePath, crashInfo.toString())
-            writeSystemLog2File(persistentSystemLogPath.toString())
+            writeFile(persistentPaths.filePath, crashInfo.toString())
+            writeSystemLog2File(persistentPaths.systemLogPath.toString())
+            persistentMemMap2File(persistentPaths.memMapPath.toString())
             if (enableDumpOnOOM.isSome()) {
-                let rawOomFile = persistentDir.join("cj_OOM_pid" + Process.current.pid.toString() + ".dat")
-                let oomFile = persistentDir.join("cj_OOM_pid" + Process.current.pid.toString() + ".zlib")
+                let rawOomFile = persistentPaths.dir.join("cj_OOM_pid" + Process.current.pid.toString() + ".dat")
+                let oomFile = persistentPaths.dir.join("cj_OOM_pid" + Process.current.pid.toString() + ".zlib")
                 let startTime = DateTime.now()
                 while(!exists(oomFile) && DateTime.now() - startTime < Duration.second) {}
                 while(exists(rawOomFile) && DateTime.now() - startTime < Duration.second) {}
@@ -590,7 +627,7 @@ private func collectMemInfo() {
 }
 
 private func initCrashWatcher(applicationContext: ApplicationContext, reportCrashInfo: (crashInfo: CrashInfo) -> Unit,
-    persistentFilePath: Path, persistentSystemLogPath: Path, persistentDir: Path, lastCrashFilePath: Path) {
+    persistentPaths: PersistentPaths) {
     let watcher = Watcher(
         "crashWatcher",
         appEventFilters: [AppEventFilter(OS, names: [APP_CRASH], eventTypes: [FAULT])],
@@ -600,28 +637,35 @@ private func initCrashWatcher(applicationContext: ApplicationContext, reportCras
                 return
             }
             var crashInfo = CrashInfo()
-            if (exists(persistentFilePath)) {
+            if (exists(persistentPaths.filePath)) {
                 try {
-                    let jsonObj = JsonValue.fromStr(String.fromUtf8(File.readFrom(persistentFilePath))).asObject()
+                    let jsonObj = JsonValue.fromStr(String.fromUtf8(File.readFrom(persistentPaths.filePath))).asObject()
                     crashInfo = CrashInfo.fromJson(jsonObj)
                 } catch (e: JsonException) {
                     AppLog.warn(e.toString())
                 }
-                deleteFile(persistentFilePath)
+                deleteFile(persistentPaths.filePath)
             }
             else {
                 AppLog.warn("No persistent crash file.")
             }
-            if (exists(persistentSystemLogPath)) {
+            if (exists(persistentPaths.systemLogPath)) {
                 try {
-                    crashInfo.systemLog = String.fromUtf8(File.readFrom(persistentSystemLogPath))
+                    crashInfo.systemLog = String.fromUtf8(File.readFrom(persistentPaths.systemLogPath))
                 } catch (e: Exception) {
                     AppLog.warn(e.toString())
                 }
-                deleteFile(persistentSystemLogPath)
+                deleteFile(persistentPaths.systemLogPath)
             }
             else {
                 AppLog.warn("No persistent crash system log file.")
+            }
+
+            if (exists(persistentPaths.memMapPath)) {
+                crashInfo.nativeMemDetail = parseMaps(persistentPaths.memMapPath, Int32.Max)
+                deleteFile(persistentPaths.memMapPath)
+            } else {
+                AppLog.warn("No persistent crash memMap log file.")
             }
             for (eventGroup in appEventGroups) {
                 if (eventGroup.name != APP_CRASH) {
@@ -667,8 +711,8 @@ private func initCrashWatcher(applicationContext: ApplicationContext, reportCras
                 }
             }
             if (let Some(pid) <- crashInfo.pid) {
-                let rawDumpOnOOMPath = persistentDir.join("cj_OOM_pid" + pid + ".dat")
-                let dumpOnOOMPath = persistentDir.join("cj_OOM_pid" + pid + ".zlib")
+                let rawDumpOnOOMPath = persistentPaths.dir.join("cj_OOM_pid" + pid + ".dat")
+                let dumpOnOOMPath = persistentPaths.dir.join("cj_OOM_pid" + pid + ".zlib")
                 if (exists(dumpOnOOMPath)) {
                     crashInfo.dumpOnOOMPath = dumpOnOOMPath.toString()
                 }
@@ -686,7 +730,7 @@ private func initCrashWatcher(applicationContext: ApplicationContext, reportCras
                 }
             }
             if (Process.current.pid.toString() == crashInfo.pid.getOrDefault({=> ""})) {
-                writeFile(lastCrashFilePath, crashInfo.toString())
+                writeFile(persistentPaths.lastCrashFilePath, crashInfo.toString())
             } else {
                 reportCrashInfo(crashInfo)
             }
@@ -799,7 +843,17 @@ private func writeSystemLog2File(persistentSystemLogPath: String) {
     unsafe {
         let filePath = LibC.mallocCString(persistentSystemLogPath)
         if (writeSystemLog(filePath) != 0) {
-            AppLog.warn("write system log file failed.")
+            AppLog.warn("write crash system log file failed.")
+        }
+        LibC.free(filePath)
+    }
+}
+
+private func persistentMemMap2File(persistentMemMapFileName: String) {
+    unsafe {
+        let filePath = LibC.mallocCString(persistentMemMapFileName)
+        if (persistentMemMapFile(filePath) != 0) {
+            AppLog.warn("write crash memMap file failed.")
         }
         LibC.free(filePath)
     }
@@ -814,12 +868,101 @@ private func initHilogWatcher() {
     }
 }
 
+private func parseMaps(filePath: Path, headCount: Int32): String {
+    let specs = HashMap<String, Array<String>>(
+        [("code", [".hap", ".hsp", ".har", ".so"]), ("malloc", ["libc_malloc"]), ("font", [".ttc", ".ttf", ".otf"]),
+            ("stack", ["stack"]), ("thread", ["thread"])])
+    let pathLength = HashMap<String, Int64>()
+    let specPathLength = HashMap<String, Int64>()
+    try {
+        let reader = StringReader(File(filePath, OpenMode.Read))
+        while (let Some(line) <- reader.readln()) {
+            let segments = line.trim().split(" ", removeEmpty: true)
+            if (segments.size < 5) {
+                AppLog.info("parse memMap skiped line: " + line)
+                continue
+            }
+            if (segments.size > 6) {
+                for (str in segments[6..]) {
+                    segments[5] += " " + str
+                }
+            }
+            var zonePath = "unknown"
+            if (segments.size >= 6) {
+                zonePath = segments[5]
+            }
+            let zoneItem = segments[0].split("-")
+            if (zoneItem.size != 2) {
+                continue
+            }
+            try {
+                let curSize = Int64.parse("0x" + zoneItem[1]) - Int64.parse("0x" + zoneItem[0])
+                let originPathSize = pathLength.get(zonePath) ?? 0
+                pathLength.add(zonePath, originPathSize + curSize)
+
+                for ((spec, keywords) in specs) {
+                    for (keyword in keywords) {
+                        if (zonePath.contains(keyword)) {
+                            let specSize: Int64 = specPathLength.get(spec) ?? 0
+                            specPathLength.add(spec, specSize + curSize)
+                            break
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                AppLog.info("parse memMap skiped line: ${line}, exception: ${e.toString()}")
+            }
+        }
+        reader.close()
+    } catch (e: Exception) {
+        AppLog.warn("parse memMap failed: " + e.toString())
+    }
+
+    // 格式化
+    let by: ((String, Int64), (String, Int64)) -> Ordering = {
+        a, b =>
+        if (a[1] < b[1]) {
+            return Ordering.GT
+        } else if (a[1] > b[1]) {
+            return Ordering.LT
+        }
+        return Ordering.EQ
+    }
+    let specLengthArr = specPathLength.toArray()
+    sort(specLengthArr, by: by, stable: true)
+    let pathLengthArr = pathLength.toArray()
+    sort(pathLengthArr, by: by, stable: true)
+
+    let stringBuilder = StringBuilder()
+    stringBuilder.append("============Summarry============\n")
+    for ((spec, size) in specLengthArr) {
+        stringBuilder.append("${formatWithCommasAndPadding(size / 1024, 10)} kB    ${spec}\n")
+    }
+
+    stringBuilder.append("============Details============\n")
+    var totalSize: Int64 = 0
+    var count: Int32 = 0
+    for ((path, size) in pathLengthArr) {
+        stringBuilder.append("${formatWithCommasAndPadding(size / 1024, 10)} kB    ${path}\n")
+        totalSize += size
+        count++
+        if (count >= headCount) {
+            stringBuilder.append("${(-1).format("10")} kB   others\n")
+            break
+        }
+    }
+    stringBuilder.append("${formatWithCommasAndPadding(totalSize / 1024, 10)} kB    Total\n")
+    stringBuilder.toString()
+}
+
 foreign func InitNativeSignalHandler(persistentFilePath: CString, limits: CString,
-    collectCrashInfo: CFunc<() -> CString>, persistentSystemLogPath: CString,
+    collectCrashInfo: CFunc<() -> CString>, persistentSystemLogPath: CString, pMemMapFilePath: CString,
     cb: CFunc<(CString, CString, CFunc<() -> CString>, CString, CString, CString, CString) -> Unit>): Int8
 
 foreign func InitOOMHandler(targetFile: CString, zlibFile: CString, compressFile: CFunc<(CString, CString) -> Unit>): Int8
 
 foreign func writeSystemLog(persistentFilePath: CString): Int8
+
+foreign func persistentMemMapFile(persistentFilePath: CString): Int8
 
 foreign func registerCrashHilogCallback(): Int8

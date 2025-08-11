@@ -51,15 +51,17 @@ typedef void (*Callback)(const char *, const char *, CollectCrashInfo, const cha
 
 Callback cjcb;
 
-char *persistentFilePath;
+std::string persistentFilePath;
 
-char *persistentSystemLogFilePath;
+std::string persistentSystemLogFilePath;
+
+std::string persistentMemMapFilePath;
 
 const char *levelChars = "DIWEF"; // 3->D, 4->I, 5->W, 6->E, 7->F
 
 std::vector<LogEntry> logMessages;
 
-char *cjLimits;
+std::string cjLimits;
 
 static SignalCrashInfo signalCrashInfo[] = {{.sigNum = SIGABRT}, {.sigNum = SIGBUS},   {.sigNum = SIGFPE},
                                             {.sigNum = SIGILL},  {.sigNum = SIGSEGV},  {.sigNum = SIGTRAP},
@@ -116,9 +118,6 @@ void CrashHilogCallback(const LogType type, const LogLevel level, const unsigned
 
     logMessages.push_back(entry);
 }
-extern "C" {
-int8_t writeSystemLog(const char *pFilePath);
-}
 
 static void CrashSignalHandler(int sig, siginfo_t *si, void *context) {
     if (initSuccess == 0) {
@@ -148,9 +147,10 @@ static void CrashSignalHandler(int sig, siginfo_t *si, void *context) {
     std::string smaps_rollup = readFile("/proc/self/smaps_rollup");
     std::string vss = "Vss:\t\t\t\t" + getVss(readFile("/proc/self/statm"), ' ') + " KB";
     std::string meminfo = smaps_rollup + "\n" + vss;
-    cjcb(persistentFilePath, cjLimits, cjCollectCrashInfo, fds.c_str(), threads.c_str(), meminfo.c_str(),
+    cjcb(persistentFilePath.c_str(), cjLimits.c_str(), cjCollectCrashInfo, fds.c_str(), threads.c_str(), meminfo.c_str(),
          OH_NativeBundle_GetCurrentApplicationInfo().bundleName);
-    writeSystemLog(persistentSystemLogFilePath);
+    writeSystemLog(persistentSystemLogFilePath.c_str());
+    persistentMemMapFile(persistentMemMapFilePath.c_str());
     RemoveSignalHandler();
     pthread_mutex_unlock(&signalHandlerMutex);
     signalCrashInfo[sig].oldact.sa_sigaction(sig, si, context);
@@ -158,7 +158,7 @@ static void CrashSignalHandler(int sig, siginfo_t *si, void *context) {
 
 extern "C" {
 int8_t InitNativeSignalHandler(const char *pFilePath, const char *limits, CollectCrashInfo collectCrashInfo,
-                               const char *pSystemLogFilePath, Callback cb) {
+                               const char *pSystemLogFilePath, const char *pMemMapFilePath, Callback cb) {
     struct sigaction act;
     memset(&act, 0, sizeof(act));
     sigfillset(&act.sa_mask);
@@ -173,20 +173,10 @@ int8_t InitNativeSignalHandler(const char *pFilePath, const char *limits, Collec
         }
     }
     initSuccess = 1;
-    auto pFilePathLen = strlen(pFilePath);
-    persistentFilePath = new char[pFilePathLen + 1];
-    strncpy(persistentFilePath, pFilePath, pFilePathLen);
-    persistentFilePath[pFilePathLen] = '\0';
-
-    auto pSystemLogFilePathLen = strlen(pSystemLogFilePath);
-    persistentSystemLogFilePath = new char[pSystemLogFilePathLen + 1];
-    strncpy(persistentSystemLogFilePath, pSystemLogFilePath, pSystemLogFilePathLen);
-    persistentSystemLogFilePath[pSystemLogFilePathLen] = '\0';
-
-    auto limitsLen = strlen(limits);
-    cjLimits = new char[limitsLen + 1];
-    strncpy(cjLimits, limits, limitsLen);
-    cjLimits[limitsLen] = '\0';
+    persistentFilePath = pFilePath;
+    persistentSystemLogFilePath = pSystemLogFilePath;
+    persistentMemMapFilePath = pMemMapFilePath;
+    cjLimits = limits;
     cjCollectCrashInfo = collectCrashInfo;
     cjcb = cb;
     return SUCCESS;
@@ -245,4 +235,31 @@ int8_t writeSystemLog(const char *pFilePath) {
     file.close();
     return SUCCESS;
 }
+
+int8_t persistentMemMapFile(const char *pFilePath) {
+    
+    if(!std::__fs::filesystem::exists("/proc/self/maps")) {
+        return FAIL;
+    }
+    std::ifstream inputFile("/proc/self/maps");
+    std::ofstream outputFile(pFilePath);
+    
+    if(!inputFile.is_open()) {
+        return FAIL;
+    }
+    
+    if(!outputFile.is_open()) {
+        return FAIL;
+    }
+    
+    std::string line;
+    while(std::getline(inputFile, line)) {
+        outputFile << line << std::endl;
+    }
+    inputFile.close();
+    outputFile.close();
+    
+    return SUCCESS;
+}
+
 }
