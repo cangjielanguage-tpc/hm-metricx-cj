@@ -265,59 +265,59 @@ public class CrashInfo {
     public static func fromJson(jsonObject: JsonObject): CrashInfo {
         let crashInfo = CrashInfo()
         if (let Some(v) <- jsonObject.get("language")) {
-            crashInfo.language = v.toString()
+            crashInfo.language = JsonValueToString(v)
         }
         if (let Some(v) <- jsonObject.get("meminfo")) {
-            crashInfo.meminfo = v.toString()
+            crashInfo.meminfo = JsonValueToString(v)
         }
         if (let Some(v) <- jsonObject.get("timestamp")) {
-            crashInfo.timestamp = v.toString()
+            crashInfo.timestamp = JsonValueToString(v)
         }
         if (let Some(v) <- jsonObject.get("pid")) {
-            crashInfo.pid = v.toString()
+            crashInfo.pid = JsonValueToString(v)
         }
         if (let Some(v) <- jsonObject.get("pname")) {
-            crashInfo.pname = v.toString()
+            crashInfo.pname = JsonValueToString(v)
         }
         if (let Some(v) <- jsonObject.get("stacktrace")) {
-            crashInfo.stacktrace = v.toString()
+            crashInfo.stacktrace = JsonValueToString(v)
         }
         if (let Some(v) <- jsonObject.get("hilog")) {
-            crashInfo.hilog = v.toString()
+            crashInfo.hilog = JsonValueToString(v)
         }
         if (let Some(v) <- jsonObject.get("tid")) {
-            crashInfo.tid = v.toString()
+            crashInfo.tid = JsonValueToString(v)
         }
         if (let Some(v) <- jsonObject.get("tname")) {
-            crashInfo.tname = v.toString()
+            crashInfo.tname = JsonValueToString(v)
         }
         if (let Some(v) <- jsonObject.get("fds")) {
             let fields: HashMap<String, JsonValue> = v.asObject().getFields()
             crashInfo.fds = json2map(fields)
         }
         if (let Some(v) <- jsonObject.get("limits")) {
-            crashInfo.limits = v.toString()
+            crashInfo.limits = JsonValueToString(v)
         }
         if (let Some(v) <- jsonObject.get("threads")) {
-            crashInfo.threads = v.toString()
+            crashInfo.threads = JsonValueToString(v)
         }
         if (let Some(v) <- jsonObject.get("extraInfo")) {
             crashInfo.extraInfo = v
         }
         if (let Some(v) <- jsonObject.get("crashLogPath")) {
-            crashInfo.crashLogPath = v.toString()
+            crashInfo.crashLogPath = JsonValueToString(v)
         }
         if (let Some(v) <- jsonObject.get("dumpOnOOMPath")) {
-            crashInfo.dumpOnOOMPath = v.toString()
+            crashInfo.dumpOnOOMPath = JsonValueToString(v)
         }
         if (let Some(v) <- jsonObject.get("appVersion")) {
-            crashInfo.appVersion = v.toString()
+            crashInfo.appVersion = JsonValueToString(v)
         }
         if (let Some(v) <- jsonObject.get("rawFile")) {
-            crashInfo.rawFile = v.toString()
+            crashInfo.rawFile = JsonValueToString(v)
         }
         if (let Some(v) <- jsonObject.get("systemLog")) {
-            crashInfo.systemLog = v.toString()
+            crashInfo.systemLog = JsonValueToString(v)
         }
         crashInfo
     }
@@ -642,11 +642,11 @@ private func initCrashWatcher(applicationContext: ApplicationContext, reportCras
                         case _ => None
                     }
                     crashInfo.stacktrace = match (eventInfo.params.get("exception")) {
-                        case Some(value) => value.toString()
+                        case Some(value) => unescapeString(value.toString())
                         case _ => "hm-metricx-cj error: exception is none"
                     }
                     crashInfo.hilog = match (eventInfo.params.get("hilog")) {
-                        case Some(value) => hilogWordWrap(value.toString())
+                        case Some(value) => hilogWordWrap(unescapeString(value.toString()))
                         case _ => None
                     }
                     crashInfo.appVersion = match (eventInfo.params.get("bundle_version")) {
