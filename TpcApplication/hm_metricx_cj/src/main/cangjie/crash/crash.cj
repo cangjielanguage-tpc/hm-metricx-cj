@@ -349,6 +349,7 @@ public enum OOMHandlerMode {
 
 private var inited = false
 private let TIMEOUT = Duration.second
+private var reported = false
 
 public func initCrashHandler(
     applicationContext: ApplicationContext,
@@ -393,6 +394,7 @@ private func reportLastCrash(lastCrashFilePath: Path, reportCrashInfo: (crashInf
         try {
             let jsonObj = JsonValue.fromStr(readFile(lastCrashFilePath)).asObject()
             reportCrashInfo(CrashInfo.fromJson(jsonObj))
+            reported = true
         } catch (e: JsonException) {
            AppLog.warn(e.toString())
         }
@@ -695,7 +697,10 @@ private func initCrashWatcher(applicationContext: ApplicationContext, reportCras
             if (Process.current.pid.toString() == crashInfo.pid.getOrDefault({=> ""})) {
                 writeFile(lastCrashFilePath, crashInfo.toString())
             } else {
-                reportCrashInfo(crashInfo)
+                if (!reported) {
+                    // onReceive callback sometimes will be invoked both before app crash and next launch on high-verion (API 18?) devcies
+                    reportCrashInfo(crashInfo)
+                }
             }
         }
     )
