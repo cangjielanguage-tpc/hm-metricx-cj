@@ -630,6 +630,7 @@ private func initCrashWatcher(applicationContext: ApplicationContext, reportCras
                 }
                 for (eventInfo in eventGroup.appEventInfos) {
                     if (eventInfo.params.get("external_log").isNone()) {
+                        crashInfo.rawFile = "hm-metricx-cj error: external_log is none"
                         continue
                     }
                     crashInfo.timestamp = match (eventInfo.params.get("time")) {
