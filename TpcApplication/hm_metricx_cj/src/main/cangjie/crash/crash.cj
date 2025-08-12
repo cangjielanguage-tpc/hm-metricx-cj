@@ -437,7 +437,6 @@ private func initNativeSignalHandler(persistentFilePath: String, applicationCont
             {
                 persistentFilePath, limits, collectCrashInfo, fds, threads, meminfo, bundleName =>
                 let crashInfo = CrashInfo()
-                crashInfo.language = "CPP"
                 crashInfo.limits = limits.toString()
                 crashInfo.fds = parseFDs(fds.toString())
                 // sometimes invoking collectThreads will crash, so read tids at native side
@@ -485,7 +484,6 @@ private func initErrorObserver(crashInfo: CrashInfo, applicationContext: Applica
         {errMsg: String =>},
         onException: {
             errObject =>
-            crashInfo.language = "JS"
             crashInfo.meminfo = collectMemInfo()
             crashInfo.fds = collectFDInfo()
             crashInfo.threads = collectThreads()
@@ -634,6 +632,14 @@ private func initCrashWatcher(applicationContext: ApplicationContext, reportCras
                     if (eventInfo.params.get("external_log").isNone()) {
                         crashInfo.rawFile = "hm-metricx-cj error: external_log is none"
                         continue
+                    }
+                    if (let Some(v) <- eventInfo.params.get("crash_type")) {
+                        if (v.toString() == "JsError") {
+                            crashInfo.language = "js_crash"
+                        }
+                        else if (v.toString() == "NativeCrash") {
+                            crashInfo.language = "cpp_crash"
+                        }
                     }
                     crashInfo.timestamp = match (eventInfo.params.get("time")) {
                         case Some(value) => value.toString()
