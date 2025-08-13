@@ -393,8 +393,12 @@ private func reportLastCrash(lastCrashFilePath: Path, reportCrashInfo: (crashInf
     if (exists(lastCrashFilePath)) {
         try {
             let jsonObj = JsonValue.fromStr(readFile(lastCrashFilePath)).asObject()
-            reportCrashInfo(CrashInfo.fromJson(jsonObj))
+            let crashInfo = CrashInfo.fromJson(jsonObj)
+            reportCrashInfo(crashInfo)
             reported = true
+            if (let Some(v) <- crashInfo.crashLogPath) {
+                deleteFile(v)
+            }
         } catch (e: JsonException) {
            AppLog.warn(e.toString())
         }
@@ -625,12 +629,10 @@ private func initCrashWatcher(applicationContext: ApplicationContext, reportCras
             }
             for (eventGroup in appEventGroups) {
                 if (eventGroup.name != APP_CRASH) {
-                    crashInfo.rawFile = "hm-metricx-cj error: external_log is none"
                     continue
                 }
                 for (eventInfo in eventGroup.appEventInfos) {
                     if (eventInfo.params.get("external_log").isNone()) {
-                        crashInfo.rawFile = "hm-metricx-cj error: external_log is none"
                         continue
                     }
                     if (let Some(v) <- eventInfo.params.get("crash_type")) {
@@ -651,7 +653,7 @@ private func initCrashWatcher(applicationContext: ApplicationContext, reportCras
                     }
                     crashInfo.stacktrace = match (eventInfo.params.get("exception")) {
                         case Some(value) => unescapeString(value.toString())
-                        case _ => "hm-metricx-cj error: exception is none"
+                        case _ => None
                     }
                     crashInfo.hilog = match (eventInfo.params.get("hilog")) {
                         case Some(value) => hilogWordWrap(unescapeString(value.toString()))
@@ -663,12 +665,7 @@ private func initCrashWatcher(applicationContext: ApplicationContext, reportCras
                     }
                     let crashLogPath: String = eventInfo.params.get("external_log")
                         .getOrThrow().toString().removePrefix("[").removeSuffix("]")
-                    if (crashLogPath.isEmpty() ) {
-                        crashInfo.rawFile = "hm-metricx-cj error: crash log path is empty"
-                        continue
-                    }
-                    if (!exists(crashLogPath)) {
-                        crashInfo.rawFile = "hm-metricx-cj error: crash log path does not exist"
+                    if (crashLogPath.isEmpty() || !exists(crashLogPath)) {
                         continue
                     }
                     crashInfo.crashLogPath = crashLogPath
@@ -706,6 +703,9 @@ private func initCrashWatcher(applicationContext: ApplicationContext, reportCras
                 if (!reported) {
                     // onReceive callback sometimes will be invoked both before app crash and next launch on high-verion (API 18?) devcies
                     reportCrashInfo(crashInfo)
+                    if (let Some(v) <- crashInfo.crashLogPath) {
+                        deleteFile(v)
+                    }
                 }
             }
         }
