@@ -703,9 +703,9 @@ private func initCrashWatcher(applicationContext: ApplicationContext, reportCras
                 if (!reported) {
                     // onReceive callback sometimes will be invoked both before app crash and next launch on high-verion (API 18?) devcies
                     reportCrashInfo(crashInfo)
-                    if (let Some(v) <- crashInfo.crashLogPath) {
-                        deleteFile(v)
-                    }
+                }
+                if (let Some(v) <- crashInfo.crashLogPath) {
+                    deleteFile(v)
                 }
             }
         }
