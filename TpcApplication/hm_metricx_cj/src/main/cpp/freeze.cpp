@@ -24,7 +24,7 @@ FILE *extraInfoFile = nullptr;
 const int FREEZE_TYPE = 3;
 const unsigned int FREEZE_DOMAIN = 218108688;
 const char *FreezeTag = "AppDfr";
-const std::vector<std::string> FreezeTagS = {"APP_INPUT_BLOCK", "NO_DRAW", "LIFECYCLE_TIMEOUT", "THREAD_BLOCK_6S",
+const std::vector<std::string> FreezeTags = {"APP_INPUT_BLOCK", "NO_DRAW", "LIFECYCLE_TIMEOUT", "THREAD_BLOCK_6S",
                                              "SCREEN_ON_TIMEOUT", "SERVICE_TIMEOUT", "SERVICE_BLOCK"};
 
 bool containFreezeTag(const std::vector<std::string> &msgTags, const std::string &msg)
@@ -59,7 +59,7 @@ void FreezeHilogCallback(const LogType type, const LogLevel level, const unsigne
     }
 
     std::string msgStr(msg);
-    if (!containFreezeTag(FreezeTagS, msgStr)) {
+    if (!containFreezeTag(FreezeTags, msgStr)) {
         return;
     }
     

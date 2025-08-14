@@ -40,6 +40,7 @@ public class CrashInfo {
     private var appVersionValue: ?String = None
     private var rawFileValue: ?String = None
     private var systemLogValue: ?String = None
+    private var lastNHilogValue: ?String = None
 
     public mut prop language: ?String {
         get() {
@@ -203,6 +204,15 @@ public class CrashInfo {
         }
     }
 
+    public mut prop lastNHilog: ?String {
+        get() {
+            lastNHilogValue
+        }
+        set(value) {
+            lastNHilogValue = value
+        }
+    }
+
     public func toString(): String {
         let jsonObj = JsonObject()
         if (let Some(v) <- languageValue) {
@@ -258,6 +268,9 @@ public class CrashInfo {
         }
         if (let Some(v) <- systemLogValue) {
             jsonObj.put("systemLog", JsonString(v))
+        }
+        if (let Some(v) <- lastNHilogValue) {
+            jsonObj.put("lastNHilog", JsonString(v))
         }
         jsonObj.toString()
     }
@@ -319,6 +332,9 @@ public class CrashInfo {
         if (let Some(v) <- jsonObject.get("systemLog")) {
             crashInfo.systemLog = JsonValueToString(v)
         }
+        if (let Some(v) <- jsonObject.get("lastNHilog")) {
+            crashInfo.lastNHilog = JsonValueToString(v)
+        }
         crashInfo
     }
 
@@ -357,24 +373,28 @@ public func initCrashHandler(
     collectNativeCrashInfo: CFunc<() -> CString>,
     reportCrashInfo: (crashInfo: CrashInfo) -> Unit,
     persistentDir: Path,
-    enableDumpOnOOM: Option<OOMHandlerMode>
-) {
+    enableDumpOnOOM: Option<OOMHandlerMode>,
+    lastNHilogNumber:Int64 ) {
     if (inited) {
         return
     }
+    var hilogNumber = max(lastNHilogNumber, 0)
     let lastCrashFilePath = persistentDir.join("lastCrash.json")
     reportLastCrash(lastCrashFilePath, reportCrashInfo)
     let crashInfo = CrashInfo()
     crashInfo.limits = collectLimits()
     let persistentFilePath = persistentDir.join("crash.json")
     let persistentSystemLogPath = persistentDir.join("crashSystemLog.txt")
+    let persistentLastNHilogPath = persistentDir.join("crashLastNHilog.txt")
     initErrorObserver(
         crashInfo, applicationContext, collectCrashInfo, persistentFilePath, persistentSystemLogPath,
-        enableDumpOnOOM, persistentDir)
+        persistentLastNHilogPath, enableDumpOnOOM, persistentDir)
     initNativeSignalHandler(persistentFilePath.toString(), applicationContext, crashInfo.limits.getOrThrow(),
-        collectNativeCrashInfo, persistentSystemLogPath.toString())
+        collectNativeCrashInfo, persistentSystemLogPath.toString(),
+        persistentLastNHilogPath.toString(), hilogNumber)
     initCrashWatcher(applicationContext, reportCrashInfo,
-        persistentFilePath, persistentSystemLogPath, persistentDir, lastCrashFilePath)
+        persistentFilePath, persistentSystemLogPath, persistentLastNHilogPath,
+        persistentDir, lastCrashFilePath)
     initHilogWatcher()
     if (let Some(handlerMode) <- enableDumpOnOOM) {
         match (handlerMode) {
@@ -400,7 +420,7 @@ private func reportLastCrash(lastCrashFilePath: Path, reportCrashInfo: (crashInf
                 deleteFile(v)
             }
         } catch (e: JsonException) {
-           AppLog.warn(e.toString())
+            AppLog.warn(e.toString())
         }
         deleteFile(lastCrashFilePath)
     }
@@ -428,16 +448,20 @@ private func initOOMHandler(persistentDir: String) {
 }
 
 private func initNativeSignalHandler(persistentFilePath: String, applicationContext: ApplicationContext, limits: String,
-    collectCrashInfo: CFunc<() -> CString>, persistentSystemLogPath: String) {
+    collectCrashInfo: CFunc<() -> CString>, persistentSystemLogPath: String,
+    persistentLastNHilogPath: String, lastNHilogNumber: Int64) {
     unsafe {
         let cstr = LibC.mallocCString(persistentFilePath)
         let lmts = LibC.mallocCString(limits)
         let cSystemLogPath = LibC.mallocCString(persistentSystemLogPath)
+        let cLastNHilogPath = LibC.mallocCString(persistentLastNHilogPath)
         if (InitNativeSignalHandler(
             cstr,
             lmts,
             collectCrashInfo,
             cSystemLogPath,
+            cLastNHilogPath,
+            lastNHilogNumber,
             {
                 persistentFilePath, limits, collectCrashInfo, fds, threads, meminfo, bundleName =>
                 let crashInfo = CrashInfo()
@@ -463,6 +487,7 @@ private func initNativeSignalHandler(persistentFilePath: String, applicationCont
         LibC.free(cstr)
         LibC.free(lmts)
         LibC.free(cSystemLogPath)
+        LibC.free(cLastNHilogPath)
     }
 }
 
@@ -482,8 +507,8 @@ private func parseFDs(fds: String) {
 }
 
 private func initErrorObserver(crashInfo: CrashInfo, applicationContext: ApplicationContext,
-    collectCrashInfo: () -> JsonValue, persistentFilePath: Path, persistentSystemLogPath: Path, enableDumpOnOOM: Option<OOMHandlerMode>,
-    persistentDir: Path) {
+    collectCrashInfo: () -> JsonValue, persistentFilePath: Path, persistentSystemLogPath: Path,
+    persistentLastNHilogPath: Path, enableDumpOnOOM: Option<OOMHandlerMode>, persistentDir: Path) {
     let errorObserver = ErrorObserver(
         {errMsg: String =>},
         onException: {
@@ -494,6 +519,7 @@ private func initErrorObserver(crashInfo: CrashInfo, applicationContext: Applica
             crashInfo.extraInfo = collectCrashInfo()
             writeFile(persistentFilePath, crashInfo.toString())
             writeSystemLog2File(persistentSystemLogPath.toString())
+            writeLastNHilog2File(persistentLastNHilogPath.toString())
             if (enableDumpOnOOM.isSome()) {
                 let rawOomFile = persistentDir.join("cj_OOM_pid" + Process.current.pid.toString() + ".dat")
                 let oomFile = persistentDir.join("cj_OOM_pid" + Process.current.pid.toString() + ".zlib")
@@ -601,7 +627,8 @@ private func collectMemInfo() {
 }
 
 private func initCrashWatcher(applicationContext: ApplicationContext, reportCrashInfo: (crashInfo: CrashInfo) -> Unit,
-    persistentFilePath: Path, persistentSystemLogPath: Path, persistentDir: Path, lastCrashFilePath: Path) {
+    persistentFilePath: Path, persistentSystemLogPath: Path, persistentLastNHilogPath: Path,
+    persistentDir: Path, lastCrashFilePath: Path) {
     let watcher = Watcher(
         "crashWatcher",
         appEventFilters: [AppEventFilter(OS, names: [APP_CRASH], eventTypes: [FAULT])],
@@ -619,20 +646,32 @@ private func initCrashWatcher(applicationContext: ApplicationContext, reportCras
                     AppLog.warn(e.toString())
                 }
                 deleteFile(persistentFilePath)
-            }
-            else {
+            } else {
                 AppLog.warn("No persistent crash file.")
             }
             if (exists(persistentSystemLogPath)) {
                 try {
-                    crashInfo.systemLog = String.fromUtf8(File.readFrom(persistentSystemLogPath))
+                    crashInfo.systemLog = String
+                        .fromUtf8(File.readFrom(persistentSystemLogPath))
+                        .replace("\n\n", "\n")
                 } catch (e: Exception) {
                     AppLog.warn(e.toString())
                 }
                 deleteFile(persistentSystemLogPath)
-            }
-            else {
+            } else {
                 AppLog.warn("No persistent crash system log file.")
+            }
+            if (exists(persistentLastNHilogPath)) {
+                try {
+                    crashInfo.lastNHilog = String
+                        .fromUtf8(File.readFrom(persistentLastNHilogPath))
+                        .replace("\n\n", "\n")
+                } catch (e: Exception) {
+                    AppLog.warn(e.toString())
+                }
+                deleteFile(persistentLastNHilogPath)
+            } else {
+                AppLog.warn("No persistent crash lastNHilog log file.")
             }
             for (eventGroup in appEventGroups) {
                 if (eventGroup.name != APP_CRASH) {
@@ -646,8 +685,7 @@ private func initCrashWatcher(applicationContext: ApplicationContext, reportCras
                     if (let Some(v) <- eventInfo.params.get("crash_type")) {
                         if (v.toString() == "JsError") {
                             crashInfo.language = "js_crash"
-                        }
-                        else if (v.toString() == "NativeCrash") {
+                        } else if (v.toString() == "NativeCrash") {
                             crashInfo.language = "cpp_crash"
                         }
                     }
@@ -660,7 +698,10 @@ private func initCrashWatcher(applicationContext: ApplicationContext, reportCras
                         case _ => None
                     }
                     crashInfo.stacktrace = match (eventInfo.params.get("exception")) {
-                        case Some(value) => unescapeString(value.toString())
+                        case Some(value) => match (value) {
+                            case OBJECT(v) => extractStackTrace(v)
+                            case _ => unescapeString(value.toString())
+                        }
                         case _ => "hm-metricx-cj error: exception is none"
                     }
                     crashInfo.hilog = match (eventInfo.params.get("hilog")) {
@@ -696,8 +737,7 @@ private func initCrashWatcher(applicationContext: ApplicationContext, reportCras
                 let dumpOnOOMPath = persistentDir.join("cj_OOM_pid" + pid + ".zlib")
                 if (exists(dumpOnOOMPath)) {
                     crashInfo.dumpOnOOMPath = dumpOnOOMPath.toString()
-                }
-                else {
+                } else {
                     if (exists(rawDumpOnOOMPath)) {
                         if (compressFile(rawDumpOnOOMPath.toString(), dumpOnOOMPath.toString())) {
                             crashInfo.dumpOnOOMPath = dumpOnOOMPath.toString()
@@ -728,6 +768,52 @@ private func initCrashWatcher(applicationContext: ApplicationContext, reportCras
 
 private func exit(applicationContext: ApplicationContext) {
     applicationContext.killAllProcesses({err, data =>})
+}
+
+private func extractStackTrace(obj: JsonObject): String {
+    var res: String = ""
+    if (obj.containsKey("stack")) {
+        let name: String = obj.get("name").getOrDefault({=> JsonValue.fromStr("")}).asString().getValue()
+        let message: String = obj.get("message").getOrDefault({=> JsonValue.fromStr("")}).asString().getValue()
+        let stack: String = obj.get("stack").getOrDefault({=> JsonValue.fromStr("")}).asString().getValue()
+        res = "Error name:" + name + "\n" + "Error message:" + message + "\n" + "Stacktrace:\n" + stack + "\n"
+    } else  if (obj.containsKey("frames")) {
+        res += "message: " + obj.get("message").getOrDefault({=> JsonValue.fromStr("")}).asString().getValue() + "\n"
+        if (obj.containsKey("signal")) {
+            let sigObj: JsonObject = obj.get("signal").getOrThrow().asObject()
+            let address: String = sigObj.get("address").getOrDefault({=> JsonValue.fromStr("")}).asString().getValue()
+            let code: String = sigObj.get("code").getOrDefault({=> JsonValue.fromStr("0")}).asInt().toString()
+            let signo: String = sigObj.get("signo").getOrDefault({=> JsonValue.fromStr("0")}).asInt().toString()
+            res += "Signal:\n\tcode:" + code + " signo: " + signo + " address: " + address + "\n"
+        }
+        res += "Tid: " + obj.get("tid").getOrDefault({=> JsonValue.fromStr("0")}).asInt().toString()
+        res += ", Name: " + obj.get("thread_name").getOrDefault({=> JsonValue.fromStr("")}).asString().getValue() + "\n"
+        if (obj.containsKey("frames")) {
+            let framesArray: JsonArray = obj.get("frames").getOrThrow().asArray()
+            for (i in 0..framesArray.size()) {
+                let frameObj: JsonObject = framesArray[i].asObject()
+                let file: String = frameObj.get("file").getOrDefault({=> JsonValue.fromStr("")}).asString().getValue()
+                let symbol: String = frameObj.get("symbol").getOrDefault({=> JsonValue.fromStr("")}).asString().getValue()
+                let buildId: String = frameObj.get("buildId").getOrDefault({=> JsonValue.fromStr("")}).asString().getValue()
+                let pc: String = frameObj.get("pc").getOrDefault({=> JsonValue.fromStr("")}).asString().getValue()
+                let offset: String = frameObj.get("offset").getOrDefault({=> JsonValue.fromStr("0")}).asInt().toString()
+                var line: String = "#" + i.format("02") + " pc " + pc + " " + file
+                if (!symbol.isEmpty()) {
+                    line +=  "(" + symbol
+                    if (!offset.isEmpty()) {
+                        line += "+" + offset + ")"
+                    }
+                }
+                if (!buildId.isEmpty()) {
+                    line += "(" + buildId + ")"
+                }
+                res += line + "\n"
+            }
+        }
+    } else {
+        res = obj.toString()
+    }
+    res
 }
 
 private func extractFromCrashLog(lines: Array<String>, pid: ?String, threads: ?String) {
@@ -836,21 +922,36 @@ private func writeSystemLog2File(persistentSystemLogPath: String) {
     }
 }
 
-private func initHilogWatcher() {
-
+private func writeLastNHilog2File(persistentLastNHilogPath: String) {
     unsafe {
-        if (registerCrashHilogCallback() != 0){
-            AppLog.warn("registerCrashHilogCallback failed.")
+        let filePath = LibC.mallocCString(persistentLastNHilogPath)
+        if (writeLastNHiLog(filePath) != 0) {
+            AppLog.warn("write lastNHilog log file failed.")
+        }
+        LibC.free(filePath)
+    }
+}
+
+private func initHilogWatcher() {
+    unsafe {
+        if (registerCrashSystemlogCallback() != 0) {
+            AppLog.warn("registerCrashSystemlogCallback failed.")
+        }
+        if (registerCrashLastNHilogCallback() != 0) {
+            AppLog.warn("registerCrashLastNHilogCallback failed.")
         }
     }
 }
 
 foreign func InitNativeSignalHandler(persistentFilePath: CString, limits: CString,
     collectCrashInfo: CFunc<() -> CString>, persistentSystemLogPath: CString,
+    persistentLastNHilogPath: CString, lastNHilogNumber: Int64,
     cb: CFunc<(CString, CString, CFunc<() -> CString>, CString, CString, CString, CString) -> Unit>): Int8
 
 foreign func InitOOMHandler(targetFile: CString, zlibFile: CString, compressFile: CFunc<(CString, CString) -> Unit>): Int8
 
 foreign func writeSystemLog(persistentFilePath: CString): Int8
+foreign func writeLastNHiLog(persistentFilePath: CString): Int8
 
-foreign func registerCrashHilogCallback(): Int8
+foreign func registerCrashSystemlogCallback(): Int8
+foreign func registerCrashLastNHilogCallback(): Int8
