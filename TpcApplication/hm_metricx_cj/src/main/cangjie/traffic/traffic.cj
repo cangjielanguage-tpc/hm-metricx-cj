@@ -316,12 +316,26 @@ private func initPageTraffic(context: UIAbilityContext) {
         uid,
         {
             err: ?BusinessException, data: ?Int64 =>
-            pageRxStart = data.getOrThrow()
+            if (let Some(v) <- err) {
+                AppLog.warn("init Rx error: ${v.toString()}")
+                return
+            }
+            if (data.isNone()) {
+                AppLog.warn("init Rx data is none")
+            }
+            pageRxStart = data ?? 0
             statistics.getUidTxBytes(
                 uid,
                 {
                     err: ?BusinessException, data: ?Int64 =>
-                    pageTxStart = data.getOrThrow()
+                    if (let Some(v) <- err) {
+                        AppLog.warn("Tx error: ${v.toString()}")
+                        return
+                    }
+                    if (data.isNone()) {
+                        AppLog.warn("init Tx data is none")
+                    }
+                    pageTxStart = data ?? 0
                     on(navDestinationSwitch, context, PageSwitchCallBack(navDestinationSwitchCallBack))
                 }
             )
@@ -341,6 +355,14 @@ private func updatePageTraffic(pageName: String) {
         uid,
         {
             err: ?BusinessException, data: ?Int64 =>
+            if (let Some(v) <- err) {
+                AppLog.warn("Rx error: ${v.toString()}")
+                return
+            }
+            if (data.isNone()) {
+                AppLog.warn("Rx data is none")
+                return
+            }
             let rxBytes = data.getOrThrow()
             let curRx = rxBytes - pageRxStart
             pageRxStart = rxBytes
@@ -348,6 +370,14 @@ private func updatePageTraffic(pageName: String) {
                 uid,
                 {
                     err: ?BusinessException, data: ?Int64 =>
+                    if (let Some(v) <- err) {
+                        AppLog.warn("Tx error: ${v.toString()}")
+                        return
+                    }
+                    if (data.isNone()) {
+                        AppLog.warn("Tx data is none")
+                        return
+                    }
                     let txBytes = data.getOrThrow()
                     let curTx = txBytes - pageTxStart
                     pageTxStart = txBytes
