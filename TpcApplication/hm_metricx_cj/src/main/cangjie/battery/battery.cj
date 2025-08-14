@@ -399,7 +399,8 @@ public func destroyBatteryHandler(): Unit {
     reportBatteryCallback = {data: BatteryUsageInfo =>}
     let context = uiAbility.context
     let applicationContext = context.getApplicationContext()
-    applicationContext.off(ApplicationContextType.APPLICATION_STATE_CHANGE, callback: applicationCallback)
+// todo: tpc bug
+//    applicationContext.off(ApplicationContextType.APPLICATION_STATE_CHANGE, callback: applicationCallback)
     off(navDestinationSwitch, context, pageSwitchCallback)
     unsubscribe(eventSubscriber, callback: {err,_ => })
 }
