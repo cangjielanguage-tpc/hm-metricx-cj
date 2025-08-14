@@ -532,14 +532,21 @@ private func writeFile(path: Path, data: String) {
     }
 }
 
-private func readFile(path: Path) {
+private func readFile(path: Path, isReturnException!: Bool = false) {
     if (!exists(path)) {
-        return ""
+        if (isReturnException) {
+        	return "hm-metricx-cj error: read file path does not exist"
+        } else {
+            return ""
+        }
     }
     try {
         return String.fromUtf8(File.readFrom(path))
     } catch (e: Exception) {
         AppLog.warn("reading ${path} failed: " + e.toString())
+        if (isReturnException) {
+        	return "hm-metricx-cj error: reading ${path} failed: + ${e.toString()}"
+        }
     }
     ""
 }
@@ -633,6 +640,7 @@ private func initCrashWatcher(applicationContext: ApplicationContext, reportCras
                 }
                 for (eventInfo in eventGroup.appEventInfos) {
                     if (eventInfo.params.get("external_log").isNone()) {
+                        crashInfo.rawFile = "hm-metricx-cj error: external_log is none"
                         continue
                     }
                     if (let Some(v) <- eventInfo.params.get("crash_type")) {
@@ -653,7 +661,7 @@ private func initCrashWatcher(applicationContext: ApplicationContext, reportCras
                     }
                     crashInfo.stacktrace = match (eventInfo.params.get("exception")) {
                         case Some(value) => unescapeString(value.toString())
-                        case _ => None
+                        case _ => "hm-metricx-cj error: exception is none"
                     }
                     crashInfo.hilog = match (eventInfo.params.get("hilog")) {
                         case Some(value) => hilogWordWrap(unescapeString(value.toString()))
@@ -665,11 +673,16 @@ private func initCrashWatcher(applicationContext: ApplicationContext, reportCras
                     }
                     let crashLogPath: String = eventInfo.params.get("external_log")
                         .getOrThrow().toString().removePrefix("[").removeSuffix("]")
-                    if (crashLogPath.isEmpty() || !exists(crashLogPath)) {
+                    if (crashLogPath.isEmpty() ) {
+                        crashInfo.rawFile = "hm-metricx-cj error: crash log path is empty"
+                        continue
+                    }
+                    if (!exists(crashLogPath)) {
+                        crashInfo.rawFile = "hm-metricx-cj error: crash log path does not exist"
                         continue
                     }
                     crashInfo.crashLogPath = crashLogPath
-                    let content = readFile(Path(crashLogPath))
+                    let content = readFile(Path(crashLogPath), isReturnException: true)
                     crashInfo.rawFile = content
                     let res = extractFromCrashLog(content.split("\n", removeEmpty: true), crashInfo.pid,
                         crashInfo.threads)

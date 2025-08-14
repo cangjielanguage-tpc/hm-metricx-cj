@@ -16,12 +16,28 @@ import tpc.AbilityKit.ApplicationContextType
 import tpc.UIKit.Observer.*
 import stdx.encoding.json.*
 import tpc.UIKit.component_interop.ResourceStr
+import tpc.UIKit.window
 import std.convert.*
 import std.fs.*
 import std.io.*
 import std.time.*
 import std.sync.*
 import ohos.hilog.Hilog
+import tpc.UIKit.global.setInterval
+import ohos.ability.ApplicationContext
+import tpc.AbilityKit.appManager.*
+import std.collection.ArrayList
+import std.process.Process
+import std.runtime.getThreadCount
+import tpc.PerformanceAnalysisKit.hidebug.getAppThreadCpuUsage
+import tpc.PerformanceAnalysisKit.hidebug.ThreadCpuUsage
+import std.collection.HashMap
+import ohos.ui_test.On
+import tpc.AbilityKit.AbilityLifecycleCallback
+import ohos.window.WindowStage
+import tpc.UIKit.global.setTimeout
+import tpc.CoreFileKit.fs.listFile
+import std.posix.isDir
 
 public class BatteryUsageInfo {
     private var currentPageNameValue: ?String = None
@@ -380,9 +396,299 @@ let commonEventCallback: AsyncCallback<CommonEventData> = {
     }
 }
 
+/**
+cpu异常率
+**/
+var isOnBackground = false
+/**
+是否为从前台进入后台的标志位
+进入前台 标志位重置后 下次进入所有进程处于后台状态时需要更新startBgTime
+**/
+var needUpdateStartBgTime = true
+var startBgTime = DateTime.now().toUnixTimeStamp().toMilliseconds()
+var lastJiffiesSnapshot: ?JiffiesSnapshot = None
+var reportThreadCpuUsageCallback: (allThreadCpuUsageInfo: AllThreadCpuUsageInfo) -> Unit = {info: AllThreadCpuUsageInfo =>}
+
+public class AllThreadCpuUsageInfo {
+    public var threadCpuUsageInfoList = ArrayList<ThreadCpuUsageInfo>()
+    public func toString(): String {
+        let jsonObj = JsonObject()
+        for(threadCpuUsageInfo in threadCpuUsageInfoList) {
+            jsonObj.put("thread" + threadCpuUsageInfo.threadId.toString(), JsonString(threadCpuUsageInfo.toString()))
+        }
+        jsonObj.toString()
+    }
+}
+public class ThreadCpuUsageInfo {
+    public var threadId: UInt32
+    public var threadName: String
+    public var threadState: String
+    public var threadJiffiesPercent: Float64
+    public var threadJiffies: Int64
+    public var totalJiffies: Int64
+    public var startBgTime: ?Int64 = None
+    public var exceptionTime: ?Float64 = None
+
+    public init(threadId: UInt32, threadName: String, threadState: String
+        , threadJiffiesPercent: Float64, threadJiffies: Int64, totalJiffies: Int64) {
+        this.threadId = threadId
+        this.threadName = threadName
+        this.threadState = threadState
+        this.threadJiffiesPercent = threadJiffiesPercent
+        this.threadJiffies = threadJiffies
+        this.totalJiffies = totalJiffies
+    }
+
+    public func toString(): String {
+        let jsonObj = JsonObject()
+        jsonObj.put("threadId", JsonString(threadId.toString()))
+        jsonObj.put("threadName", JsonString(threadName))
+        jsonObj.put("threadState", JsonString(threadState))
+        jsonObj.put("threadJiffiesPercent", JsonString(threadJiffiesPercent.toString()))
+        jsonObj.put("threadJiffies", JsonString(threadJiffies.toString()))
+        jsonObj.put("totalJiffies", JsonString(totalJiffies.toString()))
+        if (startBgTime.isSome()) {
+            jsonObj.put("startBgTime", JsonString(startBgTime.getOrThrow().toString()))
+        }
+        if (exceptionTime.isSome()) {
+            jsonObj.put("exceptionTime", JsonString(exceptionTime.getOrThrow().toString()))
+        }
+        jsonObj.toString()
+    }
+}
+
+public class JiffiesSnapshot {
+    public var pid: ?Int64 = -1
+    public var name: ?String = None
+    public var totalJiffies: Int64 = 0
+    public var threadEntries = ArrayList<ThreadJiffiesSnapshot>()
+
+    public init() {
+    }
+
+    public init(pid: Int64, name: String) {
+        this.pid = pid
+        this.name = name
+    }
+}
+
+public class ThreadJiffiesSnapshot {
+    public var tid: UInt32
+    public var name: ?String = None
+    public var state: ?String = None
+    public var jiffies: Int64 = 0
+
+    public init(tid: UInt32) {
+        this.tid = tid
+    }
+
+    public init(tid: UInt32, name: String, state: String, jiffies: Int64) {
+        this.tid = tid
+        this.name = name
+        this.state = state
+        this.jiffies = jiffies
+    }
+}
+
+private func parseThreadInfo(pid: Int64, tid: UInt32, threadJiffiesSnapshot: ThreadJiffiesSnapshot, path: String): Unit {
+    if (!exists(path)) {
+        return
+    }
+    try (file = File(path, Read)) {
+        let originText = String.fromUtf8(readToEnd(file))
+        let splitText = originText.split(" ")
+        threadJiffiesSnapshot.name = splitText[1].replace("(", "").replace(")", "")
+        threadJiffiesSnapshot.state = splitText[2]
+        let utime = Int64.parse(splitText[13])
+        let stime = Int64.parse(splitText[14])
+        let cutime = Int64.parse(splitText[15])
+        let cstime = Int64.parse(splitText[16])
+        threadJiffiesSnapshot.jiffies = utime + stime + cutime + cstime
+    }
+}
+
+//计算两个JiffiesSnapshot的差值
+private func diffThreadJiffiesSnapshot(current: JiffiesSnapshot, last: JiffiesSnapshot):(Int64, ArrayList<ThreadJiffiesSnapshot>) {
+    var totalJiffies: Int64 = 0
+    let deltaThreadJiffiesList = ArrayList<ThreadJiffiesSnapshot>()
+    let currentThreadEntries = current.threadEntries
+    let lastThreadEntries = last.threadEntries
+    for (currentThread in currentThreadEntries) {
+        if (currentThread.name.isNone()) {
+            continue
+        }
+        var jiffiesConsumed = currentThread.jiffies
+        for (lastThread in lastThreadEntries) {
+            if (lastThread.name.isNone()) {
+                continue
+            }
+            if (currentThread.tid == lastThread.tid && currentThread.name.getOrThrow() == lastThread.name.getOrThrow()) {
+                jiffiesConsumed = currentThread.jiffies - lastThread.jiffies
+                break
+            }
+        }
+        if (jiffiesConsumed > 0) {
+            let deltaThreadJiffies = ThreadJiffiesSnapshot(currentThread.tid, currentThread.name.getOrThrow()
+                ,currentThread.state.getOrThrow(), jiffiesConsumed)
+            deltaThreadJiffiesList.add(deltaThreadJiffies)
+            totalJiffies += jiffiesConsumed
+        }
+    }
+    deltaThreadJiffiesList.sortBy(){
+        t1: ThreadJiffiesSnapshot, t2: ThreadJiffiesSnapshot =>
+        if (t1.jiffies > t2.jiffies) {
+            return Ordering.LT
+        } else if (t1.jiffies < t2.jiffies) {
+            return Ordering.GT
+        } else {
+            return Ordering.EQ
+        }
+    }
+    return (totalJiffies, deltaThreadJiffiesList)
+}
+
+private func currentJiffiesSnapshot(): JiffiesSnapshot {
+    let currentPid = Process.current.pid
+    let jiffiesSnapshot: JiffiesSnapshot = JiffiesSnapshot(currentPid, Process.current.name)
+    let threads: ArrayList<UInt32> = getAllThreadId()
+
+    for (threadId in threads) {
+        let tid = threadId
+        let path = "/proc/self/task/" + tid.toString() + "/stat"
+        if (!exists(path)) {
+        	continue
+        }
+    	var threadJiffiesSnapshot: ThreadJiffiesSnapshot = ThreadJiffiesSnapshot(tid)
+        parseThreadInfo(currentPid, tid, threadJiffiesSnapshot, path)
+        jiffiesSnapshot.threadEntries.add(threadJiffiesSnapshot)
+    }
+    return jiffiesSnapshot
+}
+
+private func getAllThreadId(): ArrayList<UInt32> {
+    let  threadIdArray = ArrayList<UInt32>()
+    let path = "/proc/self/task/"
+    var threadArray = Array<String>()
+    if (exists(path) && isDir(path)) {
+    	threadArray =  listFile(path)
+    }
+    for (thread in threadArray) {
+    	threadIdArray.add(UInt32.parse(thread))
+    }
+    threadIdArray
+}
+
+/**
+ * 如果这3min内jiff值大于3*60*100*0.5（在3min持续时间中，当前进程有一半的时间在使用CPU）.则作为一个有效的异常抓取
+ */
+let SINGLE_INTERVAL_TOTAL_JIFFIES_LIMIT = 9000
+private func isHitRule(deltaThreadJiffiesList: ArrayList<ThreadJiffiesSnapshot>, singleIntervalTotalJiffies: Int64): Bool {
+    if (singleIntervalTotalJiffies < SINGLE_INTERVAL_TOTAL_JIFFIES_LIMIT) {
+        return false
+    }
+    var maxThreadJiff = 0
+    let threadNameJifffMap = HashMap<String, Int64>()
+    //同名thread累加 不同名则比较
+    for (deltaThreadJiffies in deltaThreadJiffiesList) {
+        let threadName = deltaThreadJiffies.name.getOrThrow()
+        let threadJiff = deltaThreadJiffies.jiffies
+        if (threadNameJifffMap.contains(threadName)) {
+            var threadTotalJiffies = threadNameJifffMap.get(threadName).getOrThrow()
+            threadTotalJiffies += threadJiff
+            threadNameJifffMap.add(threadName, threadTotalJiffies)
+        } else {
+            threadNameJifffMap.add(threadName, threadJiff)
+        }
+        let threadNewJiff =  threadNameJifffMap.get(threadName).getOrThrow()
+        if (threadNewJiff > maxThreadJiff) {
+            maxThreadJiff = threadNewJiff
+        }
+    }
+    return Float64(maxThreadJiff) > Float64(singleIntervalTotalJiffies) * 0.5
+}
+
+private func calculateAndReportCpuUsage(deltaThreadJiffiesList: ArrayList<ThreadJiffiesSnapshot>, singleIntervalTotalJiffies: Int64): Unit {
+    let allThreadCpuUsageInfo = AllThreadCpuUsageInfo()
+    let reportThreadList = allThreadCpuUsageInfo.threadCpuUsageInfoList
+    for (deltaThreadJiffies in deltaThreadJiffiesList) {
+    	//todo trace
+        let threadJiffiesPercent = Float64(deltaThreadJiffies.jiffies) / Float64(singleIntervalTotalJiffies)
+        let threadCpuUsageInfo = ThreadCpuUsageInfo(deltaThreadJiffies.tid, deltaThreadJiffies.name.getOrThrow()
+            ,deltaThreadJiffies.state.getOrThrow(), threadJiffiesPercent, deltaThreadJiffies.jiffies, singleIntervalTotalJiffies)
+        if (isOnBackground) {
+            threadCpuUsageInfo.startBgTime = startBgTime
+            threadCpuUsageInfo.exceptionTime = Float64(DateTime.now().toUnixTimeStamp().toMilliseconds() - startBgTime) / 1000.0
+        }
+        reportThreadList.add(threadCpuUsageInfo)
+    }
+    reportThreadCpuUsageCallback(allThreadCpuUsageInfo)
+}
+
+let processInfoCallback: AsyncCallback<Array<ProcessInformation>> = {
+    err, data =>
+    //判断所有进程是否都在后台
+    if (data.isNone()) {
+    	return
+    }
+    let processInfoArray = data.getOrThrow()
+    for (processInfo in processInfoArray) {
+    	match (processInfo.state) {
+    		case STATE_BACKGROUND => isOnBackground = true
+            case STATE_FOREGROUND =>
+                isOnBackground = false
+                break
+            case _ => isOnBackground = isOnBackground
+    	}
+    }
+    if (isOnBackground && needUpdateStartBgTime) {
+        startBgTime = DateTime.now().toUnixTimeStamp().toMilliseconds()
+        needUpdateStartBgTime = false
+    }
+}
+
+private func cpuErrorPercentReport(): Unit {
+    //主入口
+    getRunningProcessInformation(processInfoCallback)
+
+    let currentJiffiesSnapshot = currentJiffiesSnapshot()
+    if (lastJiffiesSnapshot.isSome()) {
+    	let deltaThreadJiffiesSnapshot = diffThreadJiffiesSnapshot(currentJiffiesSnapshot, lastJiffiesSnapshot.getOrThrow())
+        let singleIntervalTotalJiffies: Int64 = deltaThreadJiffiesSnapshot[0]
+        let deltaThreadJiffiesList = deltaThreadJiffiesSnapshot[1]
+        if (isHitRule(deltaThreadJiffiesList, singleIntervalTotalJiffies)) {
+        	calculateAndReportCpuUsage(deltaThreadJiffiesList, singleIntervalTotalJiffies)
+        }
+    }
+    lastJiffiesSnapshot = currentJiffiesSnapshot
+}
+
+let handleCpuReport: (param: Array<String>) -> Unit = {
+    param: Array<String> => cpuErrorPercentReport()
+}
+
+private func handleCpuUsage(array: Array<String>): Unit {
+    lastJiffiesSnapshot = currentJiffiesSnapshot()
+    setInterval(handleCpuReport, 3 * 60 * 1000, Array<String>())
+}
+
+let abilityLifecycleCallback: AbilityLifecycleCallback = AbilityLifecycleCallback(
+    onAbilityCreate: { ability: UIAbility => () },
+    onWindowStageCreate: { abilty: UIAbility, windowStage: window.WindowStage => () },
+    onWindowStageActive: { abilty: UIAbility, windowStage: window.WindowStage => () },
+    onWindowStageInactive: { abilty: UIAbility, windowStage: window.WindowStage => () },
+    onWindowStageDestroy: { abilty: UIAbility, windowStage: window.WindowStage => () },
+    onAbilityDestroy: { abilityUIability => () },
+    //进入前台
+    onAbilityForeground: { ability: UIAbility => needUpdateStartBgTime = true },
+    onAbilityBackground: { ability: UIAbility => () },
+    onAbilityContinue: { abilityUIability => () },
+    onWindowStageRestore: { abilty: UIAbility, windowStage: window.WindowStage => () }
+)
+
 public func initBatteryHandler(
     ability: UIAbility,
     reportBatteryInfo: (batteryInfo: BatteryUsageInfo) -> Unit,
+    reportThreadCpuUsageInfo: (allThreadCpuUsageInfo: AllThreadCpuUsageInfo) -> Unit,
     limit!: Int32 = 1
 ): Unit {
     reportBatteryCallback = reportBatteryInfo
@@ -390,7 +696,13 @@ public func initBatteryHandler(
     batteryLimit = limit
     let context = uiAbility.context
     let applicationContext = context.getApplicationContext()
+
+    //3min轮询一次
+    reportThreadCpuUsageCallback = reportThreadCpuUsageInfo
+    handleCpuUsage()
+
     applicationContext.on(ApplicationContextType.APPLICATION_STATE_CHANGE, applicationCallback)
+    applicationContext.on(ApplicationContextType.ABILITY_LIFECYCLE, abilityLifecycleCallback)
     on(navDestinationSwitch, context, pageSwitchCallback)
     subscribe(eventSubscriber, commonEventCallback)
 }
