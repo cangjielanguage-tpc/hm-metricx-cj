@@ -22,6 +22,7 @@
 #include <sys/eventfd.h>
 #include <syscall.h>
 #include <unistd.h>
+#include <deque>
 
 typedef struct {
     int sigNum;
@@ -30,6 +31,7 @@ typedef struct {
 
 struct LogEntry {
     std::chrono::time_point<std::chrono::system_clock> now;
+    LogType type;
     LogLevel level;
     unsigned int domain;
     std::string tag;
@@ -54,10 +56,13 @@ Callback cjcb;
 char *persistentFilePath;
 
 char *persistentSystemLogFilePath;
+char *persistentLastNHilogFilePath;
 
 const char *levelChars = "DIWEF"; // 3->D, 4->I, 5->W, 6->E, 7->F
 
 std::vector<LogEntry> logMessages;
+std::deque<LogEntry> hilogMessages;
+int64_t LASTN_HILOG_NUMBER = 0;
 
 char *cjLimits;
 
@@ -96,7 +101,7 @@ static std::string getVss(const std::string &s, char delimiter) {
     return "";
 }
 
-void CrashHilogCallback(const LogType type, const LogLevel level, const unsigned int domain, const char *tag,
+void CrashSystemlogCallback(const LogType type, const LogLevel level, const unsigned int domain, const char *tag,
                         const char *msg) {
 
     int typeValue = static_cast<int>(type);
@@ -109,6 +114,7 @@ void CrashHilogCallback(const LogType type, const LogLevel level, const unsigned
 
     LogEntry entry;
     entry.now = now;
+    entry.type = type;
     entry.level = level;
     entry.domain = domain;
     entry.tag = tag;
@@ -116,8 +122,29 @@ void CrashHilogCallback(const LogType type, const LogLevel level, const unsigned
 
     logMessages.push_back(entry);
 }
+
+void CrashLastNHilogCallback(const LogType type, const LogLevel level, const unsigned int domain, const char *tag,
+                        const char *msg) {
+    
+    // current time
+    auto now = std::chrono::system_clock::now();
+
+    LogEntry entry;
+    entry.now = now;
+    entry.type = type;
+    entry.level = level;
+    entry.domain = domain;
+    entry.tag = tag;
+    entry.msg = msg;
+    hilogMessages.push_back(entry);
+    if (hilogMessages.size() > LASTN_HILOG_NUMBER) {
+        hilogMessages.pop_front();
+    }
+}
+
 extern "C" {
 int8_t writeSystemLog(const char *pFilePath);
+int8_t writeLastNHiLog(const char *pFilePath);
 }
 
 static void CrashSignalHandler(int sig, siginfo_t *si, void *context) {
@@ -151,14 +178,59 @@ static void CrashSignalHandler(int sig, siginfo_t *si, void *context) {
     cjcb(persistentFilePath, cjLimits, cjCollectCrashInfo, fds.c_str(), threads.c_str(), meminfo.c_str(),
          OH_NativeBundle_GetCurrentApplicationInfo().bundleName);
     writeSystemLog(persistentSystemLogFilePath);
+    writeLastNHiLog(persistentLastNHilogFilePath);
     RemoveSignalHandler();
     pthread_mutex_unlock(&signalHandlerMutex);
     signalCrashInfo[sig].oldact.sa_sigaction(sig, si, context);
 }
 
+std::string LogEntryToString(const LogEntry &entry) {
+    // dateTime
+    std::time_t currentTime = std::chrono::system_clock::to_time_t(entry.now);
+    std::tm localTime = *std::localtime(&currentTime);
+
+    // millisecond
+    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+              entry.now - std::chrono::system_clock::from_time_t(currentTime)).count() % 1000;
+    // format time
+    char timeBuffer[80];
+    std::strftime(timeBuffer, sizeof(timeBuffer), "%m-%d %H:%M:%S", &localTime);
+    std::ostringstream timeStream;
+    timeStream << timeBuffer << "." << std::setw(3) << std::setfill('0') << ms;
+    std::string formattedTime = timeStream.str();
+
+    // format level
+    char levelChar = '?';
+    if (entry.level >= LOG_DEBUG && entry.level <= LOG_FATAL) {
+        levelChar = levelChars[entry.level - LOG_DEBUG];
+    }
+
+    // format domain
+    std::stringstream domainStream;
+    domainStream << std::hex << std::uppercase << entry.domain;
+    std::string hexDomain = domainStream.str();
+    if (hexDomain.length() > 5) {
+        hexDomain = hexDomain.substr(hexDomain.length() - 5);
+    } else {
+        while (hexDomain.length() < 5) {
+            hexDomain = "0" + hexDomain;
+        }
+    }
+    if (entry.type == 0) {
+        hexDomain = "A" + hexDomain;
+    } else if (entry.type == 3){
+        hexDomain = "C" + hexDomain;
+    }
+
+    std::string res = formattedTime + "  " + hexDomain + "/" + entry.tag + "  " + levelChar + " " + entry.msg;
+    return res;
+}
+
 extern "C" {
 int8_t InitNativeSignalHandler(const char *pFilePath, const char *limits, CollectCrashInfo collectCrashInfo,
-                               const char *pSystemLogFilePath, Callback cb) {
+                               const char *pSystemLogFilePath, const char *pLastNHilogFilePath,
+                                int64_t lastNHilogNumber, Callback cb) {
+    LASTN_HILOG_NUMBER = lastNHilogNumber;
     struct sigaction act;
     memset(&act, 0, sizeof(act));
     sigfillset(&act.sa_mask);
@@ -182,6 +254,11 @@ int8_t InitNativeSignalHandler(const char *pFilePath, const char *limits, Collec
     persistentSystemLogFilePath = new char[pSystemLogFilePathLen + 1];
     strncpy(persistentSystemLogFilePath, pSystemLogFilePath, pSystemLogFilePathLen);
     persistentSystemLogFilePath[pSystemLogFilePathLen] = '\0';
+    
+    auto pLastNHilogFilePathLen = strlen(pLastNHilogFilePath);
+    persistentLastNHilogFilePath = new char[pLastNHilogFilePathLen + 1];
+    strncpy(persistentLastNHilogFilePath, pLastNHilogFilePath, pLastNHilogFilePathLen);
+    persistentLastNHilogFilePath[pLastNHilogFilePathLen] = '\0';
 
     auto limitsLen = strlen(limits);
     cjLimits = new char[limitsLen + 1];
@@ -192,54 +269,43 @@ int8_t InitNativeSignalHandler(const char *pFilePath, const char *limits, Collec
     return SUCCESS;
 }
 
-int8_t registerCrashHilogCallback() {
-    registerHilogCallback(CrashHilogCallback);
+int8_t registerCrashSystemlogCallback() {
+    registerHilogCallback(CrashSystemlogCallback);
     return SUCCESS;
 }
+
+int8_t registerCrashLastNHilogCallback() {
+    registerHilogCallback(CrashLastNHilogCallback);
+    return SUCCESS;
+}
+
+
+
 
 int8_t writeSystemLog(const char *pFilePath) {
     std::ofstream file(pFilePath);
     if (!file.is_open()) {
         return FAIL;
-    }   
+    }
     for (const auto &entry : logMessages) {
-
-        // dateTime
-        std::time_t currentTime = std::chrono::system_clock::to_time_t(entry.now);
-        std::tm localTime = *std::localtime(&currentTime);
-
-        // millisecond
-        auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
-                      entry.now - std::chrono::system_clock::from_time_t(currentTime))
-                      .count() % 1000;
-        // format time
-        char timeBuffer[80];
-        std::strftime(timeBuffer, sizeof(timeBuffer), "%m-%d %H:%M:%S", &localTime);
-        std::ostringstream timeStream;
-        timeStream << timeBuffer << "." << std::setw(3) << std::setfill('0') << ms;
-        std::string formattedTime = timeStream.str();
-
-        // format level
-        char levelChar = '?';
-        if (entry.level >= LOG_DEBUG && entry.level <= LOG_FATAL) {
-            levelChar = levelChars[entry.level - LOG_DEBUG];
-        }
-
-        // format domain
-        std::stringstream domainStream;
-        domainStream << std::hex << std::uppercase << entry.domain;
-        std::string hexDomain = domainStream.str();
-        if (hexDomain.length() > 5) {
-            hexDomain = hexDomain.substr(hexDomain.length() - 5);
-        } else {
-            while (hexDomain.length() < 5) {
-                hexDomain = "0" + hexDomain;
-            }
-        }
-        hexDomain = "C" + hexDomain;
-
+        std::string entryString = LogEntryToString(entry);
         std::ostringstream logStream;
-        logStream << formattedTime << "  " << hexDomain << "/" << entry.tag << "  " << levelChar << " " << entry.msg;
+        logStream << entryString;
+        file << logStream.str() << "\n";
+    }
+    file.close();
+    return SUCCESS;
+}
+
+int8_t writeLastNHiLog(const char *pFilePath) {
+    std::ofstream file(pFilePath);
+    if (!file.is_open()) {
+        return FAIL;
+    }
+    for (const auto &entry : hilogMessages) {
+        std::string entryString = LogEntryToString(entry);
+        std::ostringstream logStream;
+        logStream << entryString;
         file << logStream.str() << "\n";
     }
     file.close();

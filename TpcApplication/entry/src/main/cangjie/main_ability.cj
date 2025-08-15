@@ -39,7 +39,7 @@ class EntryAbility <: UIAbility {
             .getApplicationContext(), {=> JsonValue.fromStr("{}")}, {=> unsafe { LibC.mallocCString("{}") }}, {data => AppLog.error("oom: " + data.dumpOnOOMPath.toString())},
             Path(this
                 .context
-                .cacheDir), OOMHandlerMode.Async)
+                .cacheDir), OOMHandlerMode.Async, 1000)
         initFreezeHandler(
             this
                 .context
