@@ -393,6 +393,7 @@ struct DumpTime {
 private var inited = false
 private let TIMEOUT = Duration.second
 private var reported = false
+private var OOMHandlerInited = false;
 
 public func initCrashHandler(
     applicationContext: ApplicationContext,
@@ -470,6 +471,9 @@ private func initOOMHandler(persistentDir: String) {
                 }
             }) != 0) {
             AppLog.warn("InitOOMHandler failed.")
+        }
+        else {
+            OOMHandlerInited = true
         }
         LibC.free(targetFile)
         LibC.free(zlibFile)
@@ -567,7 +571,7 @@ private func initErrorObserver(crashInfo: CrashInfo, applicationContext: Applica
             writeFile(persistentFilePath, crashInfo.toString())
             writeSystemLog2File(persistentSystemLogPath.toString())
             writeLastNHilog2File(persistentLastNHilogPath.toString())
-            if (enableDumpOnOOM.isSome()) {
+            if (OOMHandlerInited) {
                 waitOOMDumping(applicationContext, dumpTimePath)
             }
             else {

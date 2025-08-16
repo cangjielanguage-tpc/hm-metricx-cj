@@ -115,7 +115,12 @@ static FILE *Fopen(const char *filename, const char *mode) {
     pid_t pid = fork();
     auto t3 = std::chrono::high_resolution_clock::now();
     if (pid == 0) {
-        replaceFunc(gBaseAddr, 0x11a440, (void *)Noop);
+        pthread_mutex_lock(&hook_mutex);
+        xhook_clear();
+        xhook_register(cj_runtime, "_ZN12MapleRuntime14MutatorManager12StopTheWorldEbNS_7GCPhaseE", (void *)Noop, nullptr);
+        xhook_refresh(0);
+        pthread_mutex_unlock(&hook_mutex);
+        //replaceFunc(gBaseAddr, 0x11a440, (void *)Noop);
         FILE *fp = fopen(filename, mode);
         gFp = fp;
         return fp;

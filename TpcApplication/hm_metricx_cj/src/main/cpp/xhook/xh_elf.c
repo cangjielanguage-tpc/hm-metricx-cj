@@ -997,7 +997,7 @@ int xh_elf_hook(xh_elf_t *self, const char *symbol, void *new_func, void **old_f
 
     if(NULL == symbol || NULL == new_func) return XH_ERRNO_INVAL;
 
-    OH_LOG_Print(LOG_APP, LOG_INFO, 0x00008, "xhook", "hooking %s in %s\n", symbol, self->pathname);
+    OH_LOG_Print(LOG_APP, LOG_INFO, 0x00008, "xhook", "hooking %{public}s in %{public}s\n", symbol, self->pathname);
     
     //find symbol index by symbol name
     if(0 != (r = xh_elf_find_symidx_by_name(self, symbol, &symidx))) return 0;
