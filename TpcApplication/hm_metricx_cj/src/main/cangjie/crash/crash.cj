@@ -504,13 +504,10 @@ private func initNativeSignalHandler(persistentFilePath: String, applicationCont
                 crashInfo.threads = threads.toString()
                 // sometimes invoking collectMemInfo will crash, so read meminfo at native side
                 crashInfo.meminfo = meminfo.toString()
-                let extraInfo = collectCrashInfo()
                 try {
-                    crashInfo.extraInfo = JsonValue.fromStr(extraInfo.toString())
-                } catch (e: JsonException) {
+                    crashInfo.extraInfo = JsonValue.fromStr(collectCrashInfo().toString())
+                } catch (e: Exception) {
                     AppLog.warn(e.toString())
-                } finally {
-                    LibC.free(extraInfo)
                 }
                 writeFile(persistentFilePath.toString(), crashInfo.toString())
             }
