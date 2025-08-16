@@ -24,6 +24,9 @@
 #include <sys/syscall.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <sys/wait.h>
+#include <chrono>
+
 
 #define PAGE_SHIFT 12
 #define PAGE_SIZE (1UL << PAGE_SHIFT)
@@ -47,6 +50,18 @@ FILE *gFp;
 typedef bool (*CompressFile)(const char *, const char *);
 
 CompressFile cjCompressFile;
+
+bool isOOMDumping = false;
+
+typedef struct {
+    long long total;
+    long long stw;
+    long long fork;
+    long long dump;
+    long long compress;
+} DumpTime;
+
+DumpTime dumpTime = {0, 0, 0, 0, 0};
 
 class MutatorManager {
 public:
@@ -92,9 +107,13 @@ static FILE *Fopen(const char *filename, const char *mode) {
     if (!oomFile || std::strcmp(oomFile, filename) != 0) {
         return fopen(filename, mode);
     }
+    isOOMDumping = true;
+    auto t1 = std::chrono::high_resolution_clock::now();
     MutatorManager &mutatorManager = initMutatorManager();
     stopTheWorld(&mutatorManager, false, 1);
+    auto t2 = std::chrono::high_resolution_clock::now();
     pid_t pid = fork();
+    auto t3 = std::chrono::high_resolution_clock::now();
     if (pid == 0) {
         replaceFunc(gBaseAddr, 0x11a440, (void *)Noop);
         FILE *fp = fopen(filename, mode);
@@ -102,6 +121,30 @@ static FILE *Fopen(const char *filename, const char *mode) {
         return fp;
     } else {
         startTheWorld(&mutatorManager);
+        int status;
+        if (waitpid(pid, &status, 0) == -1) {
+            OH_LOG_Print(LOG_APP, LOG_WARN, 0x00008, "hm_metricx_cj", "waitpid error: no child process or other reasons");
+        }
+        if (errno == EINTR) {
+            OH_LOG_Print(LOG_APP, LOG_WARN, 0x00008, "hm_metricx_cj", "waitpid error: interrupted system call");
+        }
+        if (!WIFEXITED(status)) {
+            OH_LOG_Print(LOG_APP, LOG_WARN, 0x00008, "hm_metricx_cj",
+                         "waitpid error: child process %{public}d exited with status %{public}d, terminated by signal %{public}d",
+                         pid, WEXITSTATUS(status), WTERMSIG(status));
+        }
+        auto t4 = std::chrono::high_resolution_clock::now();
+        cjCompressFile(oomFile, cjZlibFile);
+        auto t5 = std::chrono::high_resolution_clock::now();
+        auto total = std::chrono::duration_cast<std::chrono::milliseconds>(t5 - t1).count();
+        auto d1 = std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count();
+        auto d2 = std::chrono::duration_cast<std::chrono::milliseconds>(t3 - t2).count();
+        auto d3 = std::chrono::duration_cast<std::chrono::milliseconds>(t4 - t3).count();
+        auto d4 = std::chrono::duration_cast<std::chrono::milliseconds>(t5 - t4).count();
+        OH_LOG_Print(LOG_APP, LOG_WARN, 0x00008, "hm_metricx_cj", "dump time: total: %{public}lld ms, stw: %{public}lld ms, fork: %{public}lld ms, dump: %{public}lld ms, compress: %{public}lld ms",
+                     total, d1, d2, d3, d4);
+        dumpTime = {total, d1, d2, d3, d4};
+        isOOMDumping = false;
         return nullptr;
     }
 }
@@ -109,7 +152,7 @@ static FILE *Fopen(const char *filename, const char *mode) {
 static int Fclose(FILE *fp) {
     int res = fclose(fp);
     if (gFp == fp) {
-        cjCompressFile(oomFile, cjZlibFile);
+        _exit(0);
     }
     return res;
 }
@@ -237,5 +280,13 @@ int8_t InitOOMHandler(const char *targetFile, const char *zlibFile, CompressFile
     cjZlibFile[zlibFileLen] = '\0';
     cjCompressFile = compressFile;
     return SUCCESS;
+}
+
+bool IsOOMDumping() {
+    return isOOMDumping;
+}
+
+DumpTime GetDumpTime() {
+    return dumpTime;
 }
 }

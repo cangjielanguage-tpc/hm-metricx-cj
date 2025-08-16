@@ -46,12 +46,12 @@
 				]
 			}
 		],
-		"installationFree":false,
-		"pages":"$profile:main_pages",
-		"requestPermissions": [
+		"requestPermissions":[
 			{
-				"name": "ohos.permission.INTERNET"
+				"name":"ohos.permission.INTERNET"
 			}
-		]
+		],
+		"installationFree":false,
+		"pages":"$profile:main_pages"
 	}
 }

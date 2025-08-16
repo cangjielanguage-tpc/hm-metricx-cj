@@ -41,6 +41,7 @@ public class CrashInfo {
     private var rawFileValue: ?String = None
     private var systemLogValue: ?String = None
     private var lastNHilogValue: ?String = None
+    private var dumpTimeValue: ?String = None
 
     public mut prop language: ?String {
         get() {
@@ -213,6 +214,15 @@ public class CrashInfo {
         }
     }
 
+    public mut prop dumpTime: ?String {
+        get() {
+            dumpTimeValue
+        }
+        set(value) {
+            dumpTimeValue = value
+        }
+    }
+
     public func toString(): String {
         let jsonObj = JsonObject()
         if (let Some(v) <- languageValue) {
@@ -271,6 +281,9 @@ public class CrashInfo {
         }
         if (let Some(v) <- lastNHilogValue) {
             jsonObj.put("lastNHilog", JsonString(v))
+        }
+        if (let Some(v) <- dumpTimeValue) {
+            jsonObj.put("dumpTime", JsonString(v))
         }
         jsonObj.toString()
     }
@@ -335,6 +348,9 @@ public class CrashInfo {
         if (let Some(v) <- jsonObject.get("lastNHilog")) {
             crashInfo.lastNHilog = JsonValueToString(v)
         }
+        if (let Some(v) <- jsonObject.get("dumpTime")) {
+            crashInfo.dumpTime = JsonValueToString(v)
+        }
         crashInfo
     }
 
@@ -356,11 +372,22 @@ public class CrashInfo {
         this.dumpOnOOMPathValue = None
         this.appVersionValue = None
         this.rawFileValue = None
+        this.systemLogValue = None
+        this.dumpTimeValue = None
     }
 }
 
 public enum OOMHandlerMode {
     | Async | Sync
+}
+
+@C
+struct DumpTime {
+    var total: Int64 = 0
+    var stw: Int64 = 0
+    var fork: Int64 = 0
+    var dump: Int64 = 0
+    var compress: Int64 = 0
 }
 
 private var inited = false
@@ -378,9 +405,10 @@ public func initCrashHandler(
     if (inited) {
         return
     }
-    var hilogNumber = max(lastNHilogNumber, 0)
+    let hilogNumber = max(lastNHilogNumber, 0)
+    let dumpTimePath = persistentDir.join("dumpTime.txt")
     let lastCrashFilePath = persistentDir.join("lastCrash.json")
-    reportLastCrash(lastCrashFilePath, reportCrashInfo)
+    reportLastCrash(lastCrashFilePath, reportCrashInfo, dumpTimePath)
     let crashInfo = CrashInfo()
     crashInfo.limits = collectLimits()
     let persistentFilePath = persistentDir.join("crash.json")
@@ -388,13 +416,12 @@ public func initCrashHandler(
     let persistentLastNHilogPath = persistentDir.join("crashLastNHilog.txt")
     initErrorObserver(
         crashInfo, applicationContext, collectCrashInfo, persistentFilePath, persistentSystemLogPath,
-        persistentLastNHilogPath, enableDumpOnOOM, persistentDir)
+        enableDumpOnOOM, dumpTimePath, persistentLastNHilogPath)
     initNativeSignalHandler(persistentFilePath.toString(), applicationContext, crashInfo.limits.getOrThrow(),
         collectNativeCrashInfo, persistentSystemLogPath.toString(),
         persistentLastNHilogPath.toString(), hilogNumber)
     initCrashWatcher(applicationContext, reportCrashInfo,
-        persistentFilePath, persistentSystemLogPath, persistentLastNHilogPath,
-        persistentDir, lastCrashFilePath)
+        persistentFilePath, persistentSystemLogPath, persistentDir, lastCrashFilePath, dumpTimePath, persistentLastNHilogPath)
     initHilogWatcher()
     if (let Some(handlerMode) <- enableDumpOnOOM) {
         match (handlerMode) {
@@ -409,11 +436,13 @@ public func initCrashHandler(
     inited = true
 }
 
-private func reportLastCrash(lastCrashFilePath: Path, reportCrashInfo: (crashInfo: CrashInfo) -> Unit) {
+private func reportLastCrash(lastCrashFilePath: Path, reportCrashInfo: (crashInfo: CrashInfo) -> Unit, dumpTimePath: Path) {
     if (exists(lastCrashFilePath)) {
         try {
             let jsonObj = JsonValue.fromStr(readFile(lastCrashFilePath)).asObject()
             let crashInfo = CrashInfo.fromJson(jsonObj)
+            crashInfo.dumpTime = readFile(dumpTimePath)
+            deleteFile(dumpTimePath)
             reportCrashInfo(crashInfo)
             reported = true
             if (let Some(v) <- crashInfo.crashLogPath) {
@@ -506,9 +535,27 @@ private func parseFDs(fds: String) {
     map
 }
 
+private func waitOOMDumping(applicationContext: ApplicationContext, dumpTimePath: Path): Unit {
+    Timer.once(TIMEOUT) {
+        let isOOMDumping = unsafe {
+            IsOOMDumping()
+        }
+        if (isOOMDumping) {
+            waitOOMDumping(applicationContext, dumpTimePath)
+        }
+        else {
+            let dumpTime = unsafe {
+                GetDumpTime()
+            }
+            writeFile(dumpTimePath, "dump time: total: ${dumpTime.total} ms, stw: ${dumpTime.stw} ms, fork: ${dumpTime.fork} ms, dump: ${dumpTime.dump} ms, compress: ${dumpTime.compress} ms")
+            exit(applicationContext)
+        }
+    }
+}
+
 private func initErrorObserver(crashInfo: CrashInfo, applicationContext: ApplicationContext,
-    collectCrashInfo: () -> JsonValue, persistentFilePath: Path, persistentSystemLogPath: Path,
-    persistentLastNHilogPath: Path, enableDumpOnOOM: Option<OOMHandlerMode>, persistentDir: Path) {
+    collectCrashInfo: () -> JsonValue, persistentFilePath: Path, persistentSystemLogPath: Path, enableDumpOnOOM: Option<OOMHandlerMode>,
+    dumpTimePath: Path, persistentLastNHilogPath: Path) {
     let errorObserver = ErrorObserver(
         {errMsg: String =>},
         onException: {
@@ -521,13 +568,11 @@ private func initErrorObserver(crashInfo: CrashInfo, applicationContext: Applica
             writeSystemLog2File(persistentSystemLogPath.toString())
             writeLastNHilog2File(persistentLastNHilogPath.toString())
             if (enableDumpOnOOM.isSome()) {
-                let rawOomFile = persistentDir.join("cj_OOM_pid" + Process.current.pid.toString() + ".dat")
-                let oomFile = persistentDir.join("cj_OOM_pid" + Process.current.pid.toString() + ".zlib")
-                let startTime = DateTime.now()
-                while(!exists(oomFile) && DateTime.now() - startTime < Duration.second) {}
-                while(exists(rawOomFile) && DateTime.now() - startTime < Duration.second) {}
+                waitOOMDumping(applicationContext, dumpTimePath)
             }
-            exit(applicationContext)
+            else {
+                exit(applicationContext)
+            }
         }
     )
     let index = ErrorManager.on("error", errorObserver)
@@ -627,8 +672,7 @@ private func collectMemInfo() {
 }
 
 private func initCrashWatcher(applicationContext: ApplicationContext, reportCrashInfo: (crashInfo: CrashInfo) -> Unit,
-    persistentFilePath: Path, persistentSystemLogPath: Path, persistentLastNHilogPath: Path,
-    persistentDir: Path, lastCrashFilePath: Path) {
+    persistentFilePath: Path, persistentSystemLogPath: Path, persistentDir: Path, lastCrashFilePath: Path, dumpTimePath: Path, persistentLastNHilogPath: Path) {
     let watcher = Watcher(
         "crashWatcher",
         appEventFilters: [AppEventFilter(OS, names: [APP_CRASH], eventTypes: [FAULT])],
@@ -649,30 +693,12 @@ private func initCrashWatcher(applicationContext: ApplicationContext, reportCras
             } else {
                 AppLog.warn("No persistent crash file.")
             }
-            if (exists(persistentSystemLogPath)) {
-                try {
-                    crashInfo.systemLog = String
-                        .fromUtf8(File.readFrom(persistentSystemLogPath))
-                        .replace("\n\n", "\n")
-                } catch (e: Exception) {
-                    AppLog.warn(e.toString())
-                }
-                deleteFile(persistentSystemLogPath)
-            } else {
-                AppLog.warn("No persistent crash system log file.")
-            }
-            if (exists(persistentLastNHilogPath)) {
-                try {
-                    crashInfo.lastNHilog = String
-                        .fromUtf8(File.readFrom(persistentLastNHilogPath))
-                        .replace("\n\n", "\n")
-                } catch (e: Exception) {
-                    AppLog.warn(e.toString())
-                }
-                deleteFile(persistentLastNHilogPath)
-            } else {
-                AppLog.warn("No persistent crash lastNHilog log file.")
-            }
+            crashInfo.dumpTime = readFile(dumpTimePath)
+            deleteFile(dumpTimePath)
+            crashInfo.systemLog = readFile(persistentSystemLogPath).replace("\n\n", "\n")
+            deleteFile(persistentSystemLogPath)
+            crashInfo.lastNHilog = readFile(persistentLastNHilogPath).replace("\n\n", "\n")
+            deleteFile(persistentLastNHilogPath)
             for (eventGroup in appEventGroups) {
                 if (eventGroup.name != APP_CRASH) {
                     continue
@@ -951,7 +977,15 @@ foreign func InitNativeSignalHandler(persistentFilePath: CString, limits: CStrin
 foreign func InitOOMHandler(targetFile: CString, zlibFile: CString, compressFile: CFunc<(CString, CString) -> Unit>): Int8
 
 foreign func writeSystemLog(persistentFilePath: CString): Int8
+
 foreign func writeLastNHiLog(persistentFilePath: CString): Int8
 
 foreign func registerCrashSystemlogCallback(): Int8
+
 foreign func registerCrashLastNHilogCallback(): Int8
+
+foreign func registerCrashHilogCallback(): Int8
+
+foreign func IsOOMDumping(): Bool
+
+foreign func GetDumpTime(): DumpTime
