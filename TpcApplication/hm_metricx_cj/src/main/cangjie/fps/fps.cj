@@ -11,6 +11,7 @@ import stdx.encoding.json.{JsonObject, JsonString}
 import tpc.UIKit.window.{WindowStage, WindowCallbackType, WindowEventType}
 import std.collection.*
 import ohos.base.AppLog
+import ohos.hilog.Hilog
 import ohos_app_cangjie_hm_metricx_cj.getTargetPageName
 import ohos_app_cangjie_hm_metricx_cj.defaultPageName
 
@@ -454,6 +455,14 @@ public class ScrollFpsEvent <: FpsEvent {
     }
 }
 
+@When[debug]
+private func printScrollEventInfo(info: ScrollEventInfo) {
+    Hilog.warn(0, "hm_metricx_cj", "scroll component id: ${info.id}, scroll component unique id: ${info.uniqueId}")
+}
+
+@When[!debug]
+private func printScrollEventInfo(info: ScrollEventInfo) {}
+
 // 滑动时间监听
 public func initScrollEventHandler(
     uiContext: UIAbilityContext,
@@ -479,7 +488,9 @@ public func initScrollEventHandler(
             info: ScrollEventInfo =>
             match (info.scrollEvent) {
                 case SCROLL_START => scrollCallback1()
-                case SCROLL_STOP => scrollCallback2()
+                case SCROLL_STOP =>
+                    printScrollEventInfo(info) // temperarily added
+                    scrollCallback2()
             }
         }
     )
