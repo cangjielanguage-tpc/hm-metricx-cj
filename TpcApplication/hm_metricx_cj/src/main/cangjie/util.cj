@@ -6,8 +6,9 @@ package ohos_app_cangjie_hm_metricx_cj
 import std.unicode.UnicodeStringExtension
 import std.collection.*
 import std.fs.*
-import stdx.encoding.json.*
 import std.regex.Regex
+import std.time.*
+import stdx.encoding.json.*
 
 import tpc.UIKit.Observer.*
 import tpc.BasicServicesKit.*
@@ -108,4 +109,8 @@ public func unescapeString(str: String): String {
         res = res.replace(escape[0], escape[1])
     }
     res
+}
+
+public func getCurTimeStamp(): String {
+    DateTime.now().format("yyyy-MM-dd HH:mm:ss")
 }

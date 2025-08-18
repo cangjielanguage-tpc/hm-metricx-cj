@@ -6,25 +6,35 @@ package ohos_app_cangjie_hm_metricx_cj.traffic
 import tpc.AbilityKit.bundleManager
 import tpc.AbilityKit.bundleManager.BundleFlag
 import tpc.AbilityKit.UIAbilityContext
+import tpc.AbilityKit.UIAbility
 import tpc.NetworkKit.statistics
 import ohos.base.BusinessException
 import std.time.DateTime
 import tpc.ArkData.preferences
 import tpc.ArkData.preferences.*
-import tpc.UIKit.global.setInterval
+import tpc.UIKit.global.*
 import stdx.encoding.json.*
 import std.collection.ArrayList
 import ohos.base.AppLog
 import std.collection.HashMap
 import tpc.UIKit.Observer.{NavDestinationSwitchInfo, on, ObserverListenerType}
-import ohos_app_cangjie_hm_metricx_cj.getTargetPageName
-import ohos_app_cangjie_hm_metricx_cj.PageSwitchCallBack
+import ohos_app_cangjie_hm_metricx_cj.*
 
 let pageTrafficMap: HashMap<String, PageTrafficData> = HashMap<String, PageTrafficData>()
 let uid: UInt32 = GetAppUid()
 var pageRxStart: Int64 = 0
 var pageTxStart: Int64 = 0
-var currentPageName = ""
+var prevUpload: Int64 = 0
+var prevDownload: Int64 = 0
+var inited: Bool = false
+
+var currentPageName = defaultPageName
+var SAMPLE_TIME: Int64 = 0
+var SAMPLE_THRESHOLD: Int64 = 0
+var sampleId : Int64 = -1
+var reportTrafficData: (systemTrafficData: SystemTrafficData,pageTrafficData: HashMap<String, PageTrafficData>) -> Unit = {
+    systemTrafficData: SystemTrafficData, pageTrafficData: HashMap<String, PageTrafficData> =>
+}
 
 // 获取应用UID
 public func GetAppUid(): UInt32 {
@@ -66,6 +76,24 @@ public open class TrafficData {
             downTotalValue = value
             totalValue = upTotalValue + downTotalValue
         }
+    }
+}
+
+public class SystemTrafficData <: TrafficData {
+    public var timeStamp: String = ""
+
+    public init(upTotalValue!: Int64, downTotalValue!: Int64, timeStampValue!: String) {
+        super(upTotalValue: upTotalValue, downTotalValue: downTotalValue)
+        this.timeStamp = timeStampValue
+    }
+
+    public func toString() {
+        let jsonObj = JsonObject()
+        jsonObj.put("timeStamp", JsonString(timeStamp))
+        jsonObj.put("total", JsonString(total.toString()))
+        jsonObj.put("upTotal", JsonString(upTotal.toString()))
+        jsonObj.put("downTotal", JsonString(downTotal.toString()))
+        jsonObj.toString()
     }
 }
 
@@ -188,7 +216,8 @@ private class TrafficInfoListener {
 
 private var needPersistenceStorage: Bool = false
 
-public func initTrafficHandler(context: UIAbilityContext, report: (TrafficInfo) -> Unit, limits: ?Int64) {
+public func initTrafficHandler(context: UIAbilityContext, report: (TrafficInfo) -> Unit, limits: ?Int64,
+    sampleTime !: Int64 = 10 * 60 * 1000, sampleThreshold !: Int64 = 50 * 1024 * 1024) {
     let instance = TrafficInfoListener.GetInstance()
     let trafficInfo = TrafficInfo()
     let options = preferences.Options("Traffic")
@@ -308,22 +337,26 @@ public func initTrafficHandler(context: UIAbilityContext, report: (TrafficInfo) 
     }
     setInterval(doTrafficSample, 1000, Array<String>())
 
-    initPageTraffic(context)
+    on(navDestinationSwitch, context, PageSwitchCallBack(navDestinationSwitchCallBack))
+    SAMPLE_TIME = sampleTime
+    SAMPLE_THRESHOLD = sampleThreshold
+    doTrafficSample()
+    sampleId = setInterval(doTrafficSample, SAMPLE_TIME, Array<String>())
 }
 
-private func initPageTraffic(context: UIAbilityContext) {
+private func doTrafficSample(array: Array<String>) {
     statistics.getUidRxBytes(
         uid,
         {
             err: ?BusinessException, data: ?Int64 =>
             if (let Some(v) <- err) {
-                AppLog.warn("init Rx error: ${v.toString()}")
+                AppLog.warn("Rx error: ${v.toString()}")
                 return
             }
             if (data.isNone()) {
-                AppLog.warn("init Rx data is none")
+                AppLog.warn("Rx data is none")
             }
-            pageRxStart = data ?? 0
+            let curDownload = data ?? 0
             statistics.getUidTxBytes(
                 uid,
                 {
@@ -333,16 +366,31 @@ private func initPageTraffic(context: UIAbilityContext) {
                         return
                     }
                     if (data.isNone()) {
-                        AppLog.warn("init Tx data is none")
+                        AppLog.warn("Tx data is none")
                     }
-                    pageTxStart = data ?? 0
-                    on(navDestinationSwitch, context, PageSwitchCallBack(navDestinationSwitchCallBack))
+                    let curUpload = data ?? 0
+                    if(!inited) {
+                        inited = true
+                    } else {
+                        let deltaUpload: Int64 = curUpload - prevUpload
+                        let deltaDownload: Int64 = curDownload - prevDownload
+                        let delta: Int64 = deltaUpload + deltaDownload
+                        if (delta > SAMPLE_THRESHOLD) {
+                            let curTimeStamp = getCurTimeStamp()
+                            let systemData = SystemTrafficData(upTotalValue: deltaUpload, downTotalValue: deltaDownload,
+                                timeStampValue: curTimeStamp)
+                            reportTrafficData(systemData, pageTrafficMap)
+                        }
+                    }
+                    prevUpload = curUpload
+                    prevDownload = curDownload
+                    pageTxStart = curUpload
+                    pageRxStart = curDownload
+                    pageTrafficMap.clear()
                 }
             )
         }
     )
-
-
 }
 
 private func navDestinationSwitchCallBack(info: NavDestinationSwitchInfo) {
@@ -398,5 +446,11 @@ private func updatePageMap(pageName: String, curRx: Int64, curTx: Int64) {
     let pageTrafficData = pageTrafficMap.get(pageName).getOrThrow()
     pageTrafficData.upTotal += curTx
     pageTrafficData.downTotal += curRx
+}
+
+public func destroyTrafficHandler() {
+    if (sampleId != -1) {
+        clearInterval(sampleId)
+    }
 }
 
