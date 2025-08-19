@@ -607,7 +607,7 @@ private func writeFile(path: Path, data: String) {
 private func readFile(path: Path, isReturnException!: Bool = false) {
     if (!exists(path)) {
         if (isReturnException) {
-        	return "hm-metricx-cj error: read file path does not exist"
+        	return "hm-metricx-cj error: read file path ${path} does not exist"
         } else {
             return ""
         }
@@ -617,7 +617,7 @@ private func readFile(path: Path, isReturnException!: Bool = false) {
     } catch (e: Exception) {
         AppLog.warn("reading ${path} failed: " + e.toString())
         if (isReturnException) {
-        	return "hm-metricx-cj error: reading ${path} failed: + ${e.toString()}"
+        	return "hm-metricx-cj error: reading ${path} failed: ${e.toString()}"
         }
     }
     ""
@@ -741,12 +741,13 @@ private func initCrashWatcher(applicationContext: ApplicationContext, reportCras
                     }
                     let crashLogPath: String = eventInfo.params.get("external_log")
                         .getOrThrow().toString().removePrefix("[").removeSuffix("]")
+                    Hilog.info(0, "testTag", "hm-metricx-cj error: ${getLogFileInfo()}")
                     if (crashLogPath.isEmpty() ) {
-                        crashInfo.rawFile = "hm-metricx-cj error: crash log path is empty"
+                        crashInfo.rawFile = "hm-metricx-cj error: crash log path is empty \n" + getLogFileInfo()
                         continue
                     }
                     if (!exists(crashLogPath)) {
-                        crashInfo.rawFile = "hm-metricx-cj error: crash log path does not exist"
+                        crashInfo.rawFile = "hm-metricx-cj error: crash log path ${crashLogPath} does not exist \n" + getLogFileInfo()
                         continue
                     }
                     crashInfo.crashLogPath = crashLogPath
@@ -791,6 +792,19 @@ private func initCrashWatcher(applicationContext: ApplicationContext, reportCras
         }
     )
     addWatcher(watcher)
+}
+
+private func getLogFileInfo(): String {
+    let info = ArrayList<String>()
+    let path = "/data/storage/el2/log/hiappevent/"
+    if (exists(path)) {
+        Directory.walk(path, {
+                file =>
+                info.add("fileName: ${file.name}, createTime: ${file.creationTime.inLocal()}, size: ${(Float64(file.size)/1024.0).format(".3")}KB")
+                true
+        })
+    }
+    info.toString()
 }
 
 private func exit(applicationContext: ApplicationContext) {
