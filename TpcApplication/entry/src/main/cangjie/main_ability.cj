@@ -55,7 +55,7 @@ class EntryAbility <: UIAbility {
         )
         initTrafficHandler(this.context, {data =>}, 1000 * 1024 * 1024)
         initStorageHandler({data: StorageInfo =>})
-        initBatteryHandler(this, {data =>})
+        initBatteryHandler(this, {data =>}, {data =>})
         initCpuHandler(this, {data =>})
         initMemoryHandler(this, {data =>})
     }
