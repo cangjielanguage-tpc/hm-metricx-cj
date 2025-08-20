@@ -53,17 +53,18 @@ class EntryAbility <: UIAbility {
                 .context
                 .cacheDir)
         )
-        initTrafficHandler(this.context, {data =>}, 1000 * 1024 * 1024)
+        initTrafficHandler(this.context, {data =>})
         initStorageHandler({data: StorageInfo =>})
         initBatteryHandler(this, {data =>}, {data =>})
-        initCpuHandler(this, {data =>})
-        initMemoryHandler(this, {data =>})
+        initCpuHandler(this.context, {data =>})
+        initMemoryHandler(this.context, {data =>})
     }
 
     public override func onDestroy(): Unit {
         destroyBatteryHandler()
         destroyCpuHandler()
         destroyMemoryHandler()
+        destroyTrafficHandler()
         AppLog.info("myAbility onDestroy.")
     }
 
