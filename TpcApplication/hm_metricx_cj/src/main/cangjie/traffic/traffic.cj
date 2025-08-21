@@ -15,26 +15,40 @@ import tpc.ArkData.preferences.*
 import tpc.UIKit.global.*
 import stdx.encoding.json.*
 import std.collection.ArrayList
+import std.convert.*
 import ohos.base.AppLog
 import std.collection.HashMap
 import tpc.UIKit.Observer.{NavDestinationSwitchInfo, on, ObserverListenerType}
 import ohos_app_cangjie_hm_metricx_cj.*
 
-let pageTrafficMap: HashMap<String, PageTrafficData> = HashMap<String, PageTrafficData>()
+let pageTrafficMap: HashMap<String, PageTrafficInfo> = HashMap<String, PageTrafficInfo>()
 let uid: UInt32 = GetAppUid()
 var pageRxStart: Int64 = 0
 var pageTxStart: Int64 = 0
 var prevUpload: Int64 = 0
 var prevDownload: Int64 = 0
 var inited: Bool = false
-
+var uiContext: Option<UIAbilityContext> = None
 var currentPageName = defaultPageName
 var SAMPLE_TIME: Int64 = 0
 var SAMPLE_THRESHOLD: Int64 = 0
 var sampleId : Int64 = -1
-var reportTrafficData: (systemTrafficData: SystemTrafficData,pageTrafficData: HashMap<String, PageTrafficData>) -> Unit = {
-    systemTrafficData: SystemTrafficData, pageTrafficData: HashMap<String, PageTrafficData> =>
+var reportTrafficCallback: (sampleTraffixInfo: SampleTrafficInfo) -> Unit = {
+    sampleTraffixInfo: SampleTrafficInfo =>
 }
+
+// current
+private let KEY_CURRENT_UPLOAD: String = "current_upload"
+private let KEY_CURRENT_DOWNLOAD: String = "current_download"
+// today
+private let KEY_TODAY_DATE: String = "today_date"
+private let KEY_TODAY_UPLOAD: String = "today_upload"
+private let KEY_TODAY_DOWNLOAD: String = "today_download"
+// yesterday
+private let KEY_YESTERDAY_DATE: String = "yesterday_date"
+private let KEY_YESTERDAY_UPLOAD: String = "yesterday_upload"
+private let KEY_YESTERDAY_DOWNLOAD: String = "yesterday_download"
+private let KEY_YESTERDAY_REPORTED: String = "yesterday_reported"
 
 // 获取应用UID
 public func GetAppUid(): UInt32 {
@@ -44,12 +58,12 @@ public func GetAppUid(): UInt32 {
     UInt32(uid)
 }
 
-public open class TrafficData {
+public open class TrafficInfo {
     private var totalValue: Int64 = 0
     private var upTotalValue: Int64 = 0
     private var downTotalValue: Int64 =0
-
-    public init(upTotalValue!: Int64, downTotalValue!: Int64) {
+    public init() {}
+    public init(upTotalValue: Int64, downTotalValue: Int64) {
         this.upTotalValue = upTotalValue
         this.downTotalValue = downTotalValue
         this.totalValue = upTotalValue + downTotalValue
@@ -79,272 +93,161 @@ public open class TrafficData {
     }
 }
 
-public class SystemTrafficData <: TrafficData {
-    public var timeStamp: String = ""
-
-    public init(upTotalValue!: Int64, downTotalValue!: Int64, timeStampValue!: String) {
-        super(upTotalValue: upTotalValue, downTotalValue: downTotalValue)
-        this.timeStamp = timeStampValue
-    }
-
-    public func toString() {
-        let jsonObj = JsonObject()
-        jsonObj.put("timeStamp", JsonString(timeStamp))
-        jsonObj.put("total", JsonString(total.toString()))
-        jsonObj.put("upTotal", JsonString(upTotal.toString()))
-        jsonObj.put("downTotal", JsonString(downTotal.toString()))
-        jsonObj.toString()
-    }
-}
-
-public class PageTrafficData <: TrafficData {
-    public var pageName = ""
-
-    public init(upTotalValue!: Int64, downTotalValue!: Int64, pageName!: String) {
-        super(upTotalValue: upTotalValue, downTotalValue: downTotalValue)
-        this.pageName = pageName
-    }
-
-    public func toString() {
-        let jsonObj = JsonObject()
-        jsonObj.put("pageName", JsonString(pageName))
-        jsonObj.put("total", JsonString(total.toString()))
-        jsonObj.put("upTotal", JsonString(upTotal.toString()))
-        jsonObj.put("downTotal", JsonString(downTotal.toString()))
-        jsonObj.toString()
-    }
-}
-
-// 流量信息上报类
-public class TrafficInfo {
-    // 日总流量
-    private var totalDailyTrafficValue: ?Int64 = None
-    // 单次进程总流量
-    private var totalTrafficValue: ?Int64 = None
-    // 阈值
-    private var limitsValue: ?Int64 = None
-
-    mut prop totalDailyTraffic: ?Int64 {
-        get() {
-            totalDailyTrafficValue
-        }
-        set(value) {
-            totalDailyTrafficValue = value
-        }
-    }
-
-    mut prop totalTraffic: ?Int64 {
-        get() {
-            totalTrafficValue
-        }
-        set(value) {
-            totalTrafficValue = value
-        }
-    }
-
-    mut prop limits: ?Int64 {
-        get() {
-            limitsValue
-        }
-        set(value) {
-            limitsValue = value
-        }
-    }
+public class SystemTrafficInfo <: TrafficInfo {
+    private var timeStampValue: String = ""
 
     public init() {}
-
-    public init(totalDailyTrafficValue: Int64, totalTrafficValue: Int64, limitsValue: Int64) {
-        this.totalDailyTrafficValue = totalDailyTrafficValue
-        this.totalTrafficValue = totalTrafficValue
-        this.limitsValue = limitsValue
+    public init(timeStamp: String, upload: Int64, download: Int64) {
+        super(upload, download)
+        this.timeStampValue = timeStamp
     }
 
-    public func toString(): String {
+    public mut prop timeStamp: String {
+        get() {
+            timeStampValue
+        }
+        set(value) {
+            timeStampValue = value
+        }
+    }
+    public func toString() {
         let jsonObj = JsonObject()
-        if (totalDailyTrafficValue.isSome()) {
-            let str = totalDailyTrafficValue as String
-            jsonObj.put("TotalDailyTraffic", JsonString(str.getOrThrow()))
-        }
-        if (totalTrafficValue.isSome()) {
-            let str = totalTrafficValue as String
-            jsonObj.put("TotalTraffic", JsonString(str.getOrThrow()))
-        }
-        if (limitsValue.isSome()) {
-            let str = limitsValue as String
-            jsonObj.put("limits", JsonString(str.getOrThrow()))
-        }
+        jsonObj.put("timeStamp", JsonString(timeStampValue))
+        jsonObj.put("total", JsonString(total.toString()))
+        jsonObj.put("upTotal", JsonString(upTotal.toString()))
+        jsonObj.put("downTotal", JsonString(downTotal.toString()))
         jsonObj.toString()
     }
+}
 
-    public func fromJson(jsonObj: JsonObject): TrafficInfo {
-        let trafficInfo = TrafficInfo()
-        if (jsonObj.get("TotalDailyTraffic").isSome()) {
-            trafficInfo.totalDailyTraffic = jsonObj.get("TotalDailyTraffic").getOrThrow().toString() as Int64
+public class PageTrafficInfo <: TrafficInfo {
+    private var pageNameValue: String = ""
+
+    public init() {}
+    public init(pageName: String, upload: Int64, download: Int64) {
+        super(upload, download)
+        this.pageNameValue = pageName
+    }
+
+    public mut prop pageName: String {
+        get() {
+            pageNameValue
         }
-        if (jsonObj.get("TotalTraffic").isSome()) {
-            trafficInfo.totalTraffic = jsonObj.get("TotalTraffic").getOrThrow().toString() as Int64
+        set(value) {
+            pageNameValue = value
         }
-        if (jsonObj.get("limits").isSome()) {
-            trafficInfo.limits = jsonObj.get("limits").getOrThrow().toString() as Int64
-        }
-        trafficInfo
+    }
+    public func toString() {
+        let jsonObj = JsonObject()
+        jsonObj.put("pageName", JsonString(pageNameValue))
+        jsonObj.put("total", JsonString(total.toString()))
+        jsonObj.put("upTotal", JsonString(upTotal.toString()))
+        jsonObj.put("downTotal", JsonString(downTotal.toString()))
+        jsonObj.toString()
     }
 }
 
-// 流量监听类
-private class TrafficInfoListener {
-    // 是否为应用启动后第一次采用
-    public var isFirstSample: Bool = true
-    // 日上行/下行流量起点
-    public var year: ?Int64 = None
-    public var month: ?Int64 = None
-    public var dayOfMonth: ?Int64 = None
-    public var rxBytesAtZeroOclock: ?Int64 = None
-    public var txBytesAtZeroOclock: ?Int64 = None
-    // 单次进程上行/下行流量起点
-    public var rxBytesAtStart: ?Int64 = None
-    public var txBytesAtStart: ?Int64 = None
-    // 当前采样上行/下行流量
-    public var rxBytes: ?Int64 = None
-    public var txBytes: ?Int64 = None
-    // 单例模式
-    private static var instance = TrafficInfoListener()
-    public static func GetInstance() {
-        instance
+public class DayTrafficInfo <: TrafficInfo {
+    private var dateValue: String = ""
+
+    public init(date: String, upload: Int64, download: Int64) {
+        super(upload, download)
+        this.date = date
+    }
+
+    public mut prop date: String {
+        get() {
+            dateValue
+        }
+        set(value) {
+            dateValue = value
+        }
+    }
+    public func toString() {
+        let jsonObj = JsonObject()
+        jsonObj.put("date", JsonString(dateValue))
+        jsonObj.put("total", JsonString(total.toString()))
+        jsonObj.put("upTotal", JsonString(upTotal.toString()))
+        jsonObj.put("downTotal", JsonString(downTotal.toString()))
+        jsonObj.toString()
     }
 }
 
-private var needPersistenceStorage: Bool = false
+public class SampleTrafficInfo {
+    private var systemInfoValue: SystemTrafficInfo = SystemTrafficInfo()
+    private var pageInfoMapValue: HashMap<String, PageTrafficInfo> = HashMap<String, PageTrafficInfo>()
+    public init() {}
+    public init(systemInfo: SystemTrafficInfo, pageInfoMap: HashMap<String, PageTrafficInfo>) {
+        systemInfoValue = systemInfo
+        pageInfoMapValue = pageInfoMap
+    }
+    public mut prop systemInfo: SystemTrafficInfo {
+        get() {
+            systemInfoValue
+        }
+        set(value) {
+            systemInfoValue = value
+        }
+    }
+    public mut prop pageInfoMap: HashMap<String, PageTrafficInfo> {
+        get() {
+            pageInfoMapValue
+        }
+        set(value) {
+            pageInfoMapValue = value
+        }
+    }
+}
 
-public func initTrafficHandler(context: UIAbilityContext, report: (TrafficInfo) -> Unit, limits: ?Int64,
-    sampleTime !: Int64 = 10 * 60 * 1000, sampleThreshold !: Int64 = 50 * 1024 * 1024) {
-    let instance = TrafficInfoListener.GetInstance()
-    let trafficInfo = TrafficInfo()
-    let options = preferences.Options("Traffic")
-    let dataPreferences = preferences.getPreferences(context, options)
-    // 从持久化存储接口取值
-    if (dataPreferences.has("year")) {
-        let val = dataPreferences.get("year", ValueType.NUMBER(0))
-        match (val) {
-            case NUMBER(v) => instance.year = Int64(v)
-            case _ => ()
-        }
+private func setStoredData(key: String, value: String): Bool {
+    var status: Bool = false
+    try {
+    	let options = preferences.Options("Traffic")
+        let dataPreferences = preferences.getPreferences(uiContext.getOrThrow(), options)
+        dataPreferences.put(key, preferences.ValueType.STRING(value))
+        dataPreferences.flush({err,data =>})
+        status = true
+    } catch (e: Exception) {
+    	AppLog.warn(e.toString())
     }
-    if (dataPreferences.has("month")) {
-        let val = dataPreferences.get("month", ValueType.NUMBER(0))
-        match (val) {
-            case NUMBER(v) => instance.month = Int64(v)
-            case _ => ()
-        }
-    }
-    if (dataPreferences.has("dayOfMonth")) {
-        let val = dataPreferences.get("dayOfMonth", ValueType.NUMBER(0))
-        match (val) {
-            case NUMBER(v) => instance.dayOfMonth = Int64(v)
-            case _ => ()
-        }
-    }
-    if (dataPreferences.has("rxBytesAtZeroOclock")) {
-        let val = dataPreferences.get("rxBytesAtZeroOclock", ValueType.NUMBER(0))
-        match (val) {
-            case NUMBER(v) => instance.rxBytesAtZeroOclock = Int64(v)
-            case _ => ()
-        }
-    }
-    if (dataPreferences.has("txBytesAtZeroOclock")) {
-        let val = dataPreferences.get("txBytesAtZeroOclock", ValueType.NUMBER(0))
-        match (val) {
-            case NUMBER(v) => instance.txBytesAtZeroOclock = Int64(v)
-            case _ => ()
-        }
-    }
-    let doTrafficSample: (Array<String>) -> Unit = {
-        param: Array<String> =>
-        let currentTime = DateTime.now() // 当前时刻时间
-        let uid = GetAppUid()
-        // 异步回调函数，当前只能采用回调地狱的方式
-        statistics.getUidRxBytes(
-            uid,
-            {
-                err: ?BusinessException, data: ?Int64 =>
-                if (err.isSome()) {
-                    return
-                }
-                instance.rxBytes = data.getOrThrow()
-                statistics.getUidTxBytes(
-                    uid,
-                    {
-                        err: ?BusinessException, data: ?Int64 =>
-                        if (err.isSome()) {
-                            return
-                        }
-                        instance.txBytes = data.getOrThrow()
-                        // 判断是否是程序启动后的第一次采样
-                        if (instance.isFirstSample && instance.rxBytes.isSome() && instance.txBytes.isSome()) {
-                            instance.isFirstSample = false
-                            instance.rxBytesAtStart = instance.rxBytes
-                            instance.txBytesAtStart = instance.txBytes
-                        }
-                        // 判断时间
-                        if (currentTime.hour == 0 && currentTime.minute == 0) {
-                            instance.year = currentTime.year
-                            instance.month = currentTime.month.value()
-                            instance.dayOfMonth = currentTime.dayOfMonth
-                            instance.rxBytesAtZeroOclock = instance.rxBytes
-                            instance.txBytesAtZeroOclock = instance.txBytes
-                            needPersistenceStorage = true
-                        }
-                        let isTheSameDay: Bool = instance.year != currentTime.year || instance.month !=
-                            currentTime.month.value() || instance.dayOfMonth != currentTime.dayOfMonth
-                        if (instance.rxBytesAtZeroOclock.isNone() || instance.txBytesAtZeroOclock.isNone() || isTheSameDay) {
-                            instance.year = currentTime.year
-                            instance.month = currentTime.month.value()
-                            instance.dayOfMonth = currentTime.dayOfMonth
-                            instance.rxBytesAtZeroOclock = instance.rxBytes
-                            instance.txBytesAtZeroOclock = instance.txBytes
-                            needPersistenceStorage = true
-                        }
-                        // 持久化存储
-                        if (needPersistenceStorage) {
-                            try {
-                                dataPreferences.put("year", NUMBER(Int32(instance.year.getOrThrow())))
-                                dataPreferences.put("month", NUMBER(Int32(instance.month.getOrThrow())))
-                                dataPreferences.put("dayOfMonth", NUMBER(Int32(instance.dayOfMonth.getOrThrow())))
-                                dataPreferences.put("rxBytesAtZeroOclock", NUMBER(Int32(instance.rxBytesAtZeroOclock.getOrThrow())))
-                                dataPreferences.put("txBytesAtZeroOclock", NUMBER(Int32(instance.txBytesAtZeroOclock.getOrThrow())))
-                                dataPreferences.flush({err, data => ()})
-                            } catch (e: Exception) {
-                                AppLog.warn("Permanent storage of traffic-related data failed")
-                            }
-                        }
-                        // 获取日总流量
-                        try {
-                            trafficInfo.totalDailyTraffic = (instance.rxBytes.getOrThrow() - instance.rxBytesAtZeroOclock.getOrThrow()) +
-                                (instance.txBytes.getOrThrow() - instance.txBytesAtZeroOclock.getOrThrow())
-                            trafficInfo.totalTraffic = (instance.rxBytes.getOrThrow() - instance.rxBytesAtStart.getOrThrow()) +
-                                (instance.txBytes.getOrThrow() - instance.txBytesAtStart.getOrThrow())
-                            trafficInfo.limits = limits
-                            if (trafficInfo.totalDailyTraffic.getOrThrow() > limits.getOrThrow()) {
-                                report(trafficInfo)
-                            }
-                        } catch (e: Exception) {
-                            AppLog.warn("Failed to obtain traffic data.")
-                        }
-                    }
-                )
+    status
+}
+
+private func getStoredData(key: String): String {
+    var value: String = ""
+    try {
+    	let options = preferences.Options("Traffic")
+        let dataPreferences = preferences.getPreferences(uiContext.getOrThrow(), options)
+        let status: Bool = dataPreferences.has(key)
+        if(status) {
+            let val = dataPreferences.get(key, preferences.ValueType.STRING(""))
+            match (val) {
+            	case preferences.ValueType.STRING(v) => value = v
+                case _ => ()
             }
-        )
+        }
+    } catch (e: Exception) {
+    	AppLog.warn(e.toString())
     }
-    setInterval(doTrafficSample, 1000, Array<String>())
+    value
+}
 
-    on(navDestinationSwitch, context, PageSwitchCallBack(navDestinationSwitchCallBack))
+public func initTrafficHandler(
+    context: UIAbilityContext,
+    reportTraffic: (sampleTraffixInfo: SampleTrafficInfo) -> Unit,
+    sampleTime!: Int64 = 10 * 60 * 1000,
+    sampleThreshold!: Int64 = 50 * 1024 * 1024
+) {
+    uiContext = context
+    reportTrafficCallback = reportTraffic
+    on(navDestinationSwitch, uiContext.getOrThrow(), PageSwitchCallBack(navDestinationSwitchCallBack))
     SAMPLE_TIME = sampleTime
     SAMPLE_THRESHOLD = sampleThreshold
     doTrafficSample()
     sampleId = setInterval(doTrafficSample, SAMPLE_TIME, Array<String>())
 }
 
-private func doTrafficSample(array: Array<String>) {
+private func processUidTrafficBytes(callback: (upload: Int64, download: Int64) -> Unit) {
     statistics.getUidRxBytes(
         uid,
         {
@@ -369,88 +272,114 @@ private func doTrafficSample(array: Array<String>) {
                         AppLog.warn("Tx data is none")
                     }
                     let curUpload = data ?? 0
-                    if(!inited) {
-                        inited = true
-                    } else {
-                        let deltaUpload: Int64 = curUpload - prevUpload
-                        let deltaDownload: Int64 = curDownload - prevDownload
-                        let delta: Int64 = deltaUpload + deltaDownload
-                        if (delta > SAMPLE_THRESHOLD) {
-                            let curTimeStamp = getCurTimeStamp()
-                            let systemData = SystemTrafficData(upTotalValue: deltaUpload, downTotalValue: deltaDownload,
-                                timeStampValue: curTimeStamp)
-                            reportTrafficData(systemData, pageTrafficMap)
-                        }
-                    }
-                    prevUpload = curUpload
-                    prevDownload = curDownload
-                    pageTxStart = curUpload
-                    pageRxStart = curDownload
-                    pageTrafficMap.clear()
+                    callback(curUpload, curDownload)
                 }
             )
         }
     )
+}
+
+let updataPageMapCallback: (upload: Int64, download: Int64) -> Unit = {
+    upload: Int64, download: Int64 =>
+    let curTx = upload - pageTxStart
+    let curRx = download - pageRxStart
+    updatePageMap(currentPageName, curTx, curRx)
+    pageTxStart = upload
+    pageRxStart = download
+}
+
+let updateDayTrafficCallback: (upload: Int64, download: Int64) -> Unit = {
+    upload: Int64, download: Int64 =>
+    let todayDate: String = getTodayDate()
+    let todayDateStored: String = getStoredData(KEY_TODAY_DATE)
+    if (!todayDateStored.isEmpty() && todayDate != todayDateStored) {
+        // update yesterday data
+        setStoredData(KEY_YESTERDAY_DATE, getStoredData(KEY_TODAY_DATE))
+        setStoredData(KEY_YESTERDAY_UPLOAD, getStoredData(KEY_TODAY_UPLOAD))
+        setStoredData(KEY_YESTERDAY_DOWNLOAD, getStoredData(KEY_TODAY_DOWNLOAD))
+        setStoredData(KEY_YESTERDAY_REPORTED, "false")
+
+        // reset today data
+        setStoredData(KEY_TODAY_DATE, todayDate)
+        setStoredData(KEY_TODAY_UPLOAD, "0")
+        setStoredData(KEY_TODAY_DOWNLOAD, "0")
+    } else {
+        setStoredData(KEY_TODAY_DATE, todayDate)
+        // upload
+        let todayUpload: Int64 = Int64.tryParse(getStoredData(KEY_TODAY_UPLOAD)).getOrDefault({=> 0})
+        let prevUpload: Int64 = Int64.tryParse(getStoredData(KEY_CURRENT_UPLOAD)).getOrDefault({=> 0})
+        let newUpload: Int64 = todayUpload + upload - prevUpload
+        setStoredData(KEY_TODAY_UPLOAD, newUpload.toString())
+        // download
+        let todayDownload: Int64 = Int64.tryParse(getStoredData(KEY_TODAY_DOWNLOAD)).getOrDefault({=> 0})
+        let prevDownload: Int64 = Int64.tryParse(getStoredData(KEY_CURRENT_DOWNLOAD)).getOrDefault({=> 0})
+        let newDownload: Int64 = todayDownload + download - prevDownload
+        setStoredData(KEY_TODAY_DOWNLOAD, newDownload.toString())
+    }
+    setStoredData(KEY_CURRENT_DOWNLOAD, upload.toString())
+    setStoredData(KEY_CURRENT_DOWNLOAD, download.toString())
+}
+
+let sampleCallback: (upload: Int64, download: Int64) -> Unit = {
+    upload: Int64, download: Int64 =>
+    if (!inited) {
+        inited = true
+    } else {
+        let deltaUpload: Int64 = upload - prevUpload
+        let deltaDownload: Int64 = download - prevDownload
+        let delta: Int64 = deltaUpload + deltaDownload
+        if (delta >= SAMPLE_THRESHOLD) {
+            let curTimeStamp = getCurTimeStamp()
+            let systemTrafficInfo = SystemTrafficInfo(curTimeStamp, deltaUpload, deltaDownload)
+            let sampleTrafficInfo = SampleTrafficInfo(systemTrafficInfo, pageTrafficMap)
+            reportTrafficCallback(sampleTrafficInfo)
+        }
+    }
+    prevUpload = upload
+    prevDownload = download
+    pageTxStart = upload
+    pageRxStart = download
+    pageTrafficMap.clear()
+    updateDayTrafficCallback(upload, download)
+}
+
+private func doTrafficSample(array: Array<String>) {
+    processUidTrafficBytes(sampleCallback)
 }
 
 private func navDestinationSwitchCallBack(info: NavDestinationSwitchInfo) {
-    updatePageTraffic(currentPageName)
+    processUidTrafficBytes(updataPageMapCallback)
     currentPageName = getTargetPageName(info)
 }
 
-private func updatePageTraffic(pageName: String) {
-     statistics.getUidRxBytes(
-        uid,
-        {
-            err: ?BusinessException, data: ?Int64 =>
-            if (let Some(v) <- err) {
-                AppLog.warn("Rx error: ${v.toString()}")
-                return
-            }
-            if (data.isNone()) {
-                AppLog.warn("Rx data is none")
-                return
-            }
-            let rxBytes = data.getOrThrow()
-            let curRx = rxBytes - pageRxStart
-            pageRxStart = rxBytes
-            statistics.getUidTxBytes(
-                uid,
-                {
-                    err: ?BusinessException, data: ?Int64 =>
-                    if (let Some(v) <- err) {
-                        AppLog.warn("Tx error: ${v.toString()}")
-                        return
-                    }
-                    if (data.isNone()) {
-                        AppLog.warn("Tx data is none")
-                        return
-                    }
-                    let txBytes = data.getOrThrow()
-                    let curTx = txBytes - pageTxStart
-                    pageTxStart = txBytes
-                    updatePageMap(pageName, curRx, curTx)
-                }
-            )
-        }
-    )
-}
-
-private func updatePageMap(pageName: String, curRx: Int64, curTx: Int64) {
-
+private func updatePageMap(pageName: String, curTx: Int64, curRx: Int64) {
     if(!pageTrafficMap.contains(pageName)) {
-        let pageTrafficData = PageTrafficData(upTotalValue: curTx, downTotalValue: curRx, pageName: pageName)
-        pageTrafficMap.add(pageName, pageTrafficData)
+        let pageTrafficInfo = PageTrafficInfo(pageName, curTx, curRx)
+        pageTrafficMap.add(pageName, pageTrafficInfo)
         return
     }
-    let pageTrafficData = pageTrafficMap.get(pageName).getOrThrow()
-    pageTrafficData.upTotal += curTx
-    pageTrafficData.downTotal += curRx
+    let pageTrafficInfo = pageTrafficMap.get(pageName).getOrThrow()
+    pageTrafficInfo.upTotal += curTx
+    pageTrafficInfo.downTotal += curRx
 }
 
+public func getYesterdayTraffic(): Option<DayTrafficInfo> {
+    var res: Option<DayTrafficInfo> = None
+    let reported: String = getStoredData(KEY_YESTERDAY_REPORTED)
+    let yesterdayStored: String = getStoredData(KEY_YESTERDAY_DATE)
+    if( !yesterdayStored.isEmpty() && reported == "false") {
+        let date: String = getStoredData(KEY_YESTERDAY_DATE)
+        let upload: Int64 = Int64.tryParse(getStoredData(KEY_YESTERDAY_UPLOAD)).getOrDefault({=> 0})
+        let download: Int64 = Int64.tryParse(getStoredData(KEY_YESTERDAY_DOWNLOAD)).getOrDefault({=> 0})
+        res = DayTrafficInfo(date, upload, download)
+        setStoredData(KEY_YESTERDAY_REPORTED, "true")
+    }
+    res
+}
 public func destroyTrafficHandler() {
     if (sampleId != -1) {
         clearInterval(sampleId)
     }
+    processUidTrafficBytes(updateDayTrafficCallback)
 }
 

@@ -5,6 +5,7 @@ package ohos_app_cangjie_hm_metricx_cj.cpu
 
 import ohos_app_cangjie_hm_metricx_cj.*
 import tpc.AbilityKit.UIAbility
+import tpc.AbilityKit.UIAbilityContext
 import tpc.BasicServicesKit.*
 import tpc.UIKit.Observer.*
 import tpc.PerformanceAnalysisKit.hidebug.*
@@ -138,7 +139,7 @@ public class ProcessCpuInfo <: CpuInfo {
 
 var pageCpuInfo = PageCpuInfo(defaultPageName)
 var processCpuInfo = ProcessCpuInfo()
-var uiAbility: UIAbility = UIAbility()
+var uiContext: Option<UIAbilityContext> = None
 var currentPageName: String = defaultPageName
 let doCpuSample: (param: Array<String>) -> Unit = {
     param: Array<String> =>
@@ -175,16 +176,16 @@ public func getProcessCpuInfo(): ProcessCpuInfo {
 }
 
 public func initCpuHandler(
-    ability: UIAbility,
+    context: UIAbilityContext,
     reporCpuInfo: (info: CpuInfo) -> Unit
 ): Unit {
-    uiAbility = ability
+    uiContext = context
     reportCpu = reporCpuInfo
     setTimeout(handleCpu, 2 * 1000, Array<String>())
-    on(navDestinationSwitch, uiAbility.context, pageSwitchCallback)
+    on(navDestinationSwitch, uiContext.getOrThrow(), pageSwitchCallback)
 }
 
 public func destroyCpuHandler(): Unit {
-    off(navDestinationSwitch, uiAbility.context, pageSwitchCallback)
+    off(navDestinationSwitch, uiContext.getOrThrow(), pageSwitchCallback)
     // todo clearInterval
 }

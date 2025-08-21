@@ -5,6 +5,7 @@ package ohos_app_cangjie_hm_metricx_cj.memory
 
 import ohos_app_cangjie_hm_metricx_cj.*
 import tpc.AbilityKit.UIAbility
+import tpc.AbilityKit.UIAbilityContext
 import tpc.BasicServicesKit.*
 import tpc.UIKit.Observer.*
 import tpc.PerformanceAnalysisKit.hidebug.*
@@ -134,7 +135,7 @@ var MEMOMRY_THRESHOLD: Int64 = 1024 * 100
 var thresholdReported: Bool = false
 var pageMemoryInfo = PageMemoryInfo(defaultPageName)
 var processMemoryInfo = ProcessMemoryInfo()
-var uiAbility: UIAbility = UIAbility()
+var uiContext: Option<UIAbilityContext> = None
 var reportMemory: (memoryInfo: MemoryInfo) -> Unit = {info: MemoryInfo =>}
 let doMemorySample: (param: Array<String>) -> Unit = {
     param: Array<String> =>
@@ -180,11 +181,10 @@ public func getProcessMemoryInfo(): ProcessMemoryInfo {
 private func setMaxMemory(memoryValue: Int64): Unit {
     try {
         let options = preferences.Options("Memory")
-        let dataPreferences = preferences.getPreferences(uiAbility.context, options)
+        let dataPreferences = preferences.getPreferences(uiContext.getOrThrow(), options)
         dataPreferences.put("max", preferences.ValueType.NUMBER(Int32(memoryValue)))
         dataPreferences.flush({err, data =>})
     } catch (e: Exception) {
-        Hilog.info(0, "testTag", "exception : ${e.toString()}")
         AppLog.warn(e.toString())
     }
 }
@@ -193,7 +193,7 @@ private func getMaxMemory(): Int64 {
     var maxMemory: Int64 = -1
     try {
         let options = preferences.Options("Memory")
-        let dataPreferences = preferences.getPreferences(uiAbility.context, options)
+        let dataPreferences = preferences.getPreferences(uiContext.getOrThrow(), options)
         let status: Bool = dataPreferences.has("max")
         if (status) {
             let val = dataPreferences.get("max", preferences.ValueType.NUMBER(0))
@@ -209,11 +209,11 @@ private func getMaxMemory(): Int64 {
 }
 
 public func initMemoryHandler(
-    ability: UIAbility,
+    context: UIAbilityContext,
     reportMemoryInfo: (info: MemoryInfo) -> Unit,
     memoryThreshold!: Int64 = 100 * 1024
 ): Unit {
-    uiAbility = ability
+    uiContext = context
     reportMemory = reportMemoryInfo
     MEMOMRY_THRESHOLD = memoryThreshold
     let maxMemory: Int64 = getMaxMemory()
@@ -224,11 +224,11 @@ public func initMemoryHandler(
         processMemoryInfo.reset()
     }
     setTimeout(handleMemory, 2 * 1000, Array<String>())
-    on(navDestinationSwitch, uiAbility.context, pageSwitchCallback)
+    on(navDestinationSwitch, uiContext.getOrThrow(), pageSwitchCallback)
 }
 
 public func destroyMemoryHandler(): Unit {
     setMaxMemory(processMemoryInfo.maxMemory)
-    off(navDestinationSwitch, uiAbility.context, pageSwitchCallback)
+    off(navDestinationSwitch, uiContext.getOrThrow(), pageSwitchCallback)
     // todo clearInterval
 }

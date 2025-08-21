@@ -114,3 +114,7 @@ public func unescapeString(str: String): String {
 public func getCurTimeStamp(): String {
     DateTime.now().format("yyyy-MM-dd HH:mm:ss")
 }
+
+public func getTodayDate(): String {
+    DateTime.now().format("yyyy-MM-dd")
+}
