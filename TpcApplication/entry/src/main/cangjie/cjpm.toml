@@ -39,3 +39,5 @@
 [dependencies]
   [dependencies.ohos_app_cangjie_hm_metricx_cj]
     path = "${hm_metricx_cj}/src/main/cangjie"
+  [dependencies.tpc]
+    path = "${tpc}/src/main/cangjie/tpc_home/TPC-HMOS"

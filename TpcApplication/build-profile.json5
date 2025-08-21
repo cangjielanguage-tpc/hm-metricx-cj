@@ -40,6 +40,10 @@
     {
       "name": "hm_metricx_cj",
       "srcPath": "./hm_metricx_cj"
+    },
+    {
+      "name": "tpc",
+      "srcPath": "./tpc"
     }
   ]
 }

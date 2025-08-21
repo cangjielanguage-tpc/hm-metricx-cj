@@ -40,3 +40,7 @@
   [ffi.c]
     [ffi.c.hm_metricx_cj]
       path = "../../../libs/arm64-v8a"
+
+[dependencies]
+  [dependencies.tpc]
+    path = "${tpc}/src/main/cangjie/tpc_home/TPC-HMOS"
