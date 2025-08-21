@@ -541,6 +541,7 @@ private func waitOOMDumping(applicationContext: ApplicationContext, dumpTimePath
         let isOOMDumping = unsafe {
             IsOOMDumping()
         }
+        AppLog.warn("hm_metricx_cj: isOOMDumping: ${isOOMDumping}")
         if (isOOMDumping) {
             waitOOMDumping(applicationContext, dumpTimePath)
         }
@@ -980,26 +981,34 @@ private func extractFromNativeCrashLog(lines: Array<String>) {
 }
 
 private func compressFile(src: String, dest: String): Bool {
-    var count: Int64 = 0
-    let srcFile: File = File(src, OpenMode.Read)
-    let destFile: File = File(dest, OpenMode.Append)
-
-    var tempBuf: Array<UInt8> = Array<UInt8>(1024, repeat: 0)
-    var compressOutputStream: CompressOutputStream = CompressOutputStream(destFile, wrap: GzipFormat)
-    while (true) {
-        var readNum = srcFile.read(tempBuf)
-        if (readNum > 0) {
-            compressOutputStream.write(tempBuf.slice(0, readNum).toArray())
-            count += readNum
-        } else {
-            break
-        }
+    if (!exists(src)) {
+        AppLog.warn("hm-metricx-cj error: compressFile failed due to ${src} does not exist")
+        return false
     }
-    compressOutputStream.flush()
-    compressOutputStream.close()
+    var count: Int64 = 0
+    try {
+        let srcFile: File = File(src, OpenMode.Read)
+        let destFile: File = File(dest, OpenMode.Append)
 
-    srcFile.close()
-    destFile.close()
+        var tempBuf: Array<UInt8> = Array<UInt8>(1024, repeat: 0)
+        var compressOutputStream: CompressOutputStream = CompressOutputStream(destFile, wrap: GzipFormat)
+        while (true) {
+            var readNum = srcFile.read(tempBuf)
+            if (readNum > 0) {
+                compressOutputStream.write(tempBuf.slice(0, readNum).toArray())
+                count += readNum
+            } else {
+                break
+            }
+        }
+        compressOutputStream.flush()
+        compressOutputStream.close()
+
+        srcFile.close()
+        destFile.close()
+    } catch (e: Exception) {
+        AppLog.warn("hm-metricx-cj error: compressFile failed due to ${e.toString()}")
+    }
     return count > 0
 }
 
