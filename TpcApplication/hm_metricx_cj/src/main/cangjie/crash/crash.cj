@@ -813,46 +813,96 @@ private func exit(applicationContext: ApplicationContext) {
 
 private func extractStackTrace(obj: JsonObject): String {
     var res: String = ""
-    if (obj.containsKey("stack")) {
-        let name: String = obj.get("name").getOrDefault({=> JsonValue.fromStr("")}).asString().getValue()
-        let message: String = obj.get("message").getOrDefault({=> JsonValue.fromStr("")}).asString().getValue()
-        let stack: String = obj.get("stack").getOrDefault({=> JsonValue.fromStr("")}).asString().getValue()
-        res = "Error name:" + name + "\n" + "Error message:" + message + "\n" + "Stacktrace:\n" + stack + "\n"
-    } else  if (obj.containsKey("frames")) {
-        res += "message: " + obj.get("message").getOrDefault({=> JsonValue.fromStr("")}).asString().getValue() + "\n"
-        if (obj.containsKey("signal")) {
-            let sigObj: JsonObject = obj.get("signal").getOrThrow().asObject()
-            let address: String = sigObj.get("address").getOrDefault({=> JsonValue.fromStr("")}).asString().getValue()
-            let code: String = sigObj.get("code").getOrDefault({=> JsonValue.fromStr("0")}).asInt().toString()
-            let signo: String = sigObj.get("signo").getOrDefault({=> JsonValue.fromStr("0")}).asInt().toString()
-            res += "Signal:\n\tcode:" + code + " signo: " + signo + " address: " + address + "\n"
-        }
-        res += "Tid: " + obj.get("tid").getOrDefault({=> JsonValue.fromStr("0")}).asInt().toString()
-        res += ", Name: " + obj.get("thread_name").getOrDefault({=> JsonValue.fromStr("")}).asString().getValue() + "\n"
-        if (obj.containsKey("frames")) {
-            let framesArray: JsonArray = obj.get("frames").getOrThrow().asArray()
-            for (i in 0..framesArray.size()) {
-                let frameObj: JsonObject = framesArray[i].asObject()
-                let file: String = frameObj.get("file").getOrDefault({=> JsonValue.fromStr("")}).asString().getValue()
-                let symbol: String = frameObj.get("symbol").getOrDefault({=> JsonValue.fromStr("")}).asString().getValue()
-                let buildId: String = frameObj.get("buildId").getOrDefault({=> JsonValue.fromStr("")}).asString().getValue()
-                let pc: String = frameObj.get("pc").getOrDefault({=> JsonValue.fromStr("")}).asString().getValue()
-                let offset: String = frameObj.get("offset").getOrDefault({=> JsonValue.fromStr("0")}).asInt().toString()
-                var line: String = "#" + i.format("02") + " pc " + pc + " " + file
-                if (!symbol.isEmpty()) {
-                    line +=  "(" + symbol
-                    if (!offset.isEmpty()) {
-                        line += "+" + offset + ")"
-                    }
-                }
-                if (!buildId.isEmpty()) {
-                    line += "(" + buildId + ")"
-                }
-                res += line + "\n"
+    try {
+        if (obj.containsKey("stack")) {
+            var name: String = ""
+            var message: String = ""
+            var stack: String = ""
+            if (let Some(v) <- obj.get("name")) {
+                name = v.asString().getValue()
             }
+            if (let Some(v) <- obj.get("message")) {
+                message = v.asString().getValue()
+            }
+            if (let Some(v) <- obj.get("stack")) {
+                stack = v.asString().getValue()
+            }
+            res = "Error name: " + name + "\n" + "Error message: " + message + "\n" + "Stacktrace:\n" + stack + "\n"
+        } else  if (obj.containsKey("frames")) {
+            var message: String = ""
+            if (let Some(v) <- obj.get("message")) {
+                message = v.asString().getValue()
+            }
+            res += "message: " + message + "\n"
+            if (let Some(sigValue) <- obj.get("signal")) {
+                let sigObj : JsonObject = sigValue.asObject()
+                var address: String = ""
+                var code: String = ""
+                var signo: String = ""
+                if (let Some(v) <- sigObj.get("address")) {
+                    address = v.asString().getValue()
+                }
+                if (let Some(v) <- sigObj.get("code")) {
+                    code = v.asInt().toString()
+                }
+                if (let Some(v) <- sigObj.get("signo")) {
+                    signo = v.asInt().toString()
+                }
+                res += "Signal:\n\tcode: " + code + " signo: " + signo + " address: " + address + "\n"
+            }
+            var tid: String = ""
+            var tname: String = ""
+            if (let Some(v) <- obj.get("tid")) {
+                tid = v.asInt().toString()
+            }
+            if (let Some(v) <- obj.get("thread_name")) {
+                tname = v.asString().toString()
+            }
+            res += "Tid: " + tid
+            res += ", Name: " + tname + "\n"
+            if (let Some(frameValue) <- obj.get("frames")) {
+                let framesArray: JsonArray = frameValue.asArray()
+                for (i in 0..framesArray.size()) {
+                    let frameObj: JsonObject = framesArray[i].asObject()
+                    var file: String = ""
+                    var symbol: String = ""
+                    var buildId: String = ""
+                    var pc: String = ""
+                    var offset: String = ""
+                    if (let Some(v) <- frameObj.get("file")) {
+                        file = v.asString().getValue()
+                    }
+                    if (let Some(v) <- frameObj.get("symbol")) {
+                        symbol = v.asString().getValue()
+                    }
+                    if (let Some(v) <- frameObj.get("buildId")) {
+                        buildId = v.asString().getValue()
+                    }
+                    if (let Some(v) <- frameObj.get("pc")) {
+                        pc = v.asString().getValue()
+                    }
+                    if (let Some(v) <- frameObj.get("offset")) {
+                        offset = v.asInt().toString()
+                    }
+                    var line: String = "#" + i.format("02") + " pc " + pc + " " + file
+                    if (!symbol.isEmpty()) {
+                        line +=  "(" + symbol
+                        if (!offset.isEmpty()) {
+                            line += "+" + offset
+                        }
+                        line += ")"
+                    }
+                    if (!buildId.isEmpty()) {
+                        line += "(" + buildId + ")"
+                    }
+                    res += line + "\n"
+                }
+            }
+        } else {
+            res = obj.toString()
         }
-    } else {
-        res = obj.toString()
+    } catch (e: Exception) {
+        AppLog.warn("extractStackTrace exception: ${e.toString()}")
     }
     res
 }
