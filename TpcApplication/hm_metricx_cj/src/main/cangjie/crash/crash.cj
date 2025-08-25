@@ -450,7 +450,7 @@ private func reportLastCrash(lastCrashFilePath: Path, reportCrashInfo: (crashInf
                 deleteFile(v)
             }
         } catch (e: JsonException) {
-            AppLog.warn(e.toString())
+            AppLog.warn("hm-metricx-cj error: " + e.toString())
         }
         deleteFile(lastCrashFilePath)
     }
@@ -467,10 +467,10 @@ private func initOOMHandler(persistentDir: String) {
                 src, dest => if (compressFile(src.toString(), dest.toString())) {
                     deleteFile(src.toString())
                 } else {
-                    AppLog.warn("compressFile failed.")
+                    AppLog.warn("hm-metricx-cj error: compressFile failed in OOM handler.")
                 }
             }) != 0) {
-            AppLog.warn("InitOOMHandler failed.")
+            AppLog.warn("hm-metricx-cj error: InitOOMHandler failed.")
         }
         else {
             OOMHandlerInited = true
@@ -507,12 +507,12 @@ private func initNativeSignalHandler(persistentFilePath: String, applicationCont
                 try {
                     crashInfo.extraInfo = JsonValue.fromStr(collectCrashInfo().toString())
                 } catch (e: Exception) {
-                    AppLog.warn(e.toString())
+                    AppLog.warn("hm-metricx-cj error: " + e.toString())
                 }
                 writeFile(persistentFilePath.toString(), crashInfo.toString())
             }
         ) != 0) {
-            AppLog.warn("InitNativeSignalHandler failed.")
+            AppLog.warn("hm-metricx-cj error: InitNativeSignalHandler failed.")
         }
         LibC.free(cstr)
         LibC.free(lmts)
@@ -525,7 +525,7 @@ private func parseFDs(fds: String) {
     let map: HashMap<String, String> = HashMap()
     let arr = fds.split(",", removeEmpty: true)
     if (arr.size % 2 != 0) {
-        AppLog.warn("parseFDs failed.")
+        AppLog.warn("hm-metricx-cj error: parseFDs failed.")
         return map
     }
     var i = 0
@@ -589,9 +589,9 @@ private func writeFile(path: String, data: String) {
     try {
         File.writeTo(path, data.toArray())
     } catch (e: FSException) {
-        AppLog.warn(e.toString())
+        AppLog.warn("hm-metricx-cj error: " + e.toString())
     } catch (e: IllegalArgumentException) {
-        AppLog.warn(e.toString())
+        AppLog.warn("hm-metricx-cj error: " + e.toString())
     }
 }
 
@@ -599,9 +599,9 @@ private func writeFile(path: Path, data: String) {
     try {
         File.writeTo(path, data.toArray())
     } catch (e: FSException) {
-        AppLog.warn(e.toString())
+        AppLog.warn("hm-metricx-cj error: " + e.toString())
     } catch (e: IllegalArgumentException) {
-        AppLog.warn(e.toString())
+        AppLog.warn("hm-metricx-cj error: " + e.toString())
     }
 }
 
@@ -616,7 +616,7 @@ private func readFile(path: Path, isReturnException!: Bool = false) {
     try {
         return String.fromUtf8(File.readFrom(path))
     } catch (e: Exception) {
-        AppLog.warn("reading ${path} failed: " + e.toString())
+        AppLog.warn("hm-metricx-cj error: reading ${path} failed: " + e.toString())
         if (isReturnException) {
         	return "hm-metricx-cj error: reading ${path} failed: ${e.toString()}"
         }
@@ -654,7 +654,7 @@ private func collectFDInfo() {
             }
         )
     } catch (e: Exception) {
-        AppLog.warn("collectFDInfo failed: " + e.toString())
+        AppLog.warn("hm-metricx-cj error: collectFDInfo failed: " + e.toString())
     }
     fds
 }
@@ -668,7 +668,7 @@ private func collectMemInfo() {
         let statm = readFile(statmPath)
         vss = "Vss:\t\t\t\t" + (Int32.tryParse(statm.split(" ", removeEmpty: true)[0]).getOrThrow() * 4).toString() + " KB"
     } catch (e:Exception) {
-        AppLog.warn("statm failed: " + e.toString())
+        AppLog.warn("hm-metricx-cj error: statm failed: " + e.toString())
     }
     smaps_rollup + "\n" + vss
 }
@@ -689,11 +689,11 @@ private func initCrashWatcher(applicationContext: ApplicationContext, reportCras
                     let jsonObj = JsonValue.fromStr(String.fromUtf8(File.readFrom(persistentFilePath))).asObject()
                     crashInfo = CrashInfo.fromJson(jsonObj)
                 } catch (e: JsonException) {
-                    AppLog.warn(e.toString())
+                    AppLog.warn("hm-metricx-cj error: " + e.toString())
                 }
                 deleteFile(persistentFilePath)
             } else {
-                AppLog.warn("No persistent crash file.")
+                AppLog.warn("hm-metricx-cj error: No persistent crash file.")
             }
             crashInfo.dumpTime = readFile(dumpTimePath)
             deleteFile(dumpTimePath)
@@ -742,7 +742,6 @@ private func initCrashWatcher(applicationContext: ApplicationContext, reportCras
                     }
                     let crashLogPath: String = eventInfo.params.get("external_log")
                         .getOrThrow().toString().removePrefix("[").removeSuffix("]")
-                    Hilog.info(0, "testTag", "hm-metricx-cj error: ${getLogFileInfo()}")
                     if (crashLogPath.isEmpty() ) {
                         crashInfo.rawFile = "hm-metricx-cj error: crash log path is empty \n" + getLogFileInfo()
                         continue
@@ -767,12 +766,18 @@ private func initCrashWatcher(applicationContext: ApplicationContext, reportCras
                 if (exists(dumpOnOOMPath)) {
                     crashInfo.dumpOnOOMPath = dumpOnOOMPath.toString()
                 } else {
-                    if (exists(rawDumpOnOOMPath)) {
+                    let isOOMDumping = unsafe {
+                        IsOOMDumping()
+                    }
+                    if (exists(rawDumpOnOOMPath) && !isOOMDumping) {
                         if (compressFile(rawDumpOnOOMPath.toString(), dumpOnOOMPath.toString())) {
                             crashInfo.dumpOnOOMPath = dumpOnOOMPath.toString()
                         } else {
-                            AppLog.warn("compressFile failed.")
+                            AppLog.warn("hm-metricx-cj error: compressFile failed in crash watcher.")
                         }
+                    }
+                    else if (isOOMDumping) {
+                        crashInfo.dumpOnOOMPath = dumpOnOOMPath.toString()
                     }
                 }
                 if (exists(rawDumpOnOOMPath)) {
@@ -903,7 +908,7 @@ private func extractStackTrace(obj: JsonObject): String {
             res = obj.toString()
         }
     } catch (e: Exception) {
-        AppLog.warn("extractStackTrace exception: ${e.toString()}")
+        AppLog.warn("hm-metricx-cj error: extractStackTrace exception: ${e.toString()}")
     }
     res
 }
@@ -1016,7 +1021,7 @@ private func writeSystemLog2File(persistentSystemLogPath: String) {
     unsafe {
         let filePath = LibC.mallocCString(persistentSystemLogPath)
         if (writeSystemLog(filePath) != 0) {
-            AppLog.warn("write system log file failed.")
+            AppLog.warn("hm-metricx-cj error: write system log file failed.")
         }
         LibC.free(filePath)
     }
@@ -1026,7 +1031,7 @@ private func writeLastNHilog2File(persistentLastNHilogPath: String) {
     unsafe {
         let filePath = LibC.mallocCString(persistentLastNHilogPath)
         if (writeLastNHiLog(filePath) != 0) {
-            AppLog.warn("write lastNHilog log file failed.")
+            AppLog.warn("hm-metricx-cj error: write lastNHilog log file failed.")
         }
         LibC.free(filePath)
     }
@@ -1035,10 +1040,10 @@ private func writeLastNHilog2File(persistentLastNHilogPath: String) {
 private func initHilogWatcher() {
     unsafe {
         if (registerCrashSystemlogCallback() != 0) {
-            AppLog.warn("registerCrashSystemlogCallback failed.")
+            AppLog.warn("hm-metricx-cj error: registerCrashSystemlogCallback failed.")
         }
         if (registerCrashLastNHilogCallback() != 0) {
-            AppLog.warn("registerCrashLastNHilogCallback failed.")
+            AppLog.warn("hm-metricx-cj error: registerCrashLastNHilogCallback failed.")
         }
     }
 }
