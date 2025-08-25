@@ -464,11 +464,12 @@ private func initOOMHandler(persistentDir: String) {
         let zlibFile = LibC.mallocCString(persistentDir + "/cj_OOM_pid" + Process.current.pid.toString() + ".zlib")
         if (InitOOMHandler(targetFile, zlibFile,
             {
-                src, dest => if (compressFile(src.toString(), dest.toString())) {
-                    deleteFile(src.toString())
-                } else {
+                src, dest =>
+                if (!compressFile(src.toString(), dest.toString())) {
                     AppLog.warn("hm-metricx-cj error: compressFile failed in OOM handler.")
+                    deleteFile(dest.toString())
                 }
+                deleteFile(src.toString())
             }) != 0) {
             AppLog.warn("hm-metricx-cj error: InitOOMHandler failed.")
         }
@@ -775,13 +776,11 @@ private func initCrashWatcher(applicationContext: ApplicationContext, reportCras
                         } else {
                             AppLog.warn("hm-metricx-cj error: compressFile failed in crash watcher.")
                         }
+                        deleteFile(rawDumpOnOOMPath.toString())
                     }
                     else if (isOOMDumping) {
                         crashInfo.dumpOnOOMPath = dumpOnOOMPath.toString()
                     }
-                }
-                if (exists(rawDumpOnOOMPath)) {
-                    deleteFile(rawDumpOnOOMPath.toString())
                 }
             }
             if (Process.current.pid.toString() == crashInfo.pid.getOrDefault({=> ""})) {
