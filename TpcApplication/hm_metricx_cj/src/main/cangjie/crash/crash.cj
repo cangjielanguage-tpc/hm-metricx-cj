@@ -606,25 +606,6 @@ private func writeFile(path: Path, data: String) {
     }
 }
 
-private func readFile(path: Path, isReturnException!: Bool = false) {
-    if (!exists(path)) {
-        if (isReturnException) {
-        	return "hm-metricx-cj error: read file path ${path} does not exist"
-        } else {
-            return ""
-        }
-    }
-    try {
-        return String.fromUtf8(File.readFrom(path))
-    } catch (e: Exception) {
-        AppLog.warn("hm-metricx-cj error: reading ${path} failed: " + e.toString())
-        if (isReturnException) {
-        	return "hm-metricx-cj error: reading ${path} failed: ${e.toString()}"
-        }
-    }
-    ""
-}
-
 private func collectThreads() {
     readFile(Path("/proc/self/tids"))
 }
