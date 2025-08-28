@@ -35,6 +35,7 @@ public class FreezeInfo {
     private var cpuThreadValue: ?HashMap<String, String> = None
     private var cpuValue: ?HashMap<String, String> = None
     private var stacktraceValue: ?ArrayList<String> = None
+    private var rawFileValue: ?String = None
 
     public mut prop timestamp: ?String {
         get() {
@@ -135,6 +136,15 @@ public class FreezeInfo {
         }
     }
 
+    public mut prop rawFile: ?String {
+        get() {
+            rawFileValue
+        }
+        set(value) {
+            rawFileValue = value
+        }
+    }
+
     public func toString(): String {
         let jsonObj = JsonObject()
         if (timestampValue.isSome()) {
@@ -166,6 +176,9 @@ public class FreezeInfo {
         }
         if (cpuValue.isSome()) {
             jsonObj.put("cpu", map2json(cpuValue.getOrThrow()))
+        }
+        if (rawFileValue.isSome()) {
+            jsonObj.put("rawFile", JsonString(rawFileValue.getOrThrow()))
         }
         if (stacktraceValue.isSome()) {
             let arrJson = ArrayList<JsonValue>()
@@ -272,19 +285,24 @@ private func initFreezeWatcher(
                     }
 
                     if (eventInfo.params.get("external_log").isNone()) {
+                        freezeInfo.rawFile = "hm-metricx-cj freeze error: external_log is none"
                         continue
                     }
 
                     var freezeLogPath: String = eventInfo.params.get("external_log")
                         .getOrThrow().toString().removePrefix("[").removeSuffix("]")
-                    if (freezeLogPath.isEmpty() || !exists(freezeLogPath)) {
+                    if (freezeLogPath.isEmpty() ) {
+                        freezeInfo.rawFile = "hm-metricx-cj freeze error: freezeLogPath is empty"
+                        continue
+                    }
+                    if (!exists(freezeLogPath)) {
+                        freezeInfo.rawFile = "hm-metricx-cj freeze error: freezeLogPath path ${freezeLogPath} does not exist"
                         continue
                     }
                     freezeInfo.freezeLogPath = freezeLogPath
-
                     try {
-                        let content = String.fromUtf8(File.readFrom(freezeLogPath))
-                        let res = extractFromFreezeLog(content)
+                        freezeInfo.rawFile = readFile(Path(freezeLogPath), isReturnException: true)
+                        let res = extractFromFreezeLog(freezeInfo.rawFile.getOrThrow())
                         freezeInfo.tid = res[0]
                         freezeInfo.tname = res[1]
                         freezeInfo.stacktrace = res[2]
@@ -295,6 +313,9 @@ private func initFreezeWatcher(
                 }
             }
             reportFreezeInfo(freezeInfo)
+            if (let Some(v) <- freezeInfo.freezeLogPath) {
+                    deleteFile(v)
+            }
         }
     )
     addWatcher(watcher)
@@ -316,7 +337,7 @@ private func extractFromFreezeLog(content: String) {
         }
     }
     if (curLine == -1) {
-        (tid, tname, stacktrace, cpuMap)
+        return (tid, tname, stacktrace, cpuMap)
     }
 
     let tidTag: String = "Tid:" + tid + ", Name:"
@@ -335,7 +356,6 @@ private func extractFromFreezeLog(content: String) {
         }
         stacktrace.add(lines[i])
     }
-
     let cpuTag = "Details of Processes:"
     for (i in curLine..lines.size) {
         if (lines[i].startsWith(cpuTag)) {
@@ -353,7 +373,6 @@ private func extractFromFreezeLog(content: String) {
         let dataArray = line.split(" ", removeEmpty: true)
         cpuMap.add(dataArray[0], dataArray[1])
     }
-
     return (tid, tname, stacktrace, cpuMap)
 }
 

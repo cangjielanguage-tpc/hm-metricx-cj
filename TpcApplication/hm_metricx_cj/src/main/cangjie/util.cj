@@ -61,6 +61,31 @@ public func deleteFile(path: String) {
     }
 }
 
+public func readFile(path: Path, isReturnException!: Bool = false) {
+    if (!exists(path)) {
+        if (isReturnException) {
+        	return "hm-metricx-cj error: read file path ${path} does not exist"
+        } else {
+            return ""
+        }
+    }
+    let content = File.readFrom(path)
+    try {
+        return String.fromUtf8(content)
+    } catch (e: Exception) {
+        AppLog.warn("hm-metricx-cj error: reading ${path} failed due to error occured in String.fromUtf8: ${e.toString()}")
+        try {
+            unsafe { return String.fromUtf8Unchecked(File.readFrom(path)) }
+        } catch (e: Exception) {
+            AppLog.warn("hm-metricx-cj error: reading ${path} failed due to error occured in fromUtf8Unchecked: ${e.toString()}")
+            if (isReturnException) {
+                return "hm-metricx-cj error: reading ${path} failed: ${e.toString()} content：" + content.toString()
+            }
+        }
+    }
+    ""
+}
+
 public func deleteFile(path: Path) {
     if (!exists(path)) {
         return
