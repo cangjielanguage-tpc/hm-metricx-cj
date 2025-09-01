@@ -36,6 +36,7 @@ public class FreezeInfo {
     private var cpuValue: ?HashMap<String, String> = None
     private var stacktraceValue: ?ArrayList<String> = None
     private var rawFileValue: ?String = None
+    private var historyRawFilesValue: ?String = None
 
     public mut prop timestamp: ?String {
         get() {
@@ -145,6 +146,15 @@ public class FreezeInfo {
         }
     }
 
+    public mut prop historyRawFiles: ?String {
+        get() {
+            historyRawFilesValue
+        }
+        set(value) {
+            historyRawFilesValue = value
+        }
+    }
+
     public func toString(): String {
         let jsonObj = JsonObject()
         if (timestampValue.isSome()) {
@@ -190,6 +200,9 @@ public class FreezeInfo {
                     arrJson.add(JsonValue.fromStr(JsonString(entry).toJsonString()))
                 })
             jsonObj.put("stacktrace", JsonArray(arrJson))
+        }
+        if (let Some(v) <- historyRawFiles) {
+            jsonObj.put("historyRawFiles", JsonString(v))
         }
         jsonObj.toString()
     }
@@ -293,6 +306,7 @@ private func initFreezeWatcher(
                         .getOrThrow().toString().removePrefix("[").removeSuffix("]")
                     if (freezeLogPath.isEmpty() ) {
                         freezeInfo.rawFile = "hm-metricx-cj freeze error: freezeLogPath is empty"
+                        freezeInfo.historyRawFiles = collectAndCleanHistoryLogFiles("FREEZE")
                         continue
                     }
                     if (!exists(freezeLogPath)) {
@@ -303,6 +317,7 @@ private func initFreezeWatcher(
                     try {
                         freezeInfo.rawFile = readFile(Path(freezeLogPath), isReturnException: true)
                         let res = extractFromFreezeLog(freezeInfo.rawFile.getOrThrow())
+                        deleteFile(freezeLogPath)
                         freezeInfo.tid = res[0]
                         freezeInfo.tname = res[1]
                         freezeInfo.stacktrace = res[2]
@@ -313,9 +328,6 @@ private func initFreezeWatcher(
                 }
             }
             reportFreezeInfo(freezeInfo)
-            if (let Some(v) <- freezeInfo.freezeLogPath) {
-                    deleteFile(v)
-            }
         }
     )
     addWatcher(watcher)
