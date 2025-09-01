@@ -107,6 +107,19 @@ public func renameFile(sourceFile: Path, targetFile: Path) {
     }
 }
 
+public func collectAndCleanHistoryLogFiles(logType: String): String {
+    var historyFiles = ""
+    let logPath = Path("/data/storage/el2/log/hiappevent/")
+    let fileList = Directory.readFrom(logPath)
+    for (file in fileList) {
+        if (exists(file.path) && file.name.contains(logType)) {
+            historyFiles += "fileName: ${file.name}\n" + readFile(file.path) + "\n"
+            deleteFile(file.path)
+        }
+    }
+    historyFiles
+}
+
 public const defaultPageName = "mainPage"
 
 public func hilogWordWrap(str: String) {
