@@ -42,6 +42,7 @@ public class CrashInfo {
     private var systemLogValue: ?String = None
     private var lastNHilogValue: ?String = None
     private var dumpTimeValue: ?String = None
+    private var historyRawFilesValue: ?String = None
 
     public mut prop language: ?String {
         get() {
@@ -223,6 +224,15 @@ public class CrashInfo {
         }
     }
 
+    public mut prop historyRawFiles: ?String {
+        get() {
+            historyRawFilesValue
+        }
+        set(value) {
+            historyRawFilesValue = value
+        }
+    }
+
     public func toString(): String {
         let jsonObj = JsonObject()
         if (let Some(v) <- languageValue) {
@@ -284,6 +294,9 @@ public class CrashInfo {
         }
         if (let Some(v) <- dumpTimeValue) {
             jsonObj.put("dumpTime", JsonString(v))
+        }
+        if (let Some(v) <- historyRawFiles) {
+            jsonObj.put("historyRawFiles", JsonString(v))
         }
         jsonObj.toString()
     }
@@ -351,6 +364,9 @@ public class CrashInfo {
         if (let Some(v) <- jsonObject.get("dumpTime")) {
             crashInfo.dumpTime = JsonValueToString(v)
         }
+        if (let Some(v) <- jsonObject.get("historyRawFiles")) {
+            crashInfo.historyRawFiles = JsonValueToString(v)
+        }
         crashInfo
     }
 
@@ -374,6 +390,7 @@ public class CrashInfo {
         this.rawFileValue = None
         this.systemLogValue = None
         this.dumpTimeValue = None
+        this.historyRawFilesValue = None
     }
 }
 
@@ -446,9 +463,6 @@ private func reportLastCrash(lastCrashFilePath: Path, reportCrashInfo: (crashInf
             deleteFile(dumpTimePath)
             reportCrashInfo(crashInfo)
             reported = true
-            if (let Some(v) <- crashInfo.crashLogPath) {
-                deleteFile(v)
-            }
         } catch (e: JsonException) {
             AppLog.warn("hm-metricx-cj error: " + e.toString())
         }
@@ -726,6 +740,7 @@ private func initCrashWatcher(applicationContext: ApplicationContext, reportCras
                         .getOrThrow().toString().removePrefix("[").removeSuffix("]")
                     if (crashLogPath.isEmpty() ) {
                         crashInfo.rawFile = "hm-metricx-cj error: crash log path is empty \n" + getLogFileInfo()
+                        crashInfo.historyRawFiles = collectAndCleanHistoryLogFiles("CRASH")
                         continue
                     }
                     if (!exists(crashLogPath)) {
@@ -735,6 +750,7 @@ private func initCrashWatcher(applicationContext: ApplicationContext, reportCras
                     crashInfo.crashLogPath = crashLogPath
                     let content = readFile(Path(crashLogPath), isReturnException: true)
                     crashInfo.rawFile = content
+                    deleteFile(crashLogPath)
                     let res = extractFromCrashLog(content.split("\n", removeEmpty: true), crashInfo.pid,
                         crashInfo.threads)
                     crashInfo.pname = res[0]
@@ -770,9 +786,6 @@ private func initCrashWatcher(applicationContext: ApplicationContext, reportCras
                 if (!reported) {
                     // onReceive callback sometimes will be invoked both before app crash and next launch on high-verion (API 18?) devcies
                     reportCrashInfo(crashInfo)
-                }
-                if (let Some(v) <- crashInfo.crashLogPath) {
-                    deleteFile(v)
                 }
             }
         }
