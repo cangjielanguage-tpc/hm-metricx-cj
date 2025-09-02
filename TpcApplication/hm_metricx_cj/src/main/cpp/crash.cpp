@@ -284,31 +284,47 @@ int8_t registerCrashLastNHilogCallback() {
 
 int8_t writeSystemLog(const char *pFilePath) {
     std::ofstream file(pFilePath);
-    if (!file.is_open()) {
-        return FAIL;
+    try {
+         if (!file.is_open()) {
+            return FAIL;
+        }
+        for (const auto &entry : logMessages) {
+            std::string entryString = LogEntryToString(entry);
+            std::ostringstream logStream;
+            logStream << entryString;
+            file << logStream.str() << "\n";
+        }
+        file.close();
+        return SUCCESS;
+    } catch (const std::exception& e) {
+        OH_LOG_Print(LOG_APP, LOG_WARN, 0x00008, "hm_metricx_cj", "hm-metricx-cj error: writeSystemLog failed");
     }
-    for (const auto &entry : logMessages) {
-        std::string entryString = LogEntryToString(entry);
-        std::ostringstream logStream;
-        logStream << entryString;
-        file << logStream.str() << "\n";
+    if (file.is_open()) {
+        file.close();
     }
-    file.close();
-    return SUCCESS;
+    return FAIL;
 }
 
 int8_t writeLastNHiLog(const char *pFilePath) {
     std::ofstream file(pFilePath);
-    if (!file.is_open()) {
-        return FAIL;
+    try {
+        if (!file.is_open()) {
+            return FAIL;
+        }
+        for (const auto &entry : hilogMessages) {
+            std::string entryString = LogEntryToString(entry);
+            std::ostringstream logStream;
+            logStream << entryString;
+            file << logStream.str() << "\n";
+        }
+        file.close();
+        return SUCCESS;
+    } catch (const std::exception& e) {
+        OH_LOG_Print(LOG_APP, LOG_WARN, 0x00008, "hm_metricx_cj", "hm-metricx-cj error: writeLastNHiLog failed");
     }
-    for (const auto &entry : hilogMessages) {
-        std::string entryString = LogEntryToString(entry);
-        std::ostringstream logStream;
-        logStream << entryString;
-        file << logStream.str() << "\n";
+    if (file.is_open()) {
+        file.close();
     }
-    file.close();
-    return SUCCESS;
+    return FAIL;
 }
 }
