@@ -243,91 +243,95 @@ private func initFreezeWatcher(
         appEventFilters: [AppEventFilter(OS, eventTypes: [FAULT], names: [APP_FREEZE])],
         onReceive: {
             domain: String, appEventGroups: Array<AppEventGroup> =>
-            if (domain != OS) {
-                return
-            }
-            let freezeInfo = FreezeInfo()
-            if (exists(cpuUsageFilePath)) {
-                try {
-                    if (freezeInfo.cpuThread.isNone()) {
-                        let fileContent = String.fromUtf8(File.readFrom(cpuUsageFilePath))
-                        freezeInfo.cpuThread = extractDataFromLog(fileContent)
-                    }
-                } catch (e: Exception) {
-                    AppLog.warn(e.toString())
+            try {
+                if (domain != OS) {
+                    return
                 }
-                deleteFile(cpuUsageFilePath)
-            }
-            else {
-                AppLog.warn("No persistent cpuUsage file.")
-            }
-            if (exists(extraInfoFilePath)) {
-                try {
-                    if (freezeInfo.extraInfo.isNone()) {
-                        let jsonObj = JsonValue.fromStr(String.fromUtf8(File.readFrom(extraInfoFilePath))).asObject()
-                        freezeInfo.extraInfo = jsonObj.get("extraInfo")
-                    }
-                } catch (e: Exception) {
-                    AppLog.warn(e.toString())
-                }
-                deleteFile(extraInfoFilePath)
-            }
-            else {
-                AppLog.warn("No persistent extraInfo file.")
-            }
-            for (eventGroup in appEventGroups) {
-                if (eventGroup.name != APP_FREEZE) {
-                    continue
-                }
-                for (eventInfo in eventGroup.appEventInfos) {
-                    freezeInfo.timestamp = match (eventInfo.params.get("time")) {
-                        case Some(value) => value.toString()
-                        case _ => None
-                    }
-                    freezeInfo.pid = match (eventInfo.params.get("pid")) {
-                        case Some(value) => value.toString()
-                        case _ => None
-                    }
-                    freezeInfo.exception = match (eventInfo.params.get("exception")) {
-                        case Some(value) => value.toString()
-                        case _ => None
-                    }
-                    freezeInfo.hilog = match (eventInfo.params.get("hilog")) {
-                        case Some(value) => hilogWordWrap(value.toString())
-                        case _ => None
-                    }
-
-                    if (eventInfo.params.get("external_log").isNone()) {
-                        freezeInfo.rawFile = "hm-metricx-cj freeze error: external_log is none"
-                        continue
-                    }
-
-                    var freezeLogPath: String = eventInfo.params.get("external_log")
-                        .getOrThrow().toString().removePrefix("[").removeSuffix("]")
-                    if (freezeLogPath.isEmpty() ) {
-                        freezeInfo.rawFile = "hm-metricx-cj freeze error: freezeLogPath is empty"
-                        freezeInfo.historyRawFiles = collectAndCleanHistoryLogFiles("FREEZE")
-                        continue
-                    }
-                    if (!exists(freezeLogPath)) {
-                        freezeInfo.rawFile = "hm-metricx-cj freeze error: freezeLogPath path ${freezeLogPath} does not exist"
-                        continue
-                    }
-                    freezeInfo.freezeLogPath = freezeLogPath
+                let freezeInfo = FreezeInfo()
+                if (exists(cpuUsageFilePath)) {
                     try {
-                        freezeInfo.rawFile = readFile(Path(freezeLogPath), isReturnException: true)
-                        let res = extractFromFreezeLog(freezeInfo.rawFile.getOrThrow())
-                        deleteFile(freezeLogPath)
-                        freezeInfo.tid = res[0]
-                        freezeInfo.tname = res[1]
-                        freezeInfo.stacktrace = res[2]
-                        freezeInfo.cpu = res[3]
+                        if (freezeInfo.cpuThread.isNone()) {
+                            let fileContent = String.fromUtf8(File.readFrom(cpuUsageFilePath))
+                            freezeInfo.cpuThread = extractDataFromLog(fileContent)
+                        }
                     } catch (e: Exception) {
                         AppLog.warn(e.toString())
                     }
+                    deleteFile(cpuUsageFilePath)
                 }
+                else {
+                    AppLog.warn("No persistent cpuUsage file.")
+                }
+                if (exists(extraInfoFilePath)) {
+                    try {
+                        if (freezeInfo.extraInfo.isNone()) {
+                            let jsonObj = JsonValue.fromStr(String.fromUtf8(File.readFrom(extraInfoFilePath))).asObject()
+                            freezeInfo.extraInfo = jsonObj.get("extraInfo")
+                        }
+                    } catch (e: Exception) {
+                        AppLog.warn(e.toString())
+                    }
+                    deleteFile(extraInfoFilePath)
+                }
+                else {
+                    AppLog.warn("No persistent extraInfo file.")
+                }
+                for (eventGroup in appEventGroups) {
+                    if (eventGroup.name != APP_FREEZE) {
+                        continue
+                    }
+                    for (eventInfo in eventGroup.appEventInfos) {
+                        freezeInfo.timestamp = match (eventInfo.params.get("time")) {
+                            case Some(value) => value.toString()
+                            case _ => None
+                        }
+                        freezeInfo.pid = match (eventInfo.params.get("pid")) {
+                            case Some(value) => value.toString()
+                            case _ => None
+                        }
+                        freezeInfo.exception = match (eventInfo.params.get("exception")) {
+                            case Some(value) => value.toString()
+                            case _ => None
+                        }
+                        freezeInfo.hilog = match (eventInfo.params.get("hilog")) {
+                            case Some(value) => hilogWordWrap(value.toString())
+                            case _ => None
+                        }
+
+                        if (eventInfo.params.get("external_log").isNone()) {
+                            freezeInfo.rawFile = "hm-metricx-cj freeze error: external_log is none"
+                            continue
+                        }
+
+                        var freezeLogPath: String = eventInfo.params.get("external_log")
+                            .getOrThrow().toString().removePrefix("[").removeSuffix("]")
+                        if (freezeLogPath.isEmpty() ) {
+                            freezeInfo.rawFile = "hm-metricx-cj freeze error: freezeLogPath is empty"
+                            freezeInfo.historyRawFiles = collectAndCleanHistoryLogFiles("FREEZE")
+                            continue
+                        }
+                        if (!exists(freezeLogPath)) {
+                            freezeInfo.rawFile = "hm-metricx-cj freeze error: freezeLogPath path ${freezeLogPath} does not exist"
+                            continue
+                        }
+                        freezeInfo.freezeLogPath = freezeLogPath
+                        try {
+                            freezeInfo.rawFile = readFile(Path(freezeLogPath), isReturnException: true)
+                            let res = extractFromFreezeLog(freezeInfo.rawFile.getOrThrow())
+                            deleteFile(freezeLogPath)
+                            freezeInfo.tid = res[0]
+                            freezeInfo.tname = res[1]
+                            freezeInfo.stacktrace = res[2]
+                            freezeInfo.cpu = res[3]
+                        } catch (e: Exception) {
+                            AppLog.warn(e.toString())
+                        }
+                    }
+                }
+                reportFreezeInfo(freezeInfo)
+            } catch (e: Exception) {
+            	AppLog.warn("hm-metricx-cj freeze error: initFreezeWatcher error, " + e.toString())
             }
-            reportFreezeInfo(freezeInfo)
         }
     )
     addWatcher(watcher)
