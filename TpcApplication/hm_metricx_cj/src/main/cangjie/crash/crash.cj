@@ -577,17 +577,22 @@ private func initErrorObserver(crashInfo: CrashInfo, applicationContext: Applica
         {errMsg: String =>},
         onException: {
             errObject =>
-            crashInfo.meminfo = collectMemInfo()
-            crashInfo.fds = collectFDInfo()
-            crashInfo.threads = collectThreads()
-            crashInfo.extraInfo = collectCrashInfo()
-            writeFile(persistentFilePath, crashInfo.toString())
-            writeSystemLog2File(persistentSystemLogPath.toString())
-            writeLastNHilog2File(persistentLastNHilogPath.toString())
-            if (OOMHandlerInited) {
-                waitOOMDumping(applicationContext, dumpTimePath)
-            }
-            else {
+            try {
+                crashInfo.meminfo = collectMemInfo()
+                crashInfo.fds = collectFDInfo()
+                crashInfo.threads = collectThreads()
+                crashInfo.extraInfo = collectCrashInfo()
+                writeFile(persistentFilePath, crashInfo.toString())
+                writeSystemLog2File(persistentSystemLogPath.toString())
+                writeLastNHilog2File(persistentLastNHilogPath.toString())
+                if (OOMHandlerInited) {
+                    waitOOMDumping(applicationContext, dumpTimePath)
+                }
+                else {
+                    exit(applicationContext)
+                }
+            } catch (e: Exception) {
+                AppLog.warn("hm-metricx-cj error: initErrorObserver error, " + e.toString())
                 exit(applicationContext)
             }
         }
@@ -676,117 +681,121 @@ private func initCrashWatcher(applicationContext: ApplicationContext, reportCras
         appEventFilters: [AppEventFilter(OS, names: [APP_CRASH], eventTypes: [FAULT])],
         onReceive: {
             domain: String, appEventGroups: Array<AppEventGroup> =>
-            if (domain != OS) {
-                return
-            }
-            var crashInfo = CrashInfo()
-            if (exists(persistentFilePath)) {
-                try {
-                    let jsonObj = JsonValue.fromStr(String.fromUtf8(File.readFrom(persistentFilePath))).asObject()
-                    crashInfo = CrashInfo.fromJson(jsonObj)
-                } catch (e: JsonException) {
-                    AppLog.warn("hm-metricx-cj error: " + e.toString())
+            try {
+                if (domain != OS) {
+                    return
                 }
-                deleteFile(persistentFilePath)
-            } else {
-                AppLog.warn("hm-metricx-cj error: No persistent crash file.")
-            }
-            crashInfo.dumpTime = readFile(dumpTimePath)
-            deleteFile(dumpTimePath)
-            crashInfo.systemLog = readFile(persistentSystemLogPath).replace("\n\n", "\n")
-            deleteFile(persistentSystemLogPath)
-            crashInfo.lastNHilog = readFile(persistentLastNHilogPath).replace("\n\n", "\n")
-            deleteFile(persistentLastNHilogPath)
-            for (eventGroup in appEventGroups) {
-                if (eventGroup.name != APP_CRASH) {
-                    continue
-                }
-                for (eventInfo in eventGroup.appEventInfos) {
-                    if (eventInfo.params.get("external_log").isNone()) {
-                        crashInfo.rawFile = "hm-metricx-cj error: external_log is none"
-                        continue
+                var crashInfo = CrashInfo()
+                if (exists(persistentFilePath)) {
+                    try {
+                        let jsonObj = JsonValue.fromStr(String.fromUtf8(File.readFrom(persistentFilePath))).asObject()
+                        crashInfo = CrashInfo.fromJson(jsonObj)
+                    } catch (e: JsonException) {
+                        AppLog.warn("hm-metricx-cj error: " + e.toString())
                     }
-                    if (let Some(v) <- eventInfo.params.get("crash_type")) {
-                        if (v.toString() == "JsError") {
-                            crashInfo.language = "js_crash"
-                        } else if (v.toString() == "NativeCrash") {
-                            crashInfo.language = "cpp_crash"
-                        }
-                    }
-                    crashInfo.timestamp = match (eventInfo.params.get("time")) {
-                        case Some(value) => value.toString()
-                        case _ => None
-                    }
-                    crashInfo.pid = match (eventInfo.params.get("pid")) {
-                        case Some(value) => value.toString().removeSuffix(".000000")
-                        case _ => None
-                    }
-                    crashInfo.stacktrace = match (eventInfo.params.get("exception")) {
-                        case Some(value) => match (value) {
-                            case OBJECT(v) => extractStackTrace(v)
-                            case _ => unescapeString(value.toString())
-                        }
-                        case _ => "hm-metricx-cj error: exception is none"
-                    }
-                    crashInfo.hilog = match (eventInfo.params.get("hilog")) {
-                        case Some(value) => hilogWordWrap(unescapeString(value.toString()))
-                        case _ => None
-                    }
-                    crashInfo.appVersion = match (eventInfo.params.get("bundle_version")) {
-                        case Some(value) => value.toString()
-                        case _ => None
-                    }
-                    let crashLogPath: String = eventInfo.params.get("external_log")
-                        .getOrThrow().toString().removePrefix("[").removeSuffix("]")
-                    if (crashLogPath.isEmpty() ) {
-                        crashInfo.rawFile = "hm-metricx-cj error: crash log path is empty \n" + getLogFileInfo()
-                        crashInfo.historyRawFiles = collectAndCleanHistoryLogFiles("CRASH")
-                        continue
-                    }
-                    if (!exists(crashLogPath)) {
-                        crashInfo.rawFile = "hm-metricx-cj error: crash log path ${crashLogPath} does not exist \n" + getLogFileInfo()
-                        continue
-                    }
-                    crashInfo.crashLogPath = crashLogPath
-                    let content = readFile(Path(crashLogPath), isReturnException: true)
-                    crashInfo.rawFile = content
-                    deleteFile(crashLogPath)
-                    let res = extractFromCrashLog(content.split("\n", removeEmpty: true), crashInfo.pid,
-                        crashInfo.threads)
-                    crashInfo.pname = res[0]
-                    crashInfo.tid = res[1]
-                    crashInfo.tname = res[2]
-                }
-            }
-            if (let Some(pid) <- crashInfo.pid) {
-                let rawDumpOnOOMPath = persistentDir.join("cj_OOM_pid" + pid + ".dat")
-                let dumpOnOOMPath = persistentDir.join("cj_OOM_pid" + pid + ".zlib")
-                if (exists(dumpOnOOMPath)) {
-                    crashInfo.dumpOnOOMPath = dumpOnOOMPath.toString()
+                    deleteFile(persistentFilePath)
                 } else {
-                    let isOOMDumping = unsafe {
-                        IsOOMDumping()
+                    AppLog.warn("hm-metricx-cj error: No persistent crash file.")
+                }
+                crashInfo.dumpTime = readFile(dumpTimePath)
+                deleteFile(dumpTimePath)
+                crashInfo.systemLog = readFile(persistentSystemLogPath).replace("\n\n", "\n")
+                deleteFile(persistentSystemLogPath)
+                crashInfo.lastNHilog = readFile(persistentLastNHilogPath).replace("\n\n", "\n")
+                deleteFile(persistentLastNHilogPath)
+                for (eventGroup in appEventGroups) {
+                    if (eventGroup.name != APP_CRASH) {
+                        continue
                     }
-                    if (exists(rawDumpOnOOMPath) && !isOOMDumping) {
-                        if (compressFile(rawDumpOnOOMPath.toString(), dumpOnOOMPath.toString())) {
-                            crashInfo.dumpOnOOMPath = dumpOnOOMPath.toString()
-                        } else {
-                            AppLog.warn("hm-metricx-cj error: compressFile failed in crash watcher.")
+                    for (eventInfo in eventGroup.appEventInfos) {
+                        if (eventInfo.params.get("external_log").isNone()) {
+                            crashInfo.rawFile = "hm-metricx-cj error: external_log is none"
+                            continue
                         }
-                        deleteFile(rawDumpOnOOMPath.toString())
+                        if (let Some(v) <- eventInfo.params.get("crash_type")) {
+                            if (v.toString() == "JsError") {
+                                crashInfo.language = "js_crash"
+                            } else if (v.toString() == "NativeCrash") {
+                                crashInfo.language = "cpp_crash"
+                            }
+                        }
+                        crashInfo.timestamp = match (eventInfo.params.get("time")) {
+                            case Some(value) => value.toString()
+                            case _ => None
+                        }
+                        crashInfo.pid = match (eventInfo.params.get("pid")) {
+                            case Some(value) => value.toString().removeSuffix(".000000")
+                            case _ => None
+                        }
+                        crashInfo.stacktrace = match (eventInfo.params.get("exception")) {
+                            case Some(value) => match (value) {
+                                case OBJECT(v) => extractStackTrace(v)
+                                case _ => unescapeString(value.toString())
+                            }
+                            case _ => "hm-metricx-cj error: exception is none"
+                        }
+                        crashInfo.hilog = match (eventInfo.params.get("hilog")) {
+                            case Some(value) => hilogWordWrap(unescapeString(value.toString()))
+                            case _ => None
+                        }
+                        crashInfo.appVersion = match (eventInfo.params.get("bundle_version")) {
+                            case Some(value) => value.toString()
+                            case _ => None
+                        }
+                        let crashLogPath: String = eventInfo.params.get("external_log")
+                            .getOrThrow().toString().removePrefix("[").removeSuffix("]")
+                        if (crashLogPath.isEmpty() ) {
+                            crashInfo.rawFile = "hm-metricx-cj error: crash log path is empty \n" + getLogFileInfo()
+                            crashInfo.historyRawFiles = collectAndCleanHistoryLogFiles("CRASH")
+                            continue
+                        }
+                        if (!exists(crashLogPath)) {
+                            crashInfo.rawFile = "hm-metricx-cj error: crash log path ${crashLogPath} does not exist \n" + getLogFileInfo()
+                            continue
+                        }
+                        crashInfo.crashLogPath = crashLogPath
+                        let content = readFile(Path(crashLogPath), isReturnException: true)
+                        crashInfo.rawFile = content
+                        deleteFile(crashLogPath)
+                        let res = extractFromCrashLog(content.split("\n", removeEmpty: true), crashInfo.pid,
+                            crashInfo.threads)
+                        crashInfo.pname = res[0]
+                        crashInfo.tid = res[1]
+                        crashInfo.tname = res[2]
                     }
-                    else if (isOOMDumping) {
+                }
+                if (let Some(pid) <- crashInfo.pid) {
+                    let rawDumpOnOOMPath = persistentDir.join("cj_OOM_pid" + pid + ".dat")
+                    let dumpOnOOMPath = persistentDir.join("cj_OOM_pid" + pid + ".zlib")
+                    if (exists(dumpOnOOMPath)) {
                         crashInfo.dumpOnOOMPath = dumpOnOOMPath.toString()
+                    } else {
+                        let isOOMDumping = unsafe {
+                            IsOOMDumping()
+                        }
+                        if (exists(rawDumpOnOOMPath) && !isOOMDumping) {
+                            if (compressFile(rawDumpOnOOMPath.toString(), dumpOnOOMPath.toString())) {
+                                crashInfo.dumpOnOOMPath = dumpOnOOMPath.toString()
+                            } else {
+                                AppLog.warn("hm-metricx-cj error: compressFile failed in crash watcher.")
+                            }
+                            deleteFile(rawDumpOnOOMPath.toString())
+                        }
+                        else if (isOOMDumping) {
+                            crashInfo.dumpOnOOMPath = dumpOnOOMPath.toString()
+                        }
                     }
                 }
-            }
-            if (Process.current.pid.toString() == crashInfo.pid.getOrDefault({=> ""})) {
-                writeFile(lastCrashFilePath, crashInfo.toString())
-            } else {
-                if (!reported) {
-                    // onReceive callback sometimes will be invoked both before app crash and next launch on high-verion (API 18?) devcies
-                    reportCrashInfo(crashInfo)
+                if (Process.current.pid.toString() == crashInfo.pid.getOrDefault({=> ""})) {
+                    writeFile(lastCrashFilePath, crashInfo.toString())
+                } else {
+                    if (!reported) {
+                        // onReceive callback sometimes will be invoked both before app crash and next launch on high-verion (API 18?) devcies
+                        reportCrashInfo(crashInfo)
+                    }
                 }
+            } catch (e: Exception) {
+            	AppLog.warn("hm-metricx-cj error: initCrashWatcher error, " + e.toString())
             }
         }
     )
