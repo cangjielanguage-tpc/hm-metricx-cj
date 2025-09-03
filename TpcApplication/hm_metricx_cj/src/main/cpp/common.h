@@ -8,8 +8,13 @@
 #define TPCAPPLICATION_COMMON_H
 
 #include <hilog/log.h>
+#include <string>
 #define SUCCESS (0)
 #define FAIL (-1)
 
 void registerHilogCallback(LogCallback logCallback);
-#endif //TPCAPPLICATION_COMMON_H
+std::string getLastLineEfficient(const std::string &filePath, char targetChar);
+int64_t parseHexAddress(const std::string &hexStr);
+bool writeFile(const char *filename, std::string str);
+
+#endif // TPCAPPLICATION_COMMON_H

@@ -5,6 +5,7 @@
 // please include "napi/native_api.h".
 
 #include "common.h"
+#include <fstream>
 #include <vector>
 
 bool isLogCallbackRegistered = false;
@@ -24,4 +25,52 @@ void registerHilogCallback(LogCallback logCallback) {
     }
     isLogCallbackRegistered = true;
     OH_LOG_SetCallback(HilogCallback);
+}
+
+std::string getLastLineEfficient(const std::string &filePath, char targetChar) {
+    std::ifstream f(filePath, std::ios::ate);
+    if (!f.is_open()) {
+        return "";
+    }
+    char x;
+    std::string line;
+    std::streampos size = f.tellg();
+    for (int var = 1; var <= size; var++) {
+        f.seekg(-var, std::ios::end);
+        f.get(x);
+        if (x == 0) {
+            continue;
+        }
+        if (x == '\n') {
+            if (line.size() > 0 && line.find(targetChar) != std::string::npos) {
+                return line;
+            }
+            line = "";
+        } else {
+            line = x + line;
+        }
+    }
+    f.close();
+    return line;
+}
+
+int64_t parseHexAddress(const std::string &hexStr) {
+    if (hexStr.empty()) {
+        return INT64_MAX;
+    }
+    try {
+        return std::stoll(hexStr, nullptr, 16);
+    } catch (...) {
+        return INT64_MAX;
+    }
+}
+
+bool writeFile(const char *filename, std::string str) {
+    std::ofstream outfile(filename);
+    if (!outfile.is_open()) {
+        return false;
+    }
+    outfile << str;
+    outfile.close();
+    return true;
 }
