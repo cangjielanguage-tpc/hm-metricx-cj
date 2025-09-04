@@ -38,6 +38,26 @@ bool containFreezeTag(const std::vector<std::string> &msgTags, const std::string
 }
 
 bool freezeCaught = false;
+void collectFreezeInfo()
+{
+    auto extraInfo = cjCollectExtraFreezeInfo();
+    if (extraInfoFile != nullptr) {
+        fwrite(extraInfo, sizeof(char), strlen(extraInfo), extraInfoFile);
+        fflush(extraInfoFile);
+    }
+    std::string saveStr = "";
+    HiDebug_ThreadCpuUsagePtr usagePtr = OH_HiDebug_GetAppThreadCpuUsage();
+    while (usagePtr != nullptr) {
+        saveStr += std::to_string(usagePtr->threadId) + "," + std::to_string(usagePtr->cpuUsage) + ",";
+        usagePtr = usagePtr->next;
+    }
+        
+    if (cpuUsageFile != nullptr) {
+        fwrite(saveStr.c_str(), sizeof(char), saveStr.size(), cpuUsageFile);
+        fflush(cpuUsageFile);
+    }
+}
+
 void FreezeHilogCallback(const LogType type, const LogLevel level, const unsigned int domain, const char *tag, const char *msg)
 {
     if (freezeCaught) {
@@ -64,22 +84,7 @@ void FreezeHilogCallback(const LogType type, const LogLevel level, const unsigne
     }
     
     freezeCaught = true;
-    auto extraInfo = cjCollectExtraFreezeInfo();
-    if (extraInfoFile != nullptr) {
-        fwrite(extraInfo, sizeof(char), strlen(extraInfo), extraInfoFile);
-        fflush(extraInfoFile);
-    }
-    std::string saveStr = "";
-    HiDebug_ThreadCpuUsagePtr usagePtr = OH_HiDebug_GetAppThreadCpuUsage();
-    while (usagePtr != nullptr) {
-        saveStr += std::to_string(usagePtr->threadId) + "," + std::to_string(usagePtr->cpuUsage) + ",";
-        usagePtr = usagePtr->next;
-    }
-        
-    if (cpuUsageFile != nullptr) {
-        fwrite(saveStr.c_str(), sizeof(char), saveStr.size(), cpuUsageFile);
-        fflush(cpuUsageFile);
-    }
+    collectFreezeInfo();
 }
 
 extern "C" int8_t registerFreezeHilogCallback(const char * cpuUsageFilePath,
@@ -95,5 +100,21 @@ extern "C" int8_t registerFreezeHilogCallback(const char * cpuUsageFilePath,
     }
     cjCollectExtraFreezeInfo = collectExtraFreezeInfo;
     registerHilogCallback(FreezeHilogCallback);
+    return SUCCESS;
+}
+
+extern "C" int8_t registerFreezeCallback(const char * cpuUsageFilePath,
+                                        const char * extraInfoFilePath, CollectExtraFreezeInfo collectExtraFreezeInfo)
+{
+    cpuUsageFile = std::fopen(cpuUsageFilePath, "w+");
+    if (cpuUsageFile == NULL) {
+        return FAIL;
+    }
+    extraInfoFile = std::fopen(extraInfoFilePath, "w+");
+    if (cpuUsageFile == NULL) {
+        return FAIL;
+    }
+    cjCollectExtraFreezeInfo = collectExtraFreezeInfo;
+    collectFreezeInfo();
     return SUCCESS;
 }
