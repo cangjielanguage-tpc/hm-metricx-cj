@@ -22,6 +22,7 @@ import std.posix.getpid
 import ohos.base.nativeLog
 import ohos.base.ArrayLike
 import std.sort.stableSort
+import ohos.device_info.DeviceInfo
 
 public class FreezeInfo {
     private var timestampValue: ?String = None
@@ -210,6 +211,8 @@ public class FreezeInfo {
 
 private var freezeInited = false
 private var iCollectFreezeInfo: () -> JsonValue = { => JsonValue.fromStr("{}") }
+var cpuUsageFilePath = Path("")
+var extraInfoFilePath = Path("")
 
 public func initFreezeHandler(
     applicationContext: ApplicationContext,
@@ -221,15 +224,39 @@ public func initFreezeHandler(
         return
     }
     iCollectFreezeInfo = collectFreezeInfo
-    let cpuUsageFilePath = persistentDir.join("cpuUsageFreeze.txt")
+    cpuUsageFilePath = persistentDir.join("cpuUsageFreeze.txt")
     let cpuUsageBakFilePath = persistentDir.join("cpuUsageFreeze-bak.txt")
     renameFile(cpuUsageFilePath, cpuUsageBakFilePath)
-    let extraInfoFilePath = persistentDir.join("extraInfoFreeze.json")
+    extraInfoFilePath = persistentDir.join("extraInfoFreeze.json")
     let extraInfoBakFilePath = persistentDir.join("extraInfoFreeze-bak.json")
     renameFile(extraInfoFilePath, extraInfoBakFilePath)
     initFreezeWatcher(applicationContext, reportFreezeInfo, cpuUsageBakFilePath, extraInfoBakFilePath)
-    initHilogWatcher(cpuUsageFilePath, extraInfoFilePath)
+    if (DeviceInfo.sdkApiVersion >= 18) {
+    	onFreeze(freezeCallback)
+    } else {
+        initHilogWatcher(cpuUsageFilePath, extraInfoFilePath)
+    }
     freezeInited = true
+}
+
+var reportFlag = false
+private func freezeCallback(): Unit {
+    if (!reportFlag) {
+    	collectFreezeInfo()
+        reportFlag = true
+    }
+}
+
+private func collectFreezeInfo(): Unit {
+    unsafe {
+        let cpuUsageFilePathForC = LibC.mallocCString(cpuUsageFilePath.toString())
+        let extraInfoFilePathForC = LibC.mallocCString(extraInfoFilePath.toString())
+        if (registerFreezeCallback(cpuUsageFilePathForC, extraInfoFilePathForC, collectExtraFreezeInfo) != 0) {
+            AppLog.warn("registerFreezeCallback failed.")
+        }
+        LibC.free(cpuUsageFilePathForC)
+        LibC.free(extraInfoFilePathForC)
+    }
 }
 
 private func initFreezeWatcher(
@@ -403,6 +430,7 @@ private func extractDataFromLog(content: String): HashMap<String, String> {
 }
 
 foreign func registerFreezeHilogCallback(cpuUsageFilePath: CString, extraInfoFile: CString, cb: CFunc<() -> CString>): Int8
+foreign func registerFreezeCallback(cpuUsageFilePath: CString, extraInfoFile: CString, cb: CFunc<() -> CString>): Int8
 
 @C
 func collectExtraFreezeInfo(): CString {
