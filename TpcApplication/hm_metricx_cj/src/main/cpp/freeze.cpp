@@ -95,7 +95,7 @@ extern "C" int8_t registerFreezeHilogCallback(const char * cpuUsageFilePath,
         return FAIL;
     }
     extraInfoFile = std::fopen(extraInfoFilePath, "w+");
-    if (cpuUsageFile == NULL) {
+    if (extraInfoFile == NULL) {
         return FAIL;
     }
     cjCollectExtraFreezeInfo = collectExtraFreezeInfo;
@@ -111,7 +111,7 @@ extern "C" int8_t registerFreezeCallback(const char * cpuUsageFilePath,
         return FAIL;
     }
     extraInfoFile = std::fopen(extraInfoFilePath, "w+");
-    if (cpuUsageFile == NULL) {
+    if (extraInfoFile == NULL) {
         return FAIL;
     }
     cjCollectExtraFreezeInfo = collectExtraFreezeInfo;
