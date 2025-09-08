@@ -3,7 +3,7 @@
  */
 package ohos_app_cangjie_hm_metricx_cj.crash
 
-import ohos_app_cangjie_hm_metricx_cj.*
+import ohos_app_cangjie_hm_metricx_cj.apm.*
 import tpc.PerformanceAnalysisKit.hiAppEvent.*
 import tpc.AbilityKit.ApplicationContext
 import std.fs.*
@@ -19,7 +19,6 @@ import stdx.compress.zlib.*
 import stdx.encoding.json.*
 import std.time.*
 import std.sync.*
-import ohos_app_cangjie_hm_metricx_cj.deleteFile
 
 public class CrashInfo {
     private var languageValue: ?String = None

@@ -3,7 +3,7 @@
  */
 package ohos_app_cangjie_hm_metricx_cj.memory
 
-import ohos_app_cangjie_hm_metricx_cj.*
+import ohos_app_cangjie_hm_metricx_cj.apm.*
 import tpc.AbilityKit.UIAbility
 import tpc.AbilityKit.UIAbilityContext
 import tpc.BasicServicesKit.*
