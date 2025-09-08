@@ -1,7 +1,7 @@
 /**
  * Created on 2025/4/7
  */
-package ohos_app_cangjie_hm_metricx_cj
+package ohos_app_cangjie_hm_metricx_cj.apm
 
 import std.unicode.UnicodeStringExtension
 import std.collection.*

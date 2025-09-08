@@ -12,8 +12,8 @@ import tpc.UIKit.window.{WindowStage, WindowCallbackType, WindowEventType}
 import std.collection.*
 import ohos.base.AppLog
 import ohos.hilog.Hilog
-import ohos_app_cangjie_hm_metricx_cj.getTargetPageName
-import ohos_app_cangjie_hm_metricx_cj.defaultPageName
+import ohos_app_cangjie_hm_metricx_cj.apm.getTargetPageName
+import ohos_app_cangjie_hm_metricx_cj.apm.defaultPageName
 
 const NANOS_IN_SECOND = 1000000000
 const SCROLL_HITCH_COEFF = 1000
