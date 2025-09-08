@@ -211,8 +211,6 @@ public class FreezeInfo {
 
 private var freezeInited = false
 private var iCollectFreezeInfo: () -> JsonValue = { => JsonValue.fromStr("{}") }
-var cpuUsageFilePath = Path("")
-var extraInfoFilePath = Path("")
 
 public func initFreezeHandler(
     applicationContext: ApplicationContext,
@@ -224,15 +222,15 @@ public func initFreezeHandler(
         return
     }
     iCollectFreezeInfo = collectFreezeInfo
-    cpuUsageFilePath = persistentDir.join("cpuUsageFreeze.txt")
+    let cpuUsageFilePath = persistentDir.join("cpuUsageFreeze.txt")
     let cpuUsageBakFilePath = persistentDir.join("cpuUsageFreeze-bak.txt")
     renameFile(cpuUsageFilePath, cpuUsageBakFilePath)
-    extraInfoFilePath = persistentDir.join("extraInfoFreeze.json")
+    let extraInfoFilePath = persistentDir.join("extraInfoFreeze.json")
     let extraInfoBakFilePath = persistentDir.join("extraInfoFreeze-bak.json")
     renameFile(extraInfoFilePath, extraInfoBakFilePath)
     initFreezeWatcher(applicationContext, reportFreezeInfo, cpuUsageBakFilePath, extraInfoBakFilePath)
     if (DeviceInfo.sdkApiVersion >= 18) {
-    	onFreeze(freezeCallback)
+    	onFreeze({ => freezeCallback(cpuUsageFilePath, extraInfoFilePath)})
     } else {
         initHilogWatcher(cpuUsageFilePath, extraInfoFilePath)
     }
@@ -240,14 +238,14 @@ public func initFreezeHandler(
 }
 
 var reportFlag = false
-private func freezeCallback(): Unit {
+private func freezeCallback(cpuUsageFilePath: Path, extraInfoFilePath: Path): Unit {
     if (!reportFlag) {
-    	collectFreezeInfo()
+    	collectFreezeInfo(cpuUsageFilePath, extraInfoFilePath)
         reportFlag = true
     }
 }
 
-private func collectFreezeInfo(): Unit {
+private func collectFreezeInfo(cpuUsageFilePath: Path, extraInfoFilePath: Path): Unit {
     unsafe {
         let cpuUsageFilePathForC = LibC.mallocCString(cpuUsageFilePath.toString())
         let extraInfoFilePathForC = LibC.mallocCString(extraInfoFilePath.toString())

@@ -3,33 +3,17 @@
  */
 package ohos_app_cangjie_hm_metricx_cj.storage
 
-import tpc.AbilityKit.UIAbility
-import tpc.AbilityKit.ApplicationContext
-import tpc.CoreFileKit.storageStatistics.*
-import tpc.CoreFileKit.fs.*
 import stdx.encoding.json.*
 import std.core.*
-import std.sync.*
-import std.fs
-import ohos.hilog.Hilog
-import tpc.CoreFileKit.statvfs.getTotalSize
-import std.collection.TreeSet
-import std.fs.FileInfo
-import std.collection.ArrayList
-import tpc.UIKit.arkui_node.Content
+import std.fs.{Directory, Path, exists, FileInfo}
+import std.collection.{TreeSet, ArrayList}
+import tpc.CoreFileKit.storageStatistics.*
+import tpc.CoreFileKit.fs.*
 import tpc.AbilityKit.kit_common.*
-import tpc.AbilityKit.UIAbilityContext
 import tpc.AbilityKit.bundleManager.*
-import ohos.ability.Context
 import tpc.MapKit.navi.snapToRoads
-import std.fs.Directory
-import std.fs.Path
-import std.fs.exists
-import std.posix.isDir
 import tpc.FormKit.formInfo.FormState
-import ohos_app_cangjie_hm_metricx_cj.JsonValueToString
-import std.fs.SymbolicLink
-import std.fs.File
+
 
 public class StorageInfo {
     public var appSize: ?Int64 = None
@@ -43,17 +27,17 @@ public class StorageInfo {
 
     public func toString(): String {
         let jsonObj = JsonObject()
-        if (appSize.isSome()) {
-            jsonObj.put("appSize", JsonString(appSize.getOrThrow().toString()))
+        if (let Some(v) <- appSize) {
+            jsonObj.put("appSize", JsonString(v.toString()))
         }
-        if (dataSize.isSome()) {
-            jsonObj.put("dataSize", JsonString(dataSize.getOrThrow().toString()))
+        if (let Some(v) <- dataSize) {
+            jsonObj.put("dataSize", JsonString(v.toString()))
         }
-        if (cacheSize.isSome()) {
-            jsonObj.put("cacheSize", JsonString(cacheSize.getOrThrow().toString()))
+        if (let Some(v) <- cacheSize) {
+            jsonObj.put("cacheSize", JsonString(v.toString()))
         }
-        if (totalSize.isSome()) {
-        	jsonObj.put("totalSize", JsonString(totalSize.getOrThrow().toString()))
+        if (let Some(v) <- totalSize) {
+            jsonObj.put("totalSize", JsonString(v.toString()))
         }
         if (!topStorageFileList.isEmpty()) {
         	jsonObj.put("topStorageFileList", JsonString(topStorageFileList.toString()))
@@ -66,10 +50,10 @@ public class StorageInfo {
 }
 
 public class StorageFileInfo <: Comparable<StorageFileInfo> & ToString {
-    public var path: String
-    public var size: Int64
+    public let path: String
+    public let size: Int64
     public var subfileList = TreeSet<StorageFileInfo>()
-    public var isDir: Bool
+    public let isDir: Bool
 
     public init(f: FileInfo, isDir: Bool) {
     	this.path = f.path.toString()
@@ -121,7 +105,6 @@ public func reportAppStorageInfo(): Unit {
                     storageInfo.appSize = data.getOrThrow().appSize
                     storageInfo.dataSize = data.getOrThrow().dataSize
                     storageInfo.cacheSize = data.getOrThrow().cacheSize
-                    //总计 = appSize + dataSize
                     if (storageInfo.appSize.isSome() && storageInfo.dataSize.isSome()) {
                     	storageInfo.totalSize = storageInfo.appSize.getOrThrow() + storageInfo.dataSize.getOrThrow()
                     }
@@ -144,22 +127,8 @@ public func reportAppStorageInfo(): Unit {
                                 	getDirsOverLimit(storageDirInfo, dirSizeLimitValue.getOrThrow(), allAppStorageDirs)
                                 }
                             }
-                            var fileCount: Int64 = 0
-                            for (storageFileInfo in allAppStorageFiles) {
-                                storageInfo.topStorageFileList.add(storageFileInfo)
-                                fileCount++
-                                if (fileCount == reportTopNumValue) {
-                                    break
-                                }
-                            }
-                            var dirCount: Int64 = 0
-                            for (storageDirsInfo in allAppStorageDirs) {
-                                storageInfo.exceptionDirList.add(storageDirsInfo)
-                                dirCount++
-                                if (dirCount == reportTopNumValue) {
-                                    break
-                                }
-                            }
+                            reportTopNFile(allAppStorageFiles, storageInfo.topStorageFileList, reportTopNumValue)
+                            reportTopNFile(allAppStorageDirs, storageInfo.exceptionDirList, reportTopNumValue)
                         }
                     }
                     reportStorageInfoCallback(storageInfo)
@@ -168,8 +137,19 @@ public func reportAppStorageInfo(): Unit {
         })
 }
 
+public func reportTopNFile(fileList: TreeSet<StorageFileInfo>, resultList: ArrayList<StorageFileInfo>, reportTopNum: Int64): Unit {
+    var count: Int64 = 0
+    for (storageFileInfo in fileList) {
+        resultList.add(storageFileInfo)
+        count++
+        if (count == reportTopNum) {
+            break
+        }
+    }
+}
+
 public func getDirsOverLimit(f: StorageFileInfo, dirLimitSize: Int64, dirSet: TreeSet<StorageFileInfo>): Unit {
-    //找到超过阈值要求的最小一层文件夹
+    //Find the smallest folder level that exceeds the size limit
     let subfilePathList = f.subfileList
     var reportFlag = true
     if (f.size <= dirLimitSize) {
@@ -190,14 +170,14 @@ public func getDirsOverLimit(f: StorageFileInfo, dirLimitSize: Int64, dirSet: Tr
 }
 
 public func getAllStoragePath(): ArrayList<String> {
-    let storagePathList = ArrayList<String>()
-    storagePathList.add("/data/storage/el1/bundle")
+    //Get storage path according to official documentation: https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/app-fs-space-statistics
+    let storagePathList = ArrayList<String>(["/data/storage/el1/bundle",
+        "/data/storage/el2/sharefiles",
+        "/data/storage/el2/distributedfiles"])
     for (i in 1..6) {
     	storagePathList.add("/data/storage/el${i}/base")
     	storagePathList.add("/data/storage/el${i}/database")
     }
-    storagePathList.add("/data/storage/el2/sharefiles")
-    storagePathList.add("/data/storage/el2/distributedfiles")
     storagePathList
 }
 
