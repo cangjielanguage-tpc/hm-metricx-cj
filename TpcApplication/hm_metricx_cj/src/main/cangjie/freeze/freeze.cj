@@ -3,7 +3,7 @@
  */
 package ohos_app_cangjie_hm_metricx_cj.freeze
 
-import ohos_app_cangjie_hm_metricx_cj.*
+import ohos_app_cangjie_hm_metricx_cj.apm.*
 import tpc.AbilityKit.kit_common.*
 import tpc.AbilityKit.errorManager.*
 import tpc.PerformanceAnalysisKit.hiAppEvent.*
