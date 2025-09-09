@@ -6,5 +6,12 @@
 
 #ifndef TPCAPPLICATION_CRASH_H
 #define TPCAPPLICATION_CRASH_H
+#include "stdint.h"
 
-#endif //TPCAPPLICATION_CRASH_H
+extern "C" {
+int8_t writeSystemLog(const char *pFilePath);
+int8_t persistMemoryData(const char *mapPath, const char *memMallocPath, const char *parsedAddrPath,
+                         const char *memPersistTimePath);
+}
+
+#endif // TPCAPPLICATION_CRASH_H

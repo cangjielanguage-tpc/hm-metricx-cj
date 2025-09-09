@@ -6,12 +6,16 @@
 
 #include "crash.h"
 #include "common.h"
+#include "memory/memory_monitor.h"
 #include <bundle/native_interface_bundle.h>
+#include <cstdint>
+#include <deque>
 #include <filesystem>
 #include <fstream>
 #include <hilog/log.h>
 #include <iostream>
 #include <malloc.h>
+#include <ostream>
 #include <pthread.h>
 #include <signal.h>
 #include <sstream>
@@ -22,8 +26,8 @@
 #include <sys/eventfd.h>
 #include <syscall.h>
 #include <unistd.h>
-#include <deque>
 
+using namespace kwai::memory_monitor;
 typedef struct {
     int sigNum;
     struct sigaction oldact;
@@ -53,10 +57,17 @@ typedef void (*Callback)(const char *, const char *, CollectCrashInfo, const cha
 
 Callback cjcb;
 
-char *persistentFilePath;
+std::string persistentFilePath;
 
-char *persistentSystemLogFilePath;
-char *persistentLastNHilogFilePath;
+std::string persistentSystemLogFilePath;
+std::string persistentLastNHilogFilePath;
+
+std::string persistentMemMapFilePath;
+std::string persistentMemMallocFilePath;
+std::string persistentParsedAddrFilePath;
+std::string memPersistTimePath;
+
+long long memPersistTime = -1;
 
 const char *levelChars = "DIWEF"; // 3->D, 4->I, 5->W, 6->E, 7->F
 
@@ -64,7 +75,7 @@ std::vector<LogEntry> logMessages;
 std::deque<LogEntry> hilogMessages;
 int64_t LASTN_HILOG_NUMBER = 0;
 
-char *cjLimits;
+std::string cjLimits;
 
 static SignalCrashInfo signalCrashInfo[] = {{.sigNum = SIGABRT}, {.sigNum = SIGBUS},   {.sigNum = SIGFPE},
                                             {.sigNum = SIGILL},  {.sigNum = SIGSEGV},  {.sigNum = SIGTRAP},
@@ -102,7 +113,7 @@ static std::string getVss(const std::string &s, char delimiter) {
 }
 
 void CrashSystemlogCallback(const LogType type, const LogLevel level, const unsigned int domain, const char *tag,
-                        const char *msg) {
+                            const char *msg) {
 
     int typeValue = static_cast<int>(type);
     if (typeValue != 3) {
@@ -124,8 +135,8 @@ void CrashSystemlogCallback(const LogType type, const LogLevel level, const unsi
 }
 
 void CrashLastNHilogCallback(const LogType type, const LogLevel level, const unsigned int domain, const char *tag,
-                        const char *msg) {
-    
+                             const char *msg) {
+
     // current time
     auto now = std::chrono::system_clock::now();
 
@@ -175,13 +186,75 @@ static void CrashSignalHandler(int sig, siginfo_t *si, void *context) {
     std::string smaps_rollup = readFile("/proc/self/smaps_rollup");
     std::string vss = "Vss:\t\t\t\t" + getVss(readFile("/proc/self/statm"), ' ') + " KB";
     std::string meminfo = smaps_rollup + "\n" + vss;
-    cjcb(persistentFilePath, cjLimits, cjCollectCrashInfo, fds.c_str(), threads.c_str(), meminfo.c_str(),
-         OH_NativeBundle_GetCurrentApplicationInfo().bundleName);
-    writeSystemLog(persistentSystemLogFilePath);
-    writeLastNHiLog(persistentLastNHilogFilePath);
+    cjcb(persistentFilePath.c_str(), cjLimits.c_str(), cjCollectCrashInfo, fds.c_str(), threads.c_str(),
+         meminfo.c_str(), OH_NativeBundle_GetCurrentApplicationInfo().bundleName);
+    writeSystemLog(persistentSystemLogFilePath.c_str());
+    persistMemoryData(persistentMemMapFilePath.c_str(), persistentMemMallocFilePath.c_str(),
+                      persistentParsedAddrFilePath.c_str(), memPersistTimePath.c_str());
+    writeLastNHiLog(persistentLastNHilogFilePath.c_str());
     RemoveSignalHandler();
     pthread_mutex_unlock(&signalHandlerMutex);
     signalCrashInfo[sig].oldact.sa_sigaction(sig, si, context);
+}
+
+int8_t saveMemoryMapToFile(const char *pFilePath) {
+
+    const std::string source = "/proc/self/maps";
+    const std::string destination = pFilePath;
+
+    std::ifstream src(source, std::ios::binary);
+    std::ofstream dst(destination, std::ios::binary);
+
+    if (!src.is_open() || !dst.is_open()) {
+        OH_LOG_Print(LOG_APP, LOG_WARN, 0x00008, "hm_metricx_cj", "saveMemoryMapToFile - failed.");
+        return FAIL;
+    }
+    dst << src.rdbuf();
+    return SUCCESS;
+}
+
+std::string cParseStackFrame(const std::set<uintptr_t> &backtrace, int64_t maxAddr) {
+    if (backtrace.empty()) {
+        return "";
+    }
+    void *dl_cache = nullptr;
+    std::ostringstream oss;
+    auto &monitor = MemoryMonitor::GetInstance();
+    for (const auto &addr : backtrace) {
+        if (addr > maxAddr) {
+            break;
+        }
+        std::string frame = monitor.ParseStackFrame(addr, &dl_cache);
+        oss << frame;
+    }
+    return oss.str();
+}
+
+bool saveParsedAddressToFile(const char *parsedAddrPath, int64_t maxAddr) {
+
+    const auto &backtrace = MemoryMonitor::GetInstance().unique_backtrace;
+    if (backtrace.size() == 0) {
+        OH_LOG_Print(LOG_APP, LOG_WARN, 0x00008, "hm_metricx_cj",
+                     "saveParsedAddressToFile - unique_backtarce is empty");
+        return false;
+    }
+
+    std::string parseResult = cParseStackFrame(backtrace, maxAddr);
+    if (parseResult.empty()) {
+        OH_LOG_Print(LOG_APP, LOG_WARN, 0x00008, "hm_metricx_cj",
+                     "saveParsedAddressToFile - Failed to parse stack frame");
+        return false;
+    }
+    std::ofstream ofs(parsedAddrPath);
+    if (!ofs.is_open()) {
+        OH_LOG_Print(LOG_APP, LOG_WARN, 0x00008, "hm_metricx_cj",
+                     "saveParsedAddressToFile - Failed to open file '%s' for writing", parsedAddrPath);
+        return false;
+    }
+
+    ofs << parseResult;
+    ofs.close();
+    return true;
 }
 
 std::string LogEntryToString(const LogEntry &entry) {
@@ -218,7 +291,7 @@ std::string LogEntryToString(const LogEntry &entry) {
     }
     if (entry.type == 0) {
         hexDomain = "A" + hexDomain;
-    } else if (entry.type == 3){
+    } else if (entry.type == 3) {
         hexDomain = "C" + hexDomain;
     }
 
@@ -226,10 +299,26 @@ std::string LogEntryToString(const LogEntry &entry) {
     return res;
 }
 
+int64_t getMaxMapAddr(const std::string &filePath) {
+    std::string lastLine = getLastLineEfficient(filePath, '-');
+    if (lastLine.empty()) {
+        return INT64_MAX;
+    }
+    // 数据格式：7ee516a000-7ee516c000 rw-p 00000000 00:00 0                              [anon:libark_tooling.so.bss]
+    size_t dashPos = lastLine.find('-');
+    std::string secondAddr = lastLine.substr(dashPos + 1);
+    size_t spacePos = secondAddr.find(' ');
+    if (spacePos != std::string::npos) {
+        secondAddr = secondAddr.substr(0, spacePos);
+    }
+    return parseHexAddress(secondAddr);
+}
+
 extern "C" {
 int8_t InitNativeSignalHandler(const char *pFilePath, const char *limits, CollectCrashInfo collectCrashInfo,
-                               const char *pSystemLogFilePath, const char *pLastNHilogFilePath,
-                                int64_t lastNHilogNumber, Callback cb) {
+                               const char *pSystemLogFilePath, const char *pMemMapFilePath, const char *pMemMallocPath,
+                               const char *parsedAddrPath, const char *pMemPersistTimePath,
+                               const char *pLastNHilogFilePath, int64_t lastNHilogNumber, Callback cb) {
     LASTN_HILOG_NUMBER = lastNHilogNumber;
     struct sigaction act;
     memset(&act, 0, sizeof(act));
@@ -245,25 +334,16 @@ int8_t InitNativeSignalHandler(const char *pFilePath, const char *limits, Collec
         }
     }
     initSuccess = 1;
-    auto pFilePathLen = strlen(pFilePath);
-    persistentFilePath = new char[pFilePathLen + 1];
-    strncpy(persistentFilePath, pFilePath, pFilePathLen);
-    persistentFilePath[pFilePathLen] = '\0';
 
-    auto pSystemLogFilePathLen = strlen(pSystemLogFilePath);
-    persistentSystemLogFilePath = new char[pSystemLogFilePathLen + 1];
-    strncpy(persistentSystemLogFilePath, pSystemLogFilePath, pSystemLogFilePathLen);
-    persistentSystemLogFilePath[pSystemLogFilePathLen] = '\0';
-    
-    auto pLastNHilogFilePathLen = strlen(pLastNHilogFilePath);
-    persistentLastNHilogFilePath = new char[pLastNHilogFilePathLen + 1];
-    strncpy(persistentLastNHilogFilePath, pLastNHilogFilePath, pLastNHilogFilePathLen);
-    persistentLastNHilogFilePath[pLastNHilogFilePathLen] = '\0';
+    persistentFilePath = pFilePath;
+    persistentSystemLogFilePath = pSystemLogFilePath;
+    persistentMemMapFilePath = pMemMapFilePath;
+    persistentMemMallocFilePath = pMemMallocPath;
+    persistentParsedAddrFilePath = parsedAddrPath;
+    memPersistTimePath = pMemPersistTimePath;
+    persistentLastNHilogFilePath = pLastNHilogFilePath;
+    cjLimits = limits;
 
-    auto limitsLen = strlen(limits);
-    cjLimits = new char[limitsLen + 1];
-    strncpy(cjLimits, limits, limitsLen);
-    cjLimits[limitsLen] = '\0';
     cjCollectCrashInfo = collectCrashInfo;
     cjcb = cb;
     return SUCCESS;
@@ -280,12 +360,10 @@ int8_t registerCrashLastNHilogCallback() {
 }
 
 
-
-
 int8_t writeSystemLog(const char *pFilePath) {
     std::ofstream file(pFilePath);
     try {
-         if (!file.is_open()) {
+        if (!file.is_open()) {
             return FAIL;
         }
         for (const auto &entry : logMessages) {
@@ -296,7 +374,7 @@ int8_t writeSystemLog(const char *pFilePath) {
         }
         file.close();
         return SUCCESS;
-    } catch (const std::exception& e) {
+    } catch (const std::exception &e) {
         OH_LOG_Print(LOG_APP, LOG_WARN, 0x00008, "hm_metricx_cj", "hm-metricx-cj error: writeSystemLog failed");
     }
     if (file.is_open()) {
@@ -319,12 +397,37 @@ int8_t writeLastNHiLog(const char *pFilePath) {
         }
         file.close();
         return SUCCESS;
-    } catch (const std::exception& e) {
+    } catch (const std::exception &e) {
         OH_LOG_Print(LOG_APP, LOG_WARN, 0x00008, "hm_metricx_cj", "hm-metricx-cj error: writeLastNHiLog failed");
     }
     if (file.is_open()) {
         file.close();
     }
     return FAIL;
+}
+
+int8_t installNativeMemoryMonitor() {
+    if (!MemoryMonitor::GetInstance().Install(nullptr, nullptr)) {
+        return -1;
+    }
+    return 0;
+}
+
+int8_t persistMemoryData(const char *mapPath, const char *memMallocPath, const char *parsedAddrPath,
+                         const char *memPersistTimePath) {
+    try {
+        auto t1 = std::chrono::high_resolution_clock::now();
+        MemoryMonitor::GetInstance().SaveAllocRecordsToFile(memMallocPath);
+        saveMemoryMapToFile(mapPath);
+        int64_t maxAddr = getMaxMapAddr(mapPath);
+        saveParsedAddressToFile(parsedAddrPath, maxAddr);
+        auto t2 = std::chrono::high_resolution_clock::now();
+        memPersistTime = std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count();
+        writeFile(memPersistTimePath, std::to_string(memPersistTime));
+        return 0;
+    } catch (const std::exception &e) {
+        OH_LOG_Print(LOG_APP, LOG_WARN, 0x00008, "hm_metricx_cj", "persistMemoryData - exception: %s", e.what());
+        return -1;
+    }
 }
 }
