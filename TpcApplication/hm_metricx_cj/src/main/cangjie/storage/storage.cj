@@ -11,9 +11,6 @@ import tpc.CoreFileKit.storageStatistics.*
 import tpc.CoreFileKit.fs.*
 import tpc.AbilityKit.kit_common.*
 import tpc.AbilityKit.bundleManager.*
-import tpc.MapKit.navi.snapToRoads
-import tpc.FormKit.formInfo.FormState
-
 
 public class StorageInfo {
     public var appSize: ?Int64 = None
