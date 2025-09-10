@@ -794,7 +794,7 @@ private func initCrashWatcher(applicationContext: ApplicationContext, reportCras
         onReceive: {
             domain: String, appEventGroups: Array<AppEventGroup> =>
             try {
-                if (domain != OS || reported) {
+                if (domain != OS) {
                     return
                 }
                 var crashInfo = CrashInfo()
@@ -918,7 +918,6 @@ private func initCrashWatcher(applicationContext: ApplicationContext, reportCras
                     if (!reported) {
                         // onReceive callback sometimes will be invoked both before app crash and next launch on high-verion (API 18?) devcies
                         reportCrashInfo(crashInfo)
-                        reported = true
                     }
                 }
             } catch (e: Exception) {
