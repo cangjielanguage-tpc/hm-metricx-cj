@@ -25,7 +25,7 @@
 std::vector<const std::string> HookHelper::register_pattern_;
 std::vector<const std::string> HookHelper::ignore_pattern_;
 std::vector<std::pair<const std::string, void *const>> HookHelper::methods_;
-static pthread_mutex_t hook_mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t hook_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 typedef struct {
     int flag;
@@ -66,24 +66,23 @@ void HookHelper::UnHookMethods() {
 }
 
 void HookHelper::TryHook(const char *filename) {
+    pthread_mutex_lock(&hook_mutex);
     xhook_clear();
     for (auto &method : methods_) {
         if (xhook_register(filename, method.first.c_str(), method.second, nullptr) != EXIT_SUCCESS) {
+            pthread_mutex_unlock(&hook_mutex);
             return;
         }
     }
     xhook_refresh(0);
+    pthread_mutex_unlock(&hook_mutex);
 }
 
 
 bool HookHelper::HookImpl() {
     pthread_mutex_lock(&hook_mutex);
     xhook_clear();
-    if (xhook_register("ld-musl-aarch64.so.1", "dlopen_impl", (void *)dlopen_hook, (void **)(&dlopen_ext_origin)) !=
-        EXIT_SUCCESS) {
-        OH_LOG_Print(LOG_APP, LOG_WARN, 0x00008, "hm_metricx_cj", "HookHelper::HookImpl - register dlopen_impl failed");
-        return false;
-    }
+
     for (auto &pattern : register_pattern_) {
         for (auto &method : methods_) {
             if (xhook_register(pattern.c_str(), method.first.c_str(), method.second, nullptr) != EXIT_SUCCESS) {
@@ -108,6 +107,17 @@ bool HookHelper::HookImpl() {
         }
     }
 
+    if (xhook_refresh(0) != 0) {
+        pthread_mutex_unlock(&hook_mutex);
+        return false;
+    }
+    xhook_clear();
+    if (xhook_register("ld-musl-aarch64.so.1", "dlopen_impl", (void *)dlopen_hook, (void **)(&dlopen_ext_origin)) !=
+        EXIT_SUCCESS) {
+        OH_LOG_Print(LOG_APP, LOG_WARN, 0x00008, "hm_metricx_cj", "HookHelper::HookImpl - register dlopen_impl failed");
+        pthread_mutex_unlock(&hook_mutex);
+        return false;
+    }
     int ret = xhook_refresh(0);
     pthread_mutex_unlock(&hook_mutex);
     return ret == 0;

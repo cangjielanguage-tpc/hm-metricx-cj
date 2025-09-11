@@ -324,6 +324,9 @@ public class CrashInfo {
         if (let Some(v) <- nativeMemDetailValue) {
             jsonObj.put("nativeMemDetail", JsonString(v))
         }
+        if (let Some(v) <- memPersistTimeValue) {
+            jsonObj.put("memPersistTime", JsonString(v))
+        }
         jsonObj.toString()
     }
 
@@ -539,7 +542,9 @@ public func initCrashHandler(
     initCrashWatcher(applicationContext, reportCrashInfo, persistentPaths, enableMemMonitor)
     initHilogWatcher()
     if(enableMemMonitor.isSome()){
-        initNativeMemoryWatcher()
+        spawn { =>
+            initNativeMemoryWatcher()
+        }
     }
     if (let Some(handlerMode) <- enableDumpOnOOM) {
         match (handlerMode) {

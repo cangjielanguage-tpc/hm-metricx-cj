@@ -26,7 +26,7 @@
 #include <unistd.h>
 #include <sys/wait.h>
 #include <chrono>
-
+#include "memory/hook_helper.h"
 
 #define PAGE_SHIFT 12
 #define PAGE_SIZE (1UL << PAGE_SHIFT)
@@ -34,8 +34,6 @@
 #define PAGE_START(addr) ((addr) & PAGE_MASK)
 #define PAGE_END(addr) (PAGE_START(addr + sizeof(uintptr_t) - 1) + PAGE_SIZE)
 #define PAGE_COVER(addr) (PAGE_END(addr) - PAGE_START(addr))
-
-static pthread_mutex_t hook_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 const char *cj_runtime = "libcangjie-runtime.so";
 
