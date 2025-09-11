@@ -26,6 +26,7 @@
 #include <sys/eventfd.h>
 #include <syscall.h>
 #include <unistd.h>
+#include <mutex>
 
 using namespace kwai::memory_monitor;
 typedef struct {
@@ -73,6 +74,10 @@ const char *levelChars = "DIWEF"; // 3->D, 4->I, 5->W, 6->E, 7->F
 
 std::vector<LogEntry> logMessages;
 std::deque<LogEntry> hilogMessages;
+
+std::mutex logMessagesMutex;
+std::mutex hilogMessagesMutex;
+
 int64_t LASTN_HILOG_NUMBER = 0;
 
 std::string cjLimits;
@@ -114,7 +119,6 @@ static std::string getVss(const std::string &s, char delimiter) {
 
 void CrashSystemlogCallback(const LogType type, const LogLevel level, const unsigned int domain, const char *tag,
                             const char *msg) {
-
     int typeValue = static_cast<int>(type);
     if (typeValue != 3) {
         return;
@@ -123,7 +127,7 @@ void CrashSystemlogCallback(const LogType type, const LogLevel level, const unsi
     // current time
     auto now = std::chrono::system_clock::now();
 
-    LogEntry entry;
+    LogEntry entry{};
     entry.now = now;
     entry.type = type;
     entry.level = level;
@@ -131,26 +135,28 @@ void CrashSystemlogCallback(const LogType type, const LogLevel level, const unsi
     entry.tag = tag;
     entry.msg = msg;
 
-    logMessages.push_back(entry);
+    std::lock_guard<std::mutex> lock(logMessagesMutex);
+    logMessages.emplace_back(entry);
 }
 
 void CrashLastNHilogCallback(const LogType type, const LogLevel level, const unsigned int domain, const char *tag,
                              const char *msg) {
-
     // current time
     auto now = std::chrono::system_clock::now();
 
-    LogEntry entry;
+    LogEntry entry{};
     entry.now = now;
     entry.type = type;
     entry.level = level;
     entry.domain = domain;
     entry.tag = tag;
     entry.msg = msg;
-    hilogMessages.push_back(entry);
+
+    std::lock_guard<std::mutex> lock(hilogMessagesMutex);
     if (hilogMessages.size() > LASTN_HILOG_NUMBER) {
         hilogMessages.pop_front();
     }
+    hilogMessages.emplace_back(entry);
 }
 
 extern "C" {
