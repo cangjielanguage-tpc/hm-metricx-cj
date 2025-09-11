@@ -23,6 +23,7 @@
 #include <string>
 #include <vector>
 
+extern pthread_mutex_t hook_mutex;
 class HookHelper {
 public:
     static bool HookMethods(std::vector<const std::string> &register_pattern,
