@@ -7,19 +7,32 @@
 #include "common.h"
 #include <fstream>
 #include <vector>
+#include <mutex>
 
 bool isLogCallbackRegistered = false;
 std::vector<LogCallback> logCallbacks;
+std::mutex logCallbacksMutex;
 
 void HilogCallback(const LogType type, const LogLevel level, const unsigned int domain, const char *tag,
                    const char *msg) {
-    for (const auto &callback : logCallbacks) {
+    if (nullptr == tag || nullptr == msg) {
+        return;
+    }
+    std::vector<LogCallback> callbacks;
+    {
+        std::lock_guard<std::mutex> lock(logCallbacksMutex);
+        callbacks = logCallbacks;
+    }
+    for (const auto &callback : callbacks) {
         callback(type, level, domain, tag, msg);
     }
 }
 
 void registerHilogCallback(LogCallback logCallback) {
-    logCallbacks.push_back(logCallback);
+    {
+        std::lock_guard<std::mutex> lock(logCallbacksMutex);
+        logCallbacks.push_back(logCallback);
+    }
     if (isLogCallbackRegistered) {
         return;
     }
