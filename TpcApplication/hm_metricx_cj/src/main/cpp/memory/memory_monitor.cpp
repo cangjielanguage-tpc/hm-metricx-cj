@@ -194,7 +194,8 @@ bool MemoryMonitor::Install(std::vector<std::string> *selected_list, std::vector
     }
 
     std::vector<const std::string> register_pattern = {".*\\.so$"};
-    std::vector<const std::string> ignore_pattern = {".*/libhm_metricx_cj.so$"};
+    std::vector<const std::string> ignore_pattern = {".*/libhm_metricx_cj.so$", ".*/libhilog_ndk.z.so$",
+                                                     ".*/libhilog.s$"};
 
     if (ignore_list != nullptr) {
         for (std::string &item : *ignore_list) {
