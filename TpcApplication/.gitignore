@@ -17,3 +17,5 @@
 **/libs
 **/IDL_Dependencies_List~
 **/build-script-cache
+# macOS
+.DS_Store
