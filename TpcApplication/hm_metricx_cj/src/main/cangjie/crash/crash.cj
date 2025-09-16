@@ -478,16 +478,14 @@ class MallocStack {
     }
 }
 
-class MapsModel {
-    let so: String
-    let start: Int64
-    let end: Int64
-    let shouldBeClusteredToThisSo: Bool
-    public init(so: String, start: Int64, end: Int64, shouldBeClusteredToThisSo: Bool) {
-        this.so = so
-        this.start = start
-        this.end = end
-        this.shouldBeClusteredToThisSo = shouldBeClusteredToThisSo
+class ParsedAddr {
+    let pc: Int64
+    let parsedAddr: String
+    let soName: String
+    public init(pc: Int64, parsedAddr: String, soName: String){
+        this.pc = pc
+        this.parsedAddr = parsedAddr
+        this.soName = soName
     }
 }
 
@@ -1236,26 +1234,32 @@ private func parseMallocLog(filePath: Path): List<MallocModel> {
 }
 
 private func parseStackFrame(persistentPaths: PersistentPaths, shouldBeClusteredToThisSo: (soName: String) -> Bool): String {
-    let (parsedMap, mapsModels): (String, List<MapsModel>) = parseMaps(persistentPaths.memMapPath, Int32.Max,
-        shouldBeClusteredToThisSo)
+    let parsedMap: String = parseMaps(persistentPaths.memMapPath, Int32.Max)
     let mallocModels = parseMallocLog(persistentPaths.memMallocPath)
     if (mallocModels.isEmpty()) {
         return ""
     }
-    let soMemory = getSoMemory(mallocModels, mapsModels)
     let stacks = getParsedStacks(persistentPaths.parsedAddrPath)
+    let soMemory = getSoMemory(mallocModels, stacks, shouldBeClusteredToThisSo)
     let mallocStacks = parseMallocWithStack(mallocModels, stacks)
     soMemory + mallocStacks + parsedMap
 }
 
-private func getParsedStacks(parsedPath: Path): HashMap<String, String> {
-    let map = HashMap<String, String>()
+private func getParsedStacks(parsedPath: Path): HashMap<Int64, ParsedAddr> {
+    let map = HashMap<Int64, ParsedAddr>()
     try {
         let reader = StringReader(File(parsedPath, OpenMode.Read))
         while (let Some(line) <- reader.readln()) {
-            var addr = line.split(" ", removeEmpty: true)[0]
-            addr = addr.trimStart("0").trim()
-            map.add(addr, line)
+            try {
+                let arr = line.split(" ", removeEmpty: true)
+                let pc = arr[0]
+                let pcInt = Int64.parse("0x" + pc)
+                let parsedAddr = line.removePrefix(pc).trim()
+                let soName = arr[2]
+                map.add(pcInt, ParsedAddr(pcInt, parsedAddr, soName))
+            } catch (e: Exception){
+                AppLog.warn("getParsedStacks skip line: " + line)
+            }
         }
         reader.close()
     } catch (e: Exception) {
@@ -1264,10 +1268,11 @@ private func getParsedStacks(parsedPath: Path): HashMap<String, String> {
     map
 }
 
-private func getSoMemory(mallocModels: List<MallocModel>, mapsModels: List<MapsModel>): String {
+private func getSoMemory(mallocModels: List<MallocModel>, stackMap: HashMap<Int64, ParsedAddr>,
+    shouldBeClusteredToThisSo: (soName: String) -> Bool): String {
     let soMemoryMap = HashMap<String, Int64>()
     for (mallocModel in mallocModels) {
-        let so = findSo(mallocModel, mapsModels)
+        let so = findSo(mallocModel, stackMap, shouldBeClusteredToThisSo)
         let sum = (soMemoryMap.get(so) ?? 0) + mallocModel.size
         soMemoryMap.add(so, sum)
     }
@@ -1294,37 +1299,43 @@ private func getSoMemory(mallocModels: List<MallocModel>, mapsModels: List<MapsM
     stringBuilder.toString()
 }
 
-private func findSo(mallocModel: MallocModel, mapsModels: List<MapsModel>): String {
-    var so: String = "unknown"
-    let soList = ArrayList<MapsModel>()
-    for (mapsModel in mapsModels) {
-        for (ptr in mallocModel.stack) {
-            if (ptr >= mapsModel.start && ptr < mapsModel.end) {
-                soList.add(mapsModel)
+private func findSo(mallocModel: MallocModel, stackMap: HashMap<Int64, ParsedAddr>,
+    shouldBeClusteredToThisSo: (soName: String) -> Bool): String {
+
+    let soList = ArrayList<String>()
+    let stacks = mallocModel.stack.clone()
+    sort(stacks)
+    for (pc in stacks) {
+        if (let Some(parsedAddr) <- stackMap.get(pc)) {
+            if (let Some(last) <- soList.last && last == parsedAddr.soName){
+                continue
             }
+            soList.add(parsedAddr.soName)
         }
     }
-    for (mapsModel in soList) {
-        if (mapsModel.shouldBeClusteredToThisSo) {
-            return mapsModel.so
+
+    var so: String = "<unknown>"
+    for (soName in soList) {
+        if (shouldBeClusteredToThisSo(soName)) {
+            return soName
         }
-        if (so == "unknown") {
-            so = mapsModel.so
+        if (so == "<unknown>") {
+            so = soName
         }
-        if (let Some(v) <- PRIORITY_HIGH.indexOf(so) && let Some(p) <- PRIORITY_HIGH.indexOf(mapsModel.so)) {
+        if (let Some(v) <- PRIORITY_HIGH.indexOf(so) && let Some(p) <- PRIORITY_HIGH.indexOf(soName)) {
             if (v > p) {
-                so = mapsModel.so
+                so = soName
             }
-        } else if (PRIORITY_HIGH.contains(mapsModel.so)) {
-            so = mapsModel.so
+        } else if (PRIORITY_HIGH.contains(soName)) {
+            so = soName
         } else if (!PRIORITY_HIGH.contains(so)) {
-            so = mapsModel.so
+            so = soName
         }
     }
     so
 }
 
-private func parseMallocWithStack(mallocModels: List<MallocModel>, stacks: HashMap<String, String>): String {
+private func parseMallocWithStack(mallocModels: List<MallocModel>, stacks: HashMap<Int64, ParsedAddr>): String {
     let mallocStacks = ArrayList<MallocStack>()
     for (mallocModel in mallocModels) {
         let stack = findStack(mallocModel.stack, stacks)
@@ -1352,16 +1363,15 @@ private func parseMallocWithStack(mallocModels: List<MallocModel>, stacks: HashM
     stringBuilder.toString()
 }
 
-private func findStack(stack: Array<Int64>, stackMap: HashMap<String, String>): String {
+private func findStack(stack: Array<Int64>, stackMap: HashMap<Int64, ParsedAddr>): String {
     let stringBuilder = StringBuilder()
     for (pc in stack) {
         if (pc <= 0) {
             continue
         }
-        let pcStr = pc.toString(radix: 16).trimStart("0").trim()
         var find: Bool = false
-        if (let Some(parsedPc) <- stackMap.get(pcStr)) {
-            stringBuilder.append(parsedPc.trimStart("0").removePrefix(pcStr).trim() + "\n")
+        if (let Some(parsedPc) <- stackMap.get(pc)) {
+            stringBuilder.append(parsedPc.parsedAddr + "\n")
             find = true
         }
         if (!find) {
@@ -1371,15 +1381,13 @@ private func findStack(stack: Array<Int64>, stackMap: HashMap<String, String>): 
     stringBuilder.toString()
 }
 
-private func parseMaps(filePath: Path, headCount: Int32, shouldBeClusteredToThisSo: (soName: String) -> Bool): (String, List<MapsModel>) {
+private func parseMaps(filePath: Path, headCount: Int32): String {
     let specs = HashMap<String, Array<String>>(
         [("code", [".hap", ".hsp", ".har", ".so"]), ("malloc", ["libc_malloc"]), ("font", [".ttc", ".ttf", ".otf"]),
             ("stack", ["stack"]), ("thread", ["thread"])])
     let pathLength = HashMap<String, Int64>()
     let specPathLength = HashMap<String, Int64>()
 
-    let mapsModel = ArrayList<MapsModel>()
-    let pathTemps = ArrayList<String>()
     try {
         let reader = StringReader(File(filePath, OpenMode.Read))
         while (let Some(line) <- reader.readln()) {
@@ -1405,10 +1413,6 @@ private func parseMaps(filePath: Path, headCount: Int32, shouldBeClusteredToThis
                 let start = Int64.parse("0x" + zoneItem[0])
                 let end = Int64.parse("0x" + zoneItem[1])
                 let curSize = end - start
-                if (line.contains("r-xp") && !pathTemps.contains(zonePath)) {
-                    mapsModel.add(MapsModel(zonePath, start, end, shouldBeClusteredToThisSo(zonePath)))
-                    pathTemps.add(zonePath)
-                }
 
                 let originPathSize = pathLength.get(zonePath) ?? 0
                 pathLength.add(zonePath, originPathSize + curSize)
@@ -1466,7 +1470,7 @@ private func parseMaps(filePath: Path, headCount: Int32, shouldBeClusteredToThis
         }
     }
     stringBuilder.append("${formatWithCommasAndPadding(totalSize / 1024, 10)} kB    Total\n")
-    (stringBuilder.toString(), mapsModel)
+    stringBuilder.toString()
 }
 
 foreign func InitNativeSignalHandler(persistentFilePath: CString, limits: CString,

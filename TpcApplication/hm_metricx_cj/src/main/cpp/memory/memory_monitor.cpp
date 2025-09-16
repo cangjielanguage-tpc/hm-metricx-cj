@@ -255,7 +255,9 @@ ALWAYS_INLINE void MemoryMonitor::RegisterAlloc(uintptr_t address, size_t size) 
     alloc_record->size = size;
     alloc_record->index = alloc_index_++;
     unwind_backtrace(alloc_record->backtrace, &(alloc_record->num_backtraces));
-    live_alloc_records_.Put(address, std::move(alloc_record));
+    if (alloc_record->num_backtraces > kBacktraceSkipIndex) {
+        live_alloc_records_.Put(address, std::move(alloc_record));
+    }
 }
 
 ALWAYS_INLINE void MemoryMonitor::UnregisterAlloc(uintptr_t address) { live_alloc_records_.Erase(address); }
