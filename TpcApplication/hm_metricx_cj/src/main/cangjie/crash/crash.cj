@@ -531,7 +531,9 @@ public func initCrashHandler(
     }
     let persistentPaths = PersistentPaths(persistentDir)
     let hilogNumber = max(lastNHilogNumber, 0)
-    reportLastCrash(persistentPaths.lastCrashFilePath, reportCrashInfo, persistentPaths.dumpTimePath)
+    spawn { =>
+        reportLastCrash(persistentPaths, reportCrashInfo)
+    }
     let crashInfo = CrashInfo()
     crashInfo.limits = collectLimits()
     initErrorObserver(crashInfo, applicationContext, collectCrashInfo, enableDumpOnOOM, persistentPaths)
@@ -557,19 +559,22 @@ public func initCrashHandler(
     inited = true
 }
 
-private func reportLastCrash(lastCrashFilePath: Path, reportCrashInfo: (crashInfo: CrashInfo) -> Unit, dumpTimePath: Path) {
-    if (exists(lastCrashFilePath)) {
+private func reportLastCrash(persistentPaths: PersistentPaths, reportCrashInfo: (crashInfo: CrashInfo) -> Unit) {
+    if (exists(persistentPaths.lastCrashFilePath)) {
         try {
-            let jsonObj = JsonValue.fromStr(readFile(lastCrashFilePath)).asObject()
+            let jsonObj = JsonValue.fromStr(readFile(persistentPaths.lastCrashFilePath)).asObject()
             let crashInfo = CrashInfo.fromJson(jsonObj)
-            crashInfo.dumpTime = readFile(dumpTimePath)
-            deleteFile(dumpTimePath)
+            deleteFile(persistentPaths.lastCrashFilePath)
+            crashInfo.dumpTime = readFile(persistentPaths.dumpTimePath)
+            deleteFile(persistentPaths.dumpTimePath)
+            if (let Some(pid) <- crashInfo.pid) {
+                crashInfo.dumpOnOOMPath = compressOOMFile(pid, persistentPaths.dir)
+            }
             reportCrashInfo(crashInfo)
             reported = true
         } catch (e: JsonException) {
             AppLog.warn("hm-metricx-cj error: " + e.toString())
         }
-        deleteFile(lastCrashFilePath)
     }
 }
 
@@ -579,15 +584,7 @@ private func initOOMHandler(persistentDir: String) {
     unsafe {
         let targetFile = LibC.mallocCString(persistentDir + "/cj_OOM_pid" + Process.current.pid.toString() + ".dat")
         let zlibFile = LibC.mallocCString(persistentDir + "/cj_OOM_pid" + Process.current.pid.toString() + ".zlib")
-        if (InitOOMHandler(targetFile, zlibFile,
-            {
-                src, dest =>
-                if (!compressFile(src.toString(), dest.toString())) {
-                    AppLog.warn("hm-metricx-cj error: compressFile failed in OOM handler.")
-                    deleteFile(dest.toString())
-                }
-                deleteFile(src.toString())
-            }) != 0) {
+        if (InitOOMHandler(targetFile) != 0) {
             AppLog.warn("hm-metricx-cj error: InitOOMHandler failed.")
         }
         else {
@@ -678,7 +675,7 @@ private func waitOOMDumping(applicationContext: ApplicationContext, dumpTimePath
             let dumpTime = unsafe {
                 GetDumpTime()
             }
-            writeFile(dumpTimePath, "dump time: total: ${dumpTime.total} ms, stw: ${dumpTime.stw} ms, fork: ${dumpTime.fork} ms, dump: ${dumpTime.dump} ms, compress: ${dumpTime.compress} ms")
+            writeFile(dumpTimePath, "dump time: total: ${dumpTime.total} ms, stw: ${dumpTime.stw} ms, fork: ${dumpTime.fork} ms, dump: ${dumpTime.dump} ms")
             exit(applicationContext)
         }
     }
@@ -893,34 +890,18 @@ private func initCrashWatcher(applicationContext: ApplicationContext, reportCras
                         crashInfo.tname = res[2]
                     }
                 }
-                if (let Some(pid) <- crashInfo.pid) {
-                    let rawDumpOnOOMPath = persistentPaths.dir.join("cj_OOM_pid" + pid + ".dat")
-                    let dumpOnOOMPath = persistentPaths.dir.join("cj_OOM_pid" + pid + ".zlib")
-                    if (exists(dumpOnOOMPath)) {
-                        crashInfo.dumpOnOOMPath = dumpOnOOMPath.toString()
-                    } else {
-                        let isOOMDumping = unsafe {
-                            IsOOMDumping()
-                        }
-                        if (exists(rawDumpOnOOMPath) && !isOOMDumping) {
-                            if (compressFile(rawDumpOnOOMPath.toString(), dumpOnOOMPath.toString())) {
-                                crashInfo.dumpOnOOMPath = dumpOnOOMPath.toString()
-                            } else {
-                                AppLog.warn("hm-metricx-cj error: compressFile failed in crash watcher.")
-                            }
-                            deleteFile(rawDumpOnOOMPath.toString())
-                        }
-                        else if (isOOMDumping) {
-                            crashInfo.dumpOnOOMPath = dumpOnOOMPath.toString()
-                        }
-                    }
-                }
                 if (Process.current.pid.toString() == crashInfo.pid.getOrDefault({=> ""})) {
                     writeFile(persistentPaths.lastCrashFilePath, crashInfo.toString())
                 } else {
                     if (!reported) {
-                        // onReceive callback sometimes will be invoked both before app crash and next launch on high-verion (API 18?) devcies
-                        reportCrashInfo(crashInfo)
+                        let crashInfoTemp = crashInfo
+                        spawn { =>
+                            if (let Some(pid) <- crashInfoTemp.pid) {
+                                crashInfoTemp.dumpOnOOMPath = compressOOMFile(pid, persistentPaths.dir)
+                            }
+                            // onReceive callback sometimes will be invoked both before app crash and next launch on high-verion (API 18?) devcies
+                            reportCrashInfo(crashInfoTemp)
+                        }
                     }
                 }
             } catch (e: Exception) {
@@ -929,6 +910,27 @@ private func initCrashWatcher(applicationContext: ApplicationContext, reportCras
         }
     )
     addWatcher(watcher)
+}
+
+private func compressOOMFile(pid: String, dir: Path): Option<String> {
+    let rawDumpOnOOMPath = dir.join("cj_OOM_pid" + pid + ".dat")
+    let dumpOnOOMPath = dir.join("cj_OOM_pid" + pid + ".zlib")
+
+    if (exists(dumpOnOOMPath)) {
+        return dumpOnOOMPath.toString()
+    }
+
+    if (!exists(rawDumpOnOOMPath)) {
+        return Option.None
+    }
+
+    let ret = compressFile(rawDumpOnOOMPath.toString(), dumpOnOOMPath.toString())
+    deleteFile(rawDumpOnOOMPath)
+    if (!ret) {
+        AppLog.warn("hm-metricx-cj error: compressFile failed in crash watcher.")
+        return Option.None
+    }
+    return dumpOnOOMPath.toString()
 }
 
 private func getLogFileInfo(): String {
@@ -1479,7 +1481,7 @@ foreign func InitNativeSignalHandler(persistentFilePath: CString, limits: CStrin
     persistentLastNHilogPath: CString, lastNHilogNumber: Int64,
     cb: CFunc<(CString, CString, CFunc<() -> CString>, CString, CString, CString, CString) -> Unit>): Int8
 
-foreign func InitOOMHandler(targetFile: CString, zlibFile: CString, compressFile: CFunc<(CString, CString) -> Unit>): Int8
+foreign func InitOOMHandler(targetFile: CString): Int8
 
 foreign func writeSystemLog(persistentFilePath: CString): Int8
 
