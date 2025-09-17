@@ -6,18 +6,15 @@ package ohos_app_cangjie_hm_metricx_cj.traffic
 import tpc.AbilityKit.bundleManager
 import tpc.AbilityKit.bundleManager.BundleFlag
 import tpc.AbilityKit.UIAbilityContext
-import tpc.AbilityKit.UIAbility
 import tpc.NetworkKit.statistics
 import ohos.base.BusinessException
-import std.time.DateTime
 import tpc.ArkData.preferences
 import tpc.ArkData.preferences.*
 import tpc.UIKit.global.*
 import stdx.encoding.json.*
-import std.collection.ArrayList
+import std.collection.*
 import std.convert.*
 import ohos.base.AppLog
-import std.collection.HashMap
 import tpc.UIKit.Observer.{NavDestinationSwitchInfo, on, ObserverListenerType}
 import ohos_app_cangjie_hm_metricx_cj.apm.*
 
@@ -32,9 +29,9 @@ var uiContext: Option<UIAbilityContext> = None
 var currentPageName = defaultPageName
 var SAMPLE_TIME: Int64 = 0
 var SAMPLE_THRESHOLD: Int64 = 0
-var sampleId : Int64 = -1
-var reportTrafficCallback: (sampleTraffixInfo: SampleTrafficInfo) -> Unit = {
-    sampleTraffixInfo: SampleTrafficInfo =>
+var sampleId: Int64 = -1
+var reportTrafficCallback: (sampleTrafficInfo: SampleTrafficInfo) -> Unit = {
+    sampleTrafficInfo: SampleTrafficInfo =>
 }
 
 // current
@@ -50,7 +47,6 @@ private let KEY_YESTERDAY_UPLOAD: String = "yesterday_upload"
 private let KEY_YESTERDAY_DOWNLOAD: String = "yesterday_download"
 private let KEY_YESTERDAY_REPORTED: String = "yesterday_reported"
 
-// 获取应用UID
 public func GetAppUid(): UInt32 {
     let flag = BundleFlag.GET_BUNDLE_INFO_WITH_APPLICATION
     let bundleInfo = bundleManager.getBundleInfoForSelf(flag)
@@ -61,7 +57,7 @@ public func GetAppUid(): UInt32 {
 public open class TrafficInfo {
     private var totalValue: Int64 = 0
     private var upTotalValue: Int64 = 0
-    private var downTotalValue: Int64 =0
+    private var downTotalValue: Int64 = 0
     public init() {}
     public init(upTotalValue: Int64, downTotalValue: Int64) {
         this.upTotalValue = upTotalValue
@@ -150,6 +146,7 @@ public class PageTrafficInfo <: TrafficInfo {
 public class DayTrafficInfo <: TrafficInfo {
     private var dateValue: String = ""
 
+    public init() {}
     public init(date: String, upload: Int64, download: Int64) {
         super(upload, download)
         this.date = date
@@ -173,13 +170,56 @@ public class DayTrafficInfo <: TrafficInfo {
     }
 }
 
+public class UrlTrafficInfo <: TrafficInfo {
+    private var urlValue: String = ""
+
+    public init() {}
+    public init(url: String, upload: Int64, download: Int64) {
+        super(upload, download)
+        this.url = url
+    }
+
+    public mut prop url: String {
+        get() {
+            urlValue
+        }
+        set(value) {
+            urlValue = value
+        }
+    }
+
+    public func toString() {
+        let jsonObj = JsonObject()
+        jsonObj.put("url", JsonString(urlValue))
+        jsonObj.put("total", JsonString(total.toString()))
+        jsonObj.put("upTotal", JsonString(upTotal.toString()))
+        jsonObj.put("downTotal", JsonString(downTotal.toString()))
+        jsonObj.toString()
+    }
+
+    public static func fromString(data: String, splitStr!: String = ","): UrlTrafficInfo {
+        let urlInfo: UrlTrafficInfo = UrlTrafficInfo()
+        let items: Array<String> = data.split(splitStr, removeEmpty: true)
+        if (items.size >= 3) {
+            urlInfo.url = items[0]
+            urlInfo.upTotal = Int64.tryParse(items[1]).getOrDefault({=> 0})
+            urlInfo.downTotal = Int64.tryParse(items[2]).getOrDefault({=> 0})
+        }
+        urlInfo
+    }
+}
+
 public class SampleTrafficInfo {
     private var systemInfoValue: SystemTrafficInfo = SystemTrafficInfo()
     private var pageInfoMapValue: HashMap<String, PageTrafficInfo> = HashMap<String, PageTrafficInfo>()
+    private var urlInfoArrayValue: ArrayList<UrlTrafficInfo> = ArrayList<UrlTrafficInfo>()
     public init() {}
-    public init(systemInfo: SystemTrafficInfo, pageInfoMap: HashMap<String, PageTrafficInfo>) {
+
+    public init(systemInfo: SystemTrafficInfo, pageInfoMap: HashMap<String, PageTrafficInfo>,
+        urlInfoArray: ArrayList<UrlTrafficInfo>) {
         systemInfoValue = systemInfo
         pageInfoMapValue = pageInfoMap
+        urlInfoArrayValue = urlInfoArray
     }
     public mut prop systemInfo: SystemTrafficInfo {
         get() {
@@ -197,18 +237,26 @@ public class SampleTrafficInfo {
             pageInfoMapValue = value
         }
     }
+    public mut prop urlInfoArray: ArrayList<UrlTrafficInfo> {
+        get() {
+            urlInfoArrayValue
+        }
+        set(value) {
+            urlInfoArrayValue = value
+        }
+    }
 }
 
 private func setStoredData(key: String, value: String): Bool {
     var status: Bool = false
     try {
-    	let options = preferences.Options("Traffic")
+        let options = preferences.Options("Traffic")
         let dataPreferences = preferences.getPreferences(uiContext.getOrThrow(), options)
         dataPreferences.put(key, preferences.ValueType.STRING(value))
-        dataPreferences.flush({err,data =>})
+        dataPreferences.flush({err, data =>})
         status = true
     } catch (e: Exception) {
-    	AppLog.warn(e.toString())
+        AppLog.warn(e.toString())
     }
     status
 }
@@ -216,18 +264,18 @@ private func setStoredData(key: String, value: String): Bool {
 private func getStoredData(key: String): String {
     var value: String = ""
     try {
-    	let options = preferences.Options("Traffic")
+        let options = preferences.Options("Traffic")
         let dataPreferences = preferences.getPreferences(uiContext.getOrThrow(), options)
         let status: Bool = dataPreferences.has(key)
-        if(status) {
+        if (status) {
             let val = dataPreferences.get(key, preferences.ValueType.STRING(""))
             match (val) {
-            	case preferences.ValueType.STRING(v) => value = v
+                case preferences.ValueType.STRING(v) => value = v
                 case _ => ()
             }
         }
     } catch (e: Exception) {
-    	AppLog.warn(e.toString())
+        AppLog.warn(e.toString())
     }
     value
 }
@@ -245,6 +293,14 @@ public func initTrafficHandler(
     SAMPLE_THRESHOLD = sampleThreshold
     doTrafficSample()
     sampleId = setInterval(doTrafficSample, SAMPLE_TIME, Array<String>())
+    spawn {
+        unsafe {
+            let initStatus: Int8 = InitTrafficNativeHandler()
+            if (0 != initStatus) {
+                AppLog.warn("hm_metricx_cj error: InitTrafficHandler failed.")
+            }
+        }
+    }
 }
 
 private func processUidTrafficBytes(callback: (upload: Int64, download: Int64) -> Unit) {
@@ -287,7 +343,6 @@ let updataPageMapCallback: (upload: Int64, download: Int64) -> Unit = {
     pageTxStart = upload
     pageRxStart = download
 }
-
 let updateDayTrafficCallback: (upload: Int64, download: Int64) -> Unit = {
     upload: Int64, download: Int64 =>
     let todayDate: String = getTodayDate()
@@ -319,7 +374,6 @@ let updateDayTrafficCallback: (upload: Int64, download: Int64) -> Unit = {
     setStoredData(KEY_CURRENT_DOWNLOAD, upload.toString())
     setStoredData(KEY_CURRENT_DOWNLOAD, download.toString())
 }
-
 let sampleCallback: (upload: Int64, download: Int64) -> Unit = {
     upload: Int64, download: Int64 =>
     if (!inited) {
@@ -330,8 +384,9 @@ let sampleCallback: (upload: Int64, download: Int64) -> Unit = {
         let delta: Int64 = deltaUpload + deltaDownload
         if (delta >= SAMPLE_THRESHOLD) {
             let curTimeStamp = getCurTimeStamp()
-            let systemTrafficInfo = SystemTrafficInfo(curTimeStamp, deltaUpload, deltaDownload)
-            let sampleTrafficInfo = SampleTrafficInfo(systemTrafficInfo, pageTrafficMap)
+            let systemTrafficInfo: SystemTrafficInfo = SystemTrafficInfo(curTimeStamp, deltaUpload, deltaDownload)
+            let urlInfoArray: ArrayList<UrlTrafficInfo> = getUrlTrafficInfo()
+            let sampleTrafficInfo = SampleTrafficInfo(systemTrafficInfo, pageTrafficMap, urlInfoArray)
             reportTrafficCallback(sampleTrafficInfo)
         }
     }
@@ -340,6 +395,7 @@ let sampleCallback: (upload: Int64, download: Int64) -> Unit = {
     pageTxStart = upload
     pageRxStart = download
     pageTrafficMap.clear()
+    clearUrlTrafficInfo()
     updateDayTrafficCallback(upload, download)
 }
 
@@ -353,7 +409,7 @@ private func navDestinationSwitchCallBack(info: NavDestinationSwitchInfo) {
 }
 
 private func updatePageMap(pageName: String, curTx: Int64, curRx: Int64) {
-    if(!pageTrafficMap.contains(pageName)) {
+    if (!pageTrafficMap.contains(pageName)) {
         let pageTrafficInfo = PageTrafficInfo(pageName, curTx, curRx)
         pageTrafficMap.add(pageName, pageTrafficInfo)
         return
@@ -367,7 +423,7 @@ public func getYesterdayTraffic(): Option<DayTrafficInfo> {
     var res: Option<DayTrafficInfo> = None
     let reported: String = getStoredData(KEY_YESTERDAY_REPORTED)
     let yesterdayStored: String = getStoredData(KEY_YESTERDAY_DATE)
-    if( !yesterdayStored.isEmpty() && reported == "false") {
+    if (!yesterdayStored.isEmpty() && reported == "false") {
         let date: String = getStoredData(KEY_YESTERDAY_DATE)
         let upload: Int64 = Int64.tryParse(getStoredData(KEY_YESTERDAY_UPLOAD)).getOrDefault({=> 0})
         let download: Int64 = Int64.tryParse(getStoredData(KEY_YESTERDAY_DOWNLOAD)).getOrDefault({=> 0})
@@ -376,6 +432,7 @@ public func getYesterdayTraffic(): Option<DayTrafficInfo> {
     }
     res
 }
+
 public func destroyTrafficHandler() {
     if (sampleId != -1) {
         clearInterval(sampleId)
@@ -383,3 +440,57 @@ public func destroyTrafficHandler() {
     processUidTrafficBytes(updateDayTrafficCallback)
 }
 
+private func getUrlTraficNativeInfo(): ArrayList<UrlTrafficInfo> {
+    let res: ArrayList<UrlTrafficInfo> = ArrayList<UrlTrafficInfo>()
+    let data: CString = unsafe { getTrafficNativeData() }
+    var urlStr: String = ""
+    if (data.isNull()) {
+        return res
+    }
+    urlStr = data.toString()
+    if (urlStr.isEmpty()) {
+        return res
+    }
+    let items: Array<String> = urlStr.split(";", removeEmpty: true)
+    for (item in items) {
+        let info: UrlTrafficInfo = UrlTrafficInfo.fromString(item)
+        res.add(info)
+    }
+    res
+}
+
+private func clusterUrlTrafficInfo(datas: ArrayList<UrlTrafficInfo>): ArrayList<UrlTrafficInfo> {
+    var res: ArrayList<UrlTrafficInfo> = ArrayList<UrlTrafficInfo>()
+    if (datas.isEmpty()) {
+        return res
+    }
+    let map: HashMap<String, UrlTrafficInfo> = HashMap<String, UrlTrafficInfo>()
+    for (item in datas) {
+        if (map.contains(item.url)) {
+            map[item.url].upTotal += item.upTotal
+            map[item.url].downTotal += item.downTotal
+        } else {
+            map[item.url] = item
+        }
+    }
+    res = collectArrayList<UrlTrafficInfo>(map.values().iterator())
+    res
+}
+
+private func getUrlTrafficInfo(): ArrayList<UrlTrafficInfo> {
+    let nativeInfo: ArrayList<UrlTrafficInfo> = getUrlTraficNativeInfo()
+    let res = clusterUrlTrafficInfo(nativeInfo)
+    res
+}
+
+private func clearUrlTrafficInfo(): Unit {
+    unsafe {
+        clearTrafficNativeData()
+    }
+}
+
+foreign func InitTrafficNativeHandler(): Int8
+
+foreign func getTrafficNativeData(): CString
+
+foreign func clearTrafficNativeData(): Int8
