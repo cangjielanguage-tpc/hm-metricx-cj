@@ -1,0 +1,11 @@
+{
+  "name": "hm_metricx_cj",
+  "version": "1.0.0",
+  "description": "Please describe the basic information.",
+  "main": "Index.ets",
+  "author": "",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "libohos_app_cangjie_hm_metricx_cj.so": "file:src/main/cangjie/types/libohos_app_cangjie_hm_metricx_cj"
+  }
+}

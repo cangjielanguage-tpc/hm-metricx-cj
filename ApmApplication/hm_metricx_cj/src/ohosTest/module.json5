@@ -1,0 +1,11 @@
+{
+  "module": {
+    "name": "hm_metricx_cj_test",
+    "type": "feature",
+    "deviceTypes": [
+      "default"
+    ],
+    "deliveryWithInstall": true,
+    "installationFree": false
+  }
+}
