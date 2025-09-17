@@ -72,13 +72,14 @@ long long memPersistTime = -1;
 
 const char *levelChars = "DIWEF"; // 3->D, 4->I, 5->W, 6->E, 7->F
 
-std::vector<LogEntry> logMessages;
+std::deque<LogEntry> systemLogMessages;
 std::deque<LogEntry> hilogMessages;
 
-std::mutex logMessagesMutex;
+std::mutex systemLogMessagesMutex;
 std::mutex hilogMessagesMutex;
 
 int64_t LASTN_HILOG_NUMBER = 0;
+int64_t SYSTEM_LOG_NUMBER = 0;
 
 std::string cjLimits;
 
@@ -135,8 +136,11 @@ void CrashSystemlogCallback(const LogType type, const LogLevel level, const unsi
     entry.tag = tag;
     entry.msg = msg;
 
-    std::lock_guard<std::mutex> lock(logMessagesMutex);
-    logMessages.emplace_back(entry);
+    std::lock_guard<std::mutex> lock(systemLogMessagesMutex);
+    if (systemLogMessages.size() >= SYSTEM_LOG_NUMBER) {
+        systemLogMessages.pop_front();
+    }
+    systemLogMessages.emplace_back(entry);
 }
 
 void CrashLastNHilogCallback(const LogType type, const LogLevel level, const unsigned int domain, const char *tag,
@@ -324,8 +328,10 @@ extern "C" {
 int8_t InitNativeSignalHandler(const char *pFilePath, const char *limits, CollectCrashInfo collectCrashInfo,
                                const char *pSystemLogFilePath, const char *pMemMapFilePath, const char *pMemMallocPath,
                                const char *parsedAddrPath, const char *pMemPersistTimePath,
-                               const char *pLastNHilogFilePath, int64_t lastNHilogNumber, Callback cb) {
+                               const char *pLastNHilogFilePath, int64_t lastNHilogNumber, int64_t systemLogNumber,
+                               Callback cb) {
     LASTN_HILOG_NUMBER = lastNHilogNumber;
+    SYSTEM_LOG_NUMBER = systemLogNumber;
     struct sigaction act;
     memset(&act, 0, sizeof(act));
     sigfillset(&act.sa_mask);
@@ -372,7 +378,7 @@ int8_t writeSystemLog(const char *pFilePath) {
         if (!file.is_open()) {
             return FAIL;
         }
-        for (const auto &entry : logMessages) {
+        for (const auto &entry : systemLogMessages) {
             std::string entryString = LogEntryToString(entry);
             std::ostringstream logStream;
             logStream << entryString;
