@@ -524,6 +524,7 @@ public func initCrashHandler(
     persistentDir: Path,
     enableDumpOnOOM: Option<OOMHandlerMode>,
     lastNHilogNumber: Int64,
+    systemLogNumber: Int64,
     enableMemMonitor: Option<CMemMonitorConfig>
 ) {
     if (inited) {
@@ -531,6 +532,7 @@ public func initCrashHandler(
     }
     let persistentPaths = PersistentPaths(persistentDir)
     let hilogNumber = max(lastNHilogNumber, 0)
+    let systemLogNum = max(systemLogNumber, 0)
     spawn { =>
         reportLastCrash(persistentPaths, reportCrashInfo)
     }
@@ -538,7 +540,7 @@ public func initCrashHandler(
     crashInfo.limits = collectLimits()
     initErrorObserver(crashInfo, applicationContext, collectCrashInfo, enableDumpOnOOM, persistentPaths)
     initNativeSignalHandler(applicationContext, crashInfo.limits.getOrThrow(),
-        collectNativeCrashInfo, persistentPaths, hilogNumber)
+        collectNativeCrashInfo, persistentPaths, hilogNumber, systemLogNum)
     initCrashWatcher(applicationContext, reportCrashInfo, persistentPaths, enableMemMonitor)
     initHilogWatcher()
     if(enableMemMonitor.isSome()){
@@ -596,7 +598,8 @@ private func initOOMHandler(persistentDir: String) {
 }
 
 private func initNativeSignalHandler(applicationContext: ApplicationContext, limits: String,
-    collectCrashInfo: CFunc<() -> CString>, persistentPaths:PersistentPaths, lastNHilogNumber: Int64) {
+    collectCrashInfo: CFunc<() -> CString>, persistentPaths:PersistentPaths, lastNHilogNumber: Int64,
+    systemLogNumber: Int64) {
     unsafe {
         let cstr = LibC.mallocCString(persistentPaths.filePath.toString())
         let lmts = LibC.mallocCString(limits)
@@ -617,6 +620,7 @@ private func initNativeSignalHandler(applicationContext: ApplicationContext, lim
             cMemPersistTimePath,
             cLastNHilogPath,
             lastNHilogNumber,
+            systemLogNumber,
             {
                 persistentFilePath, limits, collectCrashInfo, fds, threads, meminfo, bundleName =>
                 let crashInfo = CrashInfo()
@@ -1478,7 +1482,7 @@ private func parseMaps(filePath: Path, headCount: Int32): String {
 foreign func InitNativeSignalHandler(persistentFilePath: CString, limits: CString,
     collectCrashInfo: CFunc<() -> CString>, persistentSystemLogPath: CString, pMemMapFilePath: CString,
     pMemMallocPath: CString, parsedAddrPath: CString, memPersistTimePath: CString,
-    persistentLastNHilogPath: CString, lastNHilogNumber: Int64,
+    persistentLastNHilogPath: CString, lastNHilogNumber: Int64, systemLogNumber: Int64,
     cb: CFunc<(CString, CString, CFunc<() -> CString>, CString, CString, CString, CString) -> Unit>): Int8
 
 foreign func InitOOMHandler(targetFile: CString): Int8
