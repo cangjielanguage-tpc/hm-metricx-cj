@@ -9,6 +9,7 @@
     "libohos_app_cangjie_hm_metricx_cj.so": "file:src/main/cangjie/types/libohos_app_cangjie_hm_metricx_cj",
     "libohos_app_cangjie_hm_metricx_cj.traffic.so": "file:src/main/cangjie/types/libohos_app_cangjie_hm_metricx_cj_traffic",
     "libark_interop_api.so": "file:src/main/cangjie/ark_interop_api",
-    "libohos_app_cangjie_hm_metricx_cj.wrapper.so": "file:src/main/cangjie/types/libohos_app_cangjie_hm_metricx_cj_wrapper"
+    "libohos_app_cangjie_hm_metricx_cj.wrapper.so": "file:src/main/cangjie/types/libohos_app_cangjie_hm_metricx_cj_wrapper",
+    "libohos_app_cangjie_hm_metricx_cj.storage.so": "file:src/main/cangjie/types/libohos_app_cangjie_hm_metricx_cj_storage"
   }
 }

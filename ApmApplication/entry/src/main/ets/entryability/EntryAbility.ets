@@ -1,7 +1,7 @@
 import { AbilityConstant, ConfigurationConstant, UIAbility, Want } from '@kit.AbilityKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { window } from '@kit.ArkUI';
-import { initTrafficHandler } from 'hm_metricx_cj';
+import { initStorageHandler, initTrafficHandler } from 'hm_metricx_cj';
 
 const DOMAIN = 0x0000;
 
@@ -11,6 +11,8 @@ export default class EntryAbility extends UIAbility {
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onCreate');
     initTrafficHandler(this.context, data => {
     });
+    initStorageHandler(data => {
+    }, 1, 1);
   }
 
   onDestroy(): void {

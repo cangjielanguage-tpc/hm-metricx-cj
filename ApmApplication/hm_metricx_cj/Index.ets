@@ -1,9 +1,16 @@
 import { bundleManager, common } from '@kit.AbilityKit';
 import { requireCJLib } from 'libark_interop_loader.so';
-import { CustomLib, InteropSampleTrafficInfo as SampleTrafficInfo, TrafficPreference } from 'libark_interop_api.so';
+import {
+  CustomLib,
+  InteropSampleTrafficInfo as SampleTrafficInfo,
+  InteropStorageInfo,
+  TrafficPreference
+} from 'libark_interop_api.so';
 import { preferences } from '@kit.ArkData';
 import { uiObserver } from '@kit.ArkUI';
 import { statistics } from '@kit.NetworkKit';
+import { storageStatistics } from '@kit.CoreFileKit';
+import { BusinessError } from '@kit.BasicServicesKit';
 
 const cjLib = requireCJLib('libohos_app_cangjie_hm_metricx_cj.wrapper.so') as CustomLib;
 
@@ -53,6 +60,25 @@ export function destroyTrafficHandler(): void {
   clearSampleTraffic();
   offTraffic();
   cjLib.destroyTrafficHandler(getUidRxAndTxBytes);
+}
+
+export function initStorageHandler(reportStorageInfo: (data: InteropStorageInfo) => void, sizeLimit: number,
+  dirSizeLimit: number,
+  reportTopNum: number = 5): void {
+  cjLib.initStorageHandler(reportStorageInfo, sizeLimit, dirSizeLimit, reportTopNum);
+}
+
+export function reportAppStorageInfo(): void {
+  let getCurrentBundleStats = (onData: (appSize: number, dataSize: number, cacheSize: number) => void) => {
+    storageStatistics.getCurrentBundleStats((err: BusinessError, bundleStats: storageStatistics.BundleStats) => {
+      if (err) {
+        console.error(`Invoke getCurrentBundleStats failed, code is ${err.code}, message is ${err.message}`);
+      } else {
+        onData(bundleStats.appSize, bundleStats.dataSize, bundleStats.cacheSize);
+      }
+    });
+  }
+  cjLib.reportAppStorageInfo(getCurrentBundleStats);
 }
 
 function getTargetPageName(info: uiObserver.NavDestinationSwitchInfo): string {

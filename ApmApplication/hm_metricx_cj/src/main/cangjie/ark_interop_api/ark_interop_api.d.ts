@@ -23,10 +23,30 @@ export declare class InteropSystemTrafficInfo {
     timeStamp: string
 }
 
+export declare class InteropStorageInfo {
+    appSize: number
+    cacheSize: number
+    dataSize: number
+    totalSize: number
+    topStorageFileList: Array<InteropStorageFileInfo>
+    exceptionDirList: Array<InteropStorageFileInfo>
+}
+
+export declare class InteropStorageFileInfo {
+    path: string
+    size: number
+    subfileList: Array<InteropStorageFileInfo>
+    isDir: boolean
+}
+
 export declare interface CustomLib {
+    InteropStorageFileInfo: {new (p: string, s: number, ss: Array<InteropStorageFileInfo>, i: boolean): InteropStorageFileInfo}
+    InteropStorageInfo: {new (a: number, c: number, d: number, t: number, ts: Array<InteropStorageFileInfo>, es: Array<InteropStorageFileInfo>): InteropStorageInfo}
     InteropSystemTrafficInfo: {new (u: number, d: number, t: string): InteropSystemTrafficInfo}
     InteropPageTrafficInfo: {new (u: number, d: number, p: string): InteropPageTrafficInfo}
     InteropSampleTrafficInfo: {new (s: InteropSystemTrafficInfo, p: Map<string, InteropPageTrafficInfo>): InteropSampleTrafficInfo}
     initTrafficHandler(preference: TrafficPreference, onNavDestinationSwitch: (funcArg0: (funcArgfuncArg0: string) => void) => void, repeatSampleTraffic: (funcArg0: () => void) => void, getUidRxAndTxBytes: (funcArg0: (funcArgfuncArg0: number, funcArgfuncArg1: number) => void) => void, reportTraffic: (funcArg0: InteropSampleTrafficInfo) => void, sampleThreshold: number): void
     destroyTrafficHandler(getUidRxAndTxBytes: (funcArg0: (funcArgfuncArg0: number, funcArgfuncArg1: number) => void) => void): void
+    initStorageHandler(reportStorageInfo: (funcArg0: InteropStorageInfo) => void, sizeLimit: number, dirSizeLimit: number, reportTopNum: number): void
+    reportAppStorageInfo(getCurrentBundleStats: (funcArg0: (funcArgfuncArg0: number, funcArgfuncArg1: number, funcArgfuncArg2: number) => void) => void): void
 }
