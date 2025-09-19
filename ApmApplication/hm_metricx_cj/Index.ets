@@ -2,6 +2,7 @@ import { bundleManager, common } from '@kit.AbilityKit';
 import { requireCJLib } from 'libark_interop_loader.so';
 import {
   CustomLib,
+  InteropCrashInfo as CrashInfo,
   InteropSampleTrafficInfo as SampleTrafficInfo,
   InteropStorageInfo,
   TrafficPreference,
@@ -13,9 +14,18 @@ import { uiObserver } from '@kit.ArkUI';
 import { statistics } from '@kit.NetworkKit';
 import { storageStatistics } from '@kit.CoreFileKit';
 import { BusinessError } from '@kit.BasicServicesKit';
-import { hidebug } from '@kit.PerformanceAnalysisKit';
+import { hidebug, hilog } from '@kit.PerformanceAnalysisKit';
 
 const cjLib = requireCJLib('libohos_app_cangjie_hm_metricx_cj.wrapper.so') as CustomLib;
+const DOMAIN = 0x0021;
+
+export class CMemMonitorConfig {
+  shouldBeClusteredToThisSo: (so: string) => boolean
+
+  constructor(shouldBeClusteredToThisSo: (so: string) => boolean) {
+    this.shouldBeClusteredToThisSo = shouldBeClusteredToThisSo
+  }
+}
 
 let uid = bundleManager.getBundleInfoForSelfSync(bundleManager.BundleFlag.GET_BUNDLE_INFO_WITH_APPLICATION).appInfo.uid;
 
@@ -137,4 +147,34 @@ function getTargetPageName(info: uiObserver.NavDestinationSwitchInfo): string {
     }
   }
   return name;
+}
+
+export enum OOMHandlerMode {
+  NONE,
+  SYMC,
+  ASYNC
+}
+
+export function initCrashHandler(applicationContext: common.ApplicationContext,
+  collectCrashInfo: () => string,
+  reportCrashInfo: (CrashInfo: CrashInfo) => void,
+  persistentDir: string,
+  enableDumpOnOOM: OOMHandlerMode,
+  lastNHilogNumber: number,
+  systemLogNumber: number,
+  enableMemMonitor?: CMemMonitorConfig
+): void {
+  let exit = () => {
+    applicationContext.killAllProcesses().catch(() => {
+      hilog.warn(DOMAIN, 'hm_metricx_cj', 'killAllProcesses failed');
+    })
+  };
+  if (enableMemMonitor != undefined) {
+    let memMonitor = new cjLib.CMemMonitorConfig(enableMemMonitor!.shouldBeClusteredToThisSo);
+    cjLib.initCrashHandler(exit, collectCrashInfo, reportCrashInfo, persistentDir, enableDumpOnOOM, lastNHilogNumber,
+      systemLogNumber, memMonitor);
+  } else {
+    cjLib.initCrashHandler(exit, collectCrashInfo, reportCrashInfo, persistentDir, enableDumpOnOOM, lastNHilogNumber,
+      systemLogNumber, undefined);
+  }
 }

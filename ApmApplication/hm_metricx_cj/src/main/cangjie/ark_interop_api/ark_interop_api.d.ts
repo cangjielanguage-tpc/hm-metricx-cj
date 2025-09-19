@@ -1,3 +1,33 @@
+export declare class CMemMonitorConfig {
+    shouldBeClusteredToThisSo: (varArg0: string) => boolean
+}
+
+export declare class InteropCrashInfo {
+    language: string
+    meminfo: string
+    timestamp: string
+    pid: string
+    pname: string
+    stacktrace: string
+    hilog: string
+    tid: string
+    tname: string
+    fds: Map<string, string>
+    limits: string
+    threads: string
+    extraInfo: string
+    crashLogPath: string
+    dumpOnOOMPath: string
+    appVersion: string
+    rawFile: string
+    systemLog: string
+    lastNHilog: string
+    dumpTime: string
+    historyRawFiles: string
+    nativeMemDetail: string
+    memPersistTime: string
+}
+
 export declare class InteropProcessCpuInfo {
     avgCpu: number
     maxCpu: number
@@ -61,6 +91,9 @@ export declare interface CustomLib {
     InteropSampleTrafficInfo: {new (s: InteropSystemTrafficInfo, p: Map<string, InteropPageTrafficInfo>): InteropSampleTrafficInfo}
     InteropPageCpuInfo: {new (a: number, m: number, s: number, p: string): InteropPageCpuInfo}
     InteropProcessCpuInfo: {new (a: number, m: number, s: number, p: number): InteropProcessCpuInfo}
+    InteropCrashInfo: {new (): InteropCrashInfo}
+    CMemMonitorConfig: {new (shouldBeClusteredToThisSo: (funcArg0: string) => boolean): CMemMonitorConfig}
+    initCrashHandler(exit: () => void, collectCrashInfo: () => string, reportCrashInfo: (funcArg0: InteropCrashInfo) => void, persistentDir: string, enableDumpOnOOM: number, lastNHilogNumber: number, systemLogNumber: number, enableMemMonitor: CMemMonitorConfig | undefined): void
     initTrafficHandler(preference: TrafficPreference, onNavDestinationSwitch: (funcArg0: (funcArgfuncArg0: string) => void) => void, repeatSampleTraffic: (funcArg0: () => void) => void, getUidRxAndTxBytes: (funcArg0: (funcArgfuncArg0: number, funcArgfuncArg1: number) => void) => void, reportTraffic: (funcArg0: InteropSampleTrafficInfo) => void, sampleThreshold: number): void
     destroyTrafficHandler(getUidRxAndTxBytes: (funcArg0: (funcArgfuncArg0: number, funcArgfuncArg1: number) => void) => void): void
     initStorageHandler(reportStorageInfo: (funcArg0: InteropStorageInfo) => void, sizeLimit: number, dirSizeLimit: number, reportTopNum: number): void

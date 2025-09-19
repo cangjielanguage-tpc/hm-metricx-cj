@@ -3,6 +3,11 @@
   "buildOption": {
     "cangjieOptions": {
       "path": "./cjpm.toml"
+    },
+    "externalNativeOptions": {
+      "path": "./src/main/cpp/CMakeLists.txt",
+      "arguments": "",
+      "cppFlags": "",
     }
   },
   "buildOptionSet": [
