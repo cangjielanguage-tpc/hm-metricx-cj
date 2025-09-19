@@ -2,5 +2,7 @@ InteropSystemTrafficInfo
 InteropPageTrafficInfo
 InteropSampleTrafficInfo
 TrafficPreference
+InteropPageCpuInfo
+InteropProcessCpuInfo
 InteropStorageFileInfo
 InteropStorageInfo

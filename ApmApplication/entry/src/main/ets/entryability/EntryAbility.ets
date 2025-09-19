@@ -1,7 +1,7 @@
 import { AbilityConstant, ConfigurationConstant, UIAbility, Want } from '@kit.AbilityKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { window } from '@kit.ArkUI';
-import { initStorageHandler, initTrafficHandler } from 'hm_metricx_cj';
+import { initCpuHandler, initStorageHandler, initTrafficHandler } from 'hm_metricx_cj';
 
 const DOMAIN = 0x0000;
 
@@ -13,6 +13,9 @@ export default class EntryAbility extends UIAbility {
     });
     initStorageHandler(data => {
     }, 1, 1);
+    initCpuHandler(this.context, data => {
+    }, data => {
+    });
   }
 
   onDestroy(): void {

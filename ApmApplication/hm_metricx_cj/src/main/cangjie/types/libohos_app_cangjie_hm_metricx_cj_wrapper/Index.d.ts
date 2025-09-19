@@ -6,3 +6,9 @@ export declare function destroyTrafficHandler(getUidRxAndTxBytes: (funcArg0: (fu
 export declare function initStorageHandler(reportStorageInfo: (funcArg0: InteropStorageInfo) => void, sizeLimit: number, dirSizeLimit: number, reportTopNum: number): void
 
 export declare function reportAppStorageInfo(getCurrentBundleStats: (funcArg0: (funcArgfuncArg0: number, funcArgfuncArg1: number, funcArgfuncArg2: number) => void) => void): void
+
+export declare function getPageCpuInfo(): InteropPageCpuInfo
+
+export declare function getProcessCpuInfo(): InteropProcessCpuInfo
+
+export declare function initCpuHandler(getCpuUsage: () => number, onNavDestinationSwitch: (funcArg0: (funcArgfuncArg0: string) => void) => void, repeatSampleAndReportCpu: (funcArg0: () => void, funcArg1: () => void) => void, reporPageCpuInfo: (funcArg0: InteropPageCpuInfo) => void, reporProcessCpuInfo: (funcArg0: InteropProcessCpuInfo) => void): void

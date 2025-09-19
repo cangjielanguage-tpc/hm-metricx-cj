@@ -4,13 +4,16 @@ import {
   CustomLib,
   InteropSampleTrafficInfo as SampleTrafficInfo,
   InteropStorageInfo,
-  TrafficPreference
+  TrafficPreference,
+  InteropProcessCpuInfo as ProcessCpuInfo,
+  InteropPageCpuInfo as PageCpuInfo
 } from 'libark_interop_api.so';
 import { preferences } from '@kit.ArkData';
 import { uiObserver } from '@kit.ArkUI';
 import { statistics } from '@kit.NetworkKit';
 import { storageStatistics } from '@kit.CoreFileKit';
 import { BusinessError } from '@kit.BasicServicesKit';
+import { hidebug } from '@kit.PerformanceAnalysisKit';
 
 const cjLib = requireCJLib('libohos_app_cangjie_hm_metricx_cj.wrapper.so') as CustomLib;
 
@@ -44,9 +47,9 @@ export function initTrafficHandler(
     get: (key: string, defaultValue: string): string => preference.getSync(key, defaultValue) as string
   };
   let onNavDestinationSwitch = (cb: (targetPageName: string) => void) => {
-    let trafficCb = (info: uiObserver.NavDestinationSwitchInfo) => cb(getTargetPageName(info))
-    uiObserver.on('navDestinationSwitch', context, trafficCb);
-    offTraffic = () => uiObserver.off('navDestinationSwitch', context, trafficCb);
+    let callback = (info: uiObserver.NavDestinationSwitchInfo) => cb(getTargetPageName(info))
+    uiObserver.on('navDestinationSwitch', context, callback);
+    offTraffic = () => uiObserver.off('navDestinationSwitch', context, callback);
   };
   let repeatSampleTraffic = (sample: () => void) => {
     let id = setInterval(sample, sampleTime);
@@ -79,6 +82,48 @@ export function reportAppStorageInfo(): void {
     });
   }
   cjLib.reportAppStorageInfo(getCurrentBundleStats);
+}
+
+export function getPageCpuInfo(): PageCpuInfo {
+  return cjLib.getPageCpuInfo();
+}
+
+export function getProcessCpuInfo(): ProcessCpuInfo {
+  return cjLib.getProcessCpuInfo();
+}
+
+let offCpu = () => {
+};
+let clearSampleCpu = () => {
+};
+
+export function initCpuHandler(
+  context: common.UIAbilityContext,
+  reportPageCpuInfo: (data: PageCpuInfo) => void,
+  reportProcessCpuInfo: (data: ProcessCpuInfo) => void
+): void {
+  let onNavDestinationSwitch = (cb: (targetPageName: string) => void) => {
+    let callback = (info: uiObserver.NavDestinationSwitchInfo) => cb(getTargetPageName(info))
+    uiObserver.on('navDestinationSwitch', context, callback);
+    offCpu = () => uiObserver.off('navDestinationSwitch', context, callback);
+  };
+  let repeatSampleAndReportCpu = (sample: () => void, report: () => void) => {
+    setTimeout(() => {
+      let sampleId = setInterval(sample, 2 * 1000);
+      let reportId = setInterval(report, 30 * 60 * 1000);
+      clearSampleCpu = () => {
+        clearInterval(sampleId);
+        clearInterval(reportId);
+      }
+    }, 2 * 1000);
+  };
+  cjLib.initCpuHandler(hidebug.getCpuUsage, onNavDestinationSwitch, repeatSampleAndReportCpu, reportPageCpuInfo,
+    reportProcessCpuInfo);
+}
+
+export function destroyCpuHandler(): void {
+  offCpu();
+  clearSampleCpu();
 }
 
 function getTargetPageName(info: uiObserver.NavDestinationSwitchInfo): string {
