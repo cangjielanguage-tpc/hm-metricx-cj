@@ -167,7 +167,7 @@ let doCpuSample: () -> Unit = {
         pageCpuInfo.computeAvg(cpuUsage)
         processCpuInfo.computeAvg(cpuUsage)
 }
-var _reporProcessCpuInfo: (infp: InteropProcessCpuInfo) -> Unit = {_ =>}
+var _reporProcessCpuInfo: (info: InteropProcessCpuInfo) -> Unit = {_ =>}
 let handleCpuReport: () -> Unit = {
     => _reporProcessCpuInfo(processCpuInfo.toInteropProcessCpuInfo())
 }

@@ -1,3 +1,8 @@
+export declare class CMemMonitorConfig {
+    shouldBeClusteredToThisSo: (varArg0: string) => boolean
+    constructor (shouldBeClusteredToThisSo: (funcArg0: string) => boolean)
+}
+
 export declare class InteropCrashInfo {
     language: string | undefined
     meminfo: string | undefined
@@ -24,10 +29,4 @@ export declare class InteropCrashInfo {
     memPersistTime: string | undefined
     constructor ()
 }
-
-export declare class CMemMonitorConfig {
-    shouldBeClusteredToThisSo: (varArg0: string) => boolean
-    constructor (shouldBeClusteredToThisSo: (funcArg0: string) => boolean)
-}
-
 

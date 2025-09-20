@@ -24,6 +24,29 @@ import ohos_app_cangjie_hm_metricx_cj.crash.initCrashHandler as _initCrashHandle
 import ohos_app_cangjie_hm_metricx_cj.exitInfo.getExitInfo as _getExitInfo
 import ohos_app_cangjie_hm_metricx_cj.freeze.InteropFreezeInfo
 import ohos_app_cangjie_hm_metricx_cj.freeze.initFreezeHandler as _initFreezeHandler
+import ohos_app_cangjie_hm_metricx_cj.memory.MemoryPreference
+import ohos_app_cangjie_hm_metricx_cj.memory.InteropPageMemoryInfo
+import ohos_app_cangjie_hm_metricx_cj.memory.InteropProcessMemoryInfo
+import ohos_app_cangjie_hm_metricx_cj.memory.getPageMemoryInfo as _getPageMemoryInfo
+import ohos_app_cangjie_hm_metricx_cj.memory.getProcessMemoryInfo as _getProcessMemoryInfo
+import ohos_app_cangjie_hm_metricx_cj.memory.initMemoryHandler as _initMemoryHandler
+import ohos_app_cangjie_hm_metricx_cj.memory.destroyMemoryHandler as _destroyMemoryHandler
+import ohos_app_cangjie_hm_metricx_cj.battery.InteropBatteryUsageInfo
+import ohos_app_cangjie_hm_metricx_cj.battery.InteropThreadCpuUsageInfo
+import ohos_app_cangjie_hm_metricx_cj.battery.InteropAllThreadCpuUsageInfo
+import ohos_app_cangjie_hm_metricx_cj.battery.BatteryInfoInterface
+import ohos_app_cangjie_hm_metricx_cj.battery.initBatteryHandler as _initBatteryHandler
+import ohos_app_cangjie_hm_metricx_cj.battery.destroyBatteryHandler as _destroyBatteryHandler
+import ohos_app_cangjie_hm_metricx_cj.fps.ScrollHitchInfo
+import ohos_app_cangjie_hm_metricx_cj.fps.FpsEventInfo
+import ohos_app_cangjie_hm_metricx_cj.fps.initPageEventHandler as _initPageEventHandler
+import ohos_app_cangjie_hm_metricx_cj.fps.initScrollEventHandler as _initScrollEventHandler
+import ohos_app_cangjie_hm_metricx_cj.laggy.ClickInfo
+import ohos_app_cangjie_hm_metricx_cj.laggy.ResponseEvent
+import ohos_app_cangjie_hm_metricx_cj.laggy.InteropPageResponseLaggyModel
+import ohos_app_cangjie_hm_metricx_cj.laggy.initLaggyHandler as _initLaggyHandler
+import ohos_app_cangjie_hm_metricx_cj.util.DisplaySyncInterface
+
 import std.fs.*
 
 private func transEnableDumpOnOOM(enableDumpOnOOM: Int8): Option<OOMHandlerMode> {
@@ -113,4 +136,91 @@ public func initCpuHandler(
     reporProcessCpuInfo: (InteropProcessCpuInfo) -> Unit
 ): Unit {
     _initCpuHandler(getCpuUsage, onNavDestinationSwitch, repeatSampleAndReportCpu, reporPageCpuInfo, reporProcessCpuInfo)
+}
+
+@Interop[ArkTS]
+public func getPageMemoryInfo(): InteropPageMemoryInfo {
+    _getPageMemoryInfo()
+}
+
+@Interop[ArkTS]
+public func getProcessMemoryInfo(): InteropProcessMemoryInfo {
+    _getProcessMemoryInfo()
+}
+
+@Interop[ArkTS]
+public func initMemoryHandler(
+    memoryPreference: MemoryPreference,
+    getMemoryUsage: () -> Int64,
+    onNavDestinationSwitch: ((String) -> Unit) -> Unit,
+    repeatSampleAndReportMemory: (() -> Unit, () -> Unit) -> Unit,
+    reporPageMemoryInfo: (InteropPageMemoryInfo) -> Unit,
+    reporProcessMemoryInfo: (InteropProcessMemoryInfo) -> Unit,
+    memoryThreshold: Int64
+): Unit {
+    _initMemoryHandler(memoryPreference, getMemoryUsage, onNavDestinationSwitch, repeatSampleAndReportMemory,
+        reporPageMemoryInfo, reporProcessMemoryInfo, memoryThreshold: memoryThreshold)
+}
+
+@Interop[ArkTS]
+public func destroyMemoryHandler(): Unit {
+    _destroyMemoryHandler()
+}
+
+@Interop[ArkTS]
+public func initBatteryHandler(
+    batteryInterface: BatteryInfoInterface,
+    getBrightness: () -> Int32,
+    onApplicationStateChange: (() -> Unit, () -> Unit) -> Unit,
+    onAbilityForeground: (() -> Unit) -> Unit,
+    onNavDestinationSwitch: ((String) -> Unit) -> Unit,
+    getRunningProcessInfo: ((Bool) -> Unit) -> Unit,
+    repeatHandleCpuUsage: (() -> Unit) -> Unit,
+    reportBatteryInfo: (InteropBatteryUsageInfo) -> Unit,
+    reportThreadCpuUsageInfo: (InteropAllThreadCpuUsageInfo) -> Unit,
+    limit: Int32
+): Unit {
+    _initBatteryHandler(batteryInterface, getBrightness, onApplicationStateChange, onAbilityForeground,
+        onNavDestinationSwitch, getRunningProcessInfo, repeatHandleCpuUsage, reportBatteryInfo, reportThreadCpuUsageInfo,
+        limit: limit)
+}
+
+@Interop[ArkTS]
+public func destroyBatteryHandler(): Unit {
+    _destroyBatteryHandler()
+}
+
+@Interop[ArkTS]
+public func initScrollEventHandler(
+    onDisplay: DisplaySyncInterface,
+    onScrollEvect: (() -> Unit, () -> Unit) -> Unit,
+    onNavDestinationSwitch: ((String) -> Unit) -> Unit,
+    reportPageScrollInfo: (ScrollHitchInfo) -> Unit
+): Unit {
+    _initScrollEventHandler(onDisplay, onScrollEvect, onNavDestinationSwitch, reportPageScrollInfo)
+}
+
+@Interop[ArkTS]
+public func initPageEventHandler(
+    onNavDestinationSwitch: ((String) -> Unit) -> Unit,
+    onWindowEvent: (() -> Unit, () -> Unit) -> Unit,
+    reportFpsInfo: (FpsEventInfo) -> Unit
+): Unit {
+    _initPageEventHandler(onNavDestinationSwitch, reportFpsInfo)
+    _initPageEventHandler(onWindowEvent, reportFpsInfo)
+}
+
+@Interop[ArkTS]
+public func initLaggyHandler(
+    onDisplay: DisplaySyncInterface,
+    onAbilityBackground: (() -> Unit) -> Unit,
+    onNavDestinationSwitch: ((String) -> Unit) -> Unit,
+    onDidClick: ((ClickInfo) -> Unit) -> Unit,
+    maxTime: Int64,
+    maxArraySize: Int64,
+    reportResponseEvent: (ResponseEvent) -> Unit,
+    reportPageResponseLaggyModel: (InteropPageResponseLaggyModel) -> Unit
+): Unit {
+    _initLaggyHandler(onDisplay, onAbilityBackground, onNavDestinationSwitch,
+        onDidClick, maxTime, maxArraySize, reportResponseEvent, reportPageResponseLaggyModel)
 }

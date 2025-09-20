@@ -9,7 +9,14 @@ import {
   initStorageHandler,
   initTrafficHandler,
   getExitInfo,
-  initFreezeHandler
+  initFreezeHandler,
+  initMemoryHandler,
+  destroyMemoryHandler,
+  initBatteryHandler,
+  destroyBatteryHandler,
+  initScrollEventHandler,
+  initPageEventHandler,
+  initLaggyHanddler
 } from 'hm_metricx_cj';
 
 const DOMAIN = 0x0000;
@@ -30,10 +37,18 @@ export default class EntryAbility extends UIAbility {
     initCpuHandler(this.context, data => {
     }, data => {
     });
+    initMemoryHandler(this.context, data => {
+    }, data => {
+    }, 100 * 1024);
+    initBatteryHandler(this.context, data => {
+    }, data => {
+    });
   }
 
   onDestroy(): void {
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onDestroy');
+    destroyMemoryHandler();
+    destroyBatteryHandler();
   }
 
   onWindowStageCreate(windowStage: window.WindowStage): void {
@@ -47,6 +62,12 @@ export default class EntryAbility extends UIAbility {
       }
       hilog.info(DOMAIN, 'testTag', 'Succeeded in loading the content.');
     });
+
+    windowStage.getMainWindow().then(() => {
+      initPageEventHandler(this.context, windowStage, data => {});
+      initScrollEventHandler(this.context, data => {});
+      initLaggyHanddler(this.context, windowStage, 100, 100, data => {}, data => {})
+    })
   }
 
   onWindowStageDestroy(): void {

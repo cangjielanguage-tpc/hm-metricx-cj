@@ -11,6 +11,8 @@ import std.time.*
 import stdx.encoding.json.*
 import ohos.base.AppLog
 import std.collection.HashMap
+import ohos.ark_interop_macro.*
+import ohos.ark_interop.*
 
 public const defaultPageName = "mainPage"
 
@@ -98,7 +100,7 @@ public func deleteFile(path: String) {
 public func readFile(path: Path, isReturnException!: Bool = false) {
     if (!exists(path)) {
         if (isReturnException) {
-        	return "hm-metricx-cj error: read file path ${path} does not exist"
+            return "hm-metricx-cj error: read file path ${path} does not exist"
         } else {
             return ""
         }
@@ -107,11 +109,13 @@ public func readFile(path: Path, isReturnException!: Bool = false) {
     try {
         return String.fromUtf8(content)
     } catch (e: Exception) {
-        AppLog.warn("hm-metricx-cj error: reading ${path} failed due to error occured in String.fromUtf8: ${e.toString()}")
+        AppLog.warn(
+            "hm-metricx-cj error: reading ${path} failed due to error occured in String.fromUtf8: ${e.toString()}")
         try {
             unsafe { return String.fromUtf8Unchecked(File.readFrom(path)) }
         } catch (e: Exception) {
-            AppLog.warn("hm-metricx-cj error: reading ${path} failed due to error occured in fromUtf8Unchecked: ${e.toString()}")
+            AppLog.warn(
+                "hm-metricx-cj error: reading ${path} failed due to error occured in fromUtf8Unchecked: ${e.toString()}")
             if (isReturnException) {
                 return "hm-metricx-cj error: reading ${path} failed: ${e.toString()} content：" + content.toString()
             }
@@ -141,15 +145,45 @@ public func renameFile(sourceFile: Path, targetFile: Path) {
     }
 }
 
-public func collectAndCleanHistoryLogFiles(logType: String): String {
+public func collectAndCleanHistoryLogFiles(): String {
     var historyFiles = ""
     let logPath = Path("/data/storage/el2/log/hiappevent/")
+    if (!exists(logPath)) {
+        return historyFiles
+    }
     let fileList = Directory.readFrom(logPath)
     for (file in fileList) {
-        if (exists(file.path) && file.name.contains(logType)) {
+        if (exists(file.path)) {
             historyFiles += "fileName: ${file.name}\n" + readFile(file.path) + "\n"
             deleteFile(file.path)
         }
     }
     historyFiles
+}
+
+public func cleanHistoryLogFiles(keepLatest!: Bool = true): Unit {
+    let logPath = Path("/data/storage/el2/log/hiappevent/")
+    if (!exists(logPath)) {
+        return
+    }
+    let fileList = Directory.readFrom(logPath)
+    let size = fileList.size
+    var cnt = 0
+    for (file in fileList) {
+        cnt++
+        if (cnt == size && keepLatest) {
+            break
+        }
+        if (exists(file.path)) {
+            deleteFile(file.path)
+        }
+    }
+}
+
+@Interop[ArkTS]
+public interface DisplaySyncInterface {
+    func start(): Unit
+    func stop(): Unit
+    func on(cb: (Int64, Int64) -> Unit): Unit
+    func off(): Unit
 }
