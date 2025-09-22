@@ -530,6 +530,7 @@ public func initCrashHandler(
     if (inited) {
         return
     }
+    cleanHistoryLogFiles()
     let persistentPaths = PersistentPaths(persistentDir)
     let hilogNumber = max(lastNHilogNumber, 0)
     let systemLogNum = max(systemLogNumber, 0)
@@ -876,7 +877,7 @@ private func initCrashWatcher(applicationContext: ApplicationContext, reportCras
                             .getOrThrow().toString().removePrefix("[").removeSuffix("]")
                         if (crashLogPath.isEmpty() ) {
                             crashInfo.rawFile = "hm-metricx-cj error: crash log path is empty \n" + getLogFileInfo()
-                            crashInfo.historyRawFiles = collectAndCleanHistoryLogFiles("CRASH")
+                            crashInfo.historyRawFiles = collectAndCleanHistoryLogFiles()
                             continue
                         }
                         if (!exists(crashLogPath)) {

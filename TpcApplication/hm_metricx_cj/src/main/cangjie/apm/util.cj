@@ -107,17 +107,39 @@ public func renameFile(sourceFile: Path, targetFile: Path) {
     }
 }
 
-public func collectAndCleanHistoryLogFiles(logType: String): String {
+public func collectAndCleanHistoryLogFiles(): String {
     var historyFiles = ""
     let logPath = Path("/data/storage/el2/log/hiappevent/")
+    if (!exists(logPath)) {
+        return historyFiles
+    }
     let fileList = Directory.readFrom(logPath)
     for (file in fileList) {
-        if (exists(file.path) && file.name.contains(logType)) {
+        if (exists(file.path)) {
             historyFiles += "fileName: ${file.name}\n" + readFile(file.path) + "\n"
             deleteFile(file.path)
         }
     }
     historyFiles
+}
+
+public func cleanHistoryLogFiles(keepLatest!: Bool = true): Unit {
+    let logPath = Path("/data/storage/el2/log/hiappevent/")
+    if (!exists(logPath)) {
+        return
+    }
+    let fileList = Directory.readFrom(logPath)
+    let size = fileList.size
+    var cnt = 0
+    for (file in fileList) {
+        cnt++
+        if (cnt == size && keepLatest) {
+            break
+        }
+        if (exists(file.path)) {
+            deleteFile(file.path)
+        }
+    }
 }
 
 public const defaultPageName = "mainPage"
