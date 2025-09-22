@@ -258,75 +258,31 @@ public class CrashInfo {
 
     public func toInteropCrashInfo(): InteropCrashInfo {
         let crashInfo = InteropCrashInfo()
-        if (let Some(v) <- languageValue) {
-            crashInfo.language = v
-        }
-        if (let Some(v) <- meminfoValue) {
-            crashInfo.meminfo = v
-        }
-        if (let Some(v) <- timestampValue) {
-            crashInfo.timestamp = v
-        }
-        if (let Some(v) <- pidValue) {
-            crashInfo.pid = v
-        }
-        if (let Some(v) <- pnameValue) {
-            crashInfo.pname = v
-        }
-        if (let Some(v) <- stacktraceValue) {
-            crashInfo.stacktrace = v
-        }
-        if (let Some(v) <- hilogValue) {
-            crashInfo.hilog = v
-        }
-        if (let Some(v) <- tidValue) {
-            crashInfo.tid = v
-        }
-        if (let Some(v) <- tnameValue) {
-            crashInfo.tname = v
-        }
+        crashInfo.language = languageValue
+        crashInfo.meminfo = meminfoValue
+        crashInfo.timestamp = timestampValue
+        crashInfo.pid = pidValue
+        crashInfo.pname = pnameValue
+        crashInfo.stacktrace = stacktraceValue
+        crashInfo.hilog = hilogValue
+        crashInfo.tid = tidValue
+        crashInfo.tname = tnameValue
         if (let Some(v) <- fdsValue) {
             crashInfo.fds = JSHashMapEx<String, String>(v)
         }
-        if (let Some(v) <- limitsValue) {
-            crashInfo.limits = v
-        }
-        if (let Some(v) <- threadsValue) {
-            crashInfo.threads = v
-        }
-        if (let Some(v) <- extraInfoValue) {
-            crashInfo.extraInfo = v
-        }
-        if (let Some(v) <- crashLogPathValue) {
-            crashInfo.crashLogPath = v
-        }
-        if (let Some(v) <- dumpOnOOMPathValue) {
-            crashInfo.dumpOnOOMPath = v
-        }
-        if (let Some(v) <- appVersionValue) {
-            crashInfo.appVersion = v
-        }
-        if (let Some(v) <- rawFileValue) {
-            crashInfo.rawFile = v
-        }
-        if (let Some(v) <- systemLogValue) {
-            crashInfo.systemLog = v
-        }
-        if (let Some(v) <- lastNHilogValue) {
-            crashInfo.lastNHilog = v
-        }
-        if (let Some(v) <- dumpTimeValue) {
-            crashInfo.dumpTime = v
-        }
-        if (let Some(v) <- historyRawFiles) {
-            crashInfo.historyRawFiles = v
-        }
-        if (let Some(v) <- nativeMemDetailValue) {
-            crashInfo.nativeMemDetail = v
-        }
-        if (let Some(v) <- memPersistTimeValue) {
-            crashInfo.memPersistTime = v
-        }
+        crashInfo.limits = limitsValue
+        crashInfo.threads = threadsValue
+        crashInfo.extraInfo = extraInfoValue
+        crashInfo.crashLogPath = crashLogPathValue
+        crashInfo.dumpOnOOMPath = dumpOnOOMPathValue
+        crashInfo.appVersion = appVersionValue
+        crashInfo.rawFile = rawFileValue
+        crashInfo.systemLog = systemLogValue
+        crashInfo.lastNHilog = lastNHilogValue
+        crashInfo.dumpTime = dumpTimeValue
+        crashInfo.historyRawFiles = historyRawFiles
+        crashInfo.nativeMemDetail = nativeMemDetailValue
+        crashInfo.memPersistTime = memPersistTimeValue
         crashInfo
     }
 
@@ -507,29 +463,29 @@ public class CrashInfo {
 
 @Interop[ArkTS]
 public class InteropCrashInfo {
-    public var language: String = ""
-    public var meminfo: String = ""
-    public var timestamp: String = ""
-    public var pid: String = ""
-    public var pname: String = ""
-    public var stacktrace: String = ""
-    public var hilog: String = ""
-    public var tid: String = ""
-    public var tname: String = ""
-    public var fds: JSHashMapEx<String, String> = JSHashMapEx()
-    public var limits: String = ""
-    public var threads: String = ""
-    public var extraInfo: String = ""
-    public var crashLogPath: String = ""
-    public var dumpOnOOMPath: String = ""
-    public var appVersion: String = ""
-    public var rawFile: String = ""
-    public var systemLog: String = ""
-    public var lastNHilog: String = ""
-    public var dumpTime: String = ""
-    public var historyRawFiles: String = ""
-    public var nativeMemDetail: String = ""
-    public var memPersistTime: String = ""
+    public var language: Option<String> = None
+    public var meminfo: Option<String> = None
+    public var timestamp: Option<String> = None
+    public var pid: Option<String> = None
+    public var pname: Option<String> = None
+    public var stacktrace: Option<String> = None
+    public var hilog: Option<String> = None
+    public var tid: Option<String> = None
+    public var tname: Option<String> = None
+    public var fds: Option<JSHashMapEx<String, String>> = None
+    public var limits: Option<String> = None
+    public var threads: Option<String> = None
+    public var extraInfo: Option<String> = None
+    public var crashLogPath: Option<String> = None
+    public var dumpOnOOMPath: Option<String> = None
+    public var appVersion: Option<String> = None
+    public var rawFile: Option<String> = None
+    public var systemLog: Option<String> = None
+    public var lastNHilog: Option<String> = None
+    public var dumpTime: Option<String> = None
+    public var historyRawFiles: Option<String> = None
+    public var nativeMemDetail: Option<String> = None
+    public var memPersistTime: Option<String> = None
 
     public init() {}
 }

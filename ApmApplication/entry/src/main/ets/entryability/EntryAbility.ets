@@ -7,7 +7,9 @@ import {
   initCpuHandler,
   initCrashHandler,
   initStorageHandler,
-  initTrafficHandler
+  initTrafficHandler,
+  getExitInfo,
+  initFreezeHandler
 } from 'hm_metricx_cj';
 
 const DOMAIN = 0x0000;
@@ -16,8 +18,11 @@ export default class EntryAbility extends UIAbility {
   onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): void {
     this.context.getApplicationContext().setColorMode(ConfigurationConstant.ColorMode.COLOR_MODE_NOT_SET);
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onCreate');
+    getExitInfo(launchParam);
     initCrashHandler(this.context.getApplicationContext(), () => "{}", data => {
     }, "123", OOMHandlerMode.ASYNC, 1000, 1000, new CMemMonitorConfig(data => false));
+    initFreezeHandler(() => "{}", data => {
+    }, "123");
     initTrafficHandler(this.context, data => {
     });
     initStorageHandler(data => {

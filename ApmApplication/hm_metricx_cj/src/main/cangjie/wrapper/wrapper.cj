@@ -21,8 +21,10 @@ import ohos_app_cangjie_hm_metricx_cj.crash.OOMHandlerMode
 import ohos_app_cangjie_hm_metricx_cj.crash.CMemMonitorConfig
 import ohos_app_cangjie_hm_metricx_cj.crash.InteropCrashInfo
 import ohos_app_cangjie_hm_metricx_cj.crash.initCrashHandler as _initCrashHandler
+import ohos_app_cangjie_hm_metricx_cj.exitInfo.getExitInfo as _getExitInfo
+import ohos_app_cangjie_hm_metricx_cj.freeze.InteropFreezeInfo
+import ohos_app_cangjie_hm_metricx_cj.freeze.initFreezeHandler as _initFreezeHandler
 import std.fs.*
-
 
 private func transEnableDumpOnOOM(enableDumpOnOOM: Int8): Option<OOMHandlerMode> {
     if (enableDumpOnOOM == 1) {
@@ -44,9 +46,23 @@ public func initCrashHandler(
     lastNHilogNumber: Int64,
     systemLogNumber: Int64,
     enableMemMonitor: Option<CMemMonitorConfig>
-) : Unit {
-    _initCrashHandler(exit, collectCrashInfo, reportCrashInfo, Path(persistentDir), transEnableDumpOnOOM(enableDumpOnOOM),
-        lastNHilogNumber, systemLogNumber, enableMemMonitor)
+): Unit {
+    _initCrashHandler(exit, collectCrashInfo, reportCrashInfo, Path(persistentDir),
+        transEnableDumpOnOOM(enableDumpOnOOM), lastNHilogNumber, systemLogNumber, enableMemMonitor)
+}
+
+@Interop[ArkTS]
+public func getExitInfo(lastExitMessage: String, lastExitReason: Int32): Unit {
+    _getExitInfo(lastExitMessage, lastExitReason)
+}
+
+@Interop[ArkTS]
+public func initFreezeHandler(
+    onFreeze: (() -> Unit) -> Unit,
+    collectFreezeInfo: () -> String,
+    reportFreezeInfo: (InteropFreezeInfo) -> Unit,
+    persistentDir: String): Unit {
+    _initFreezeHandler(onFreeze, collectFreezeInfo, reportFreezeInfo, Path(persistentDir))
 }
 
 @Interop[ArkTS]
