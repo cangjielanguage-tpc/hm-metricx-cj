@@ -11,6 +11,7 @@
     "libark_interop_api.so": "file:src/main/cangjie/ark_interop_api",
     "libohos_app_cangjie_hm_metricx_cj.wrapper.so": "file:src/main/cangjie/types/libohos_app_cangjie_hm_metricx_cj_wrapper",
     "libohos_app_cangjie_hm_metricx_cj.storage.so": "file:src/main/cangjie/types/libohos_app_cangjie_hm_metricx_cj_storage",
-    "libohos_app_cangjie_hm_metricx_cj.cpu.so": "file:src/main/cangjie/types/libohos_app_cangjie_hm_metricx_cj_cpu"
+    "libohos_app_cangjie_hm_metricx_cj.cpu.so": "file:src/main/cangjie/types/libohos_app_cangjie_hm_metricx_cj_cpu",
+    "libohos_app_cangjie_hm_metricx_cj.crash.so": "file:src/main/cangjie/types/libohos_app_cangjie_hm_metricx_cj_crash"
   }
 }
