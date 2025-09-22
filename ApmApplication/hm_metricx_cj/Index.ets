@@ -1,8 +1,9 @@
-import { bundleManager, common } from '@kit.AbilityKit';
+import { AbilityConstant, bundleManager, common, errorManager } from '@kit.AbilityKit';
 import { requireCJLib } from 'libark_interop_loader.so';
 import {
   CustomLib,
   InteropCrashInfo as CrashInfo,
+  InteropFreezeInfo as FreezeInfo,
   InteropSampleTrafficInfo as SampleTrafficInfo,
   InteropStorageInfo,
   TrafficPreference,
@@ -167,7 +168,7 @@ export function initCrashHandler(applicationContext: common.ApplicationContext,
   let exit = () => {
     applicationContext.killAllProcesses().catch(() => {
       hilog.warn(DOMAIN, 'hm_metricx_cj', 'killAllProcesses failed');
-    })
+    });
   };
   if (enableMemMonitor != undefined) {
     let memMonitor = new cjLib.CMemMonitorConfig(enableMemMonitor!.shouldBeClusteredToThisSo);
@@ -177,4 +178,20 @@ export function initCrashHandler(applicationContext: common.ApplicationContext,
     cjLib.initCrashHandler(exit, collectCrashInfo, reportCrashInfo, persistentDir, enableDumpOnOOM, lastNHilogNumber,
       systemLogNumber, undefined);
   }
+}
+
+export function getExitInfo(launchParam: AbilityConstant.LaunchParam): void {
+  cjLib.getExitInfo(launchParam.lastExitMessage, launchParam.lastExitReason);
+}
+
+export function initFreezeHandler(
+  collectFreezeInfo: () => string,
+  reportFreezeInfo: (freezeInfo: FreezeInfo) => void,
+  persistentDir: string
+): void {
+
+  let onFreeze = (cb: () => void) => {
+    errorManager.on('freeze', cb);
+  };
+  cjLib.initFreezeHandler(onFreeze, collectFreezeInfo, reportFreezeInfo, persistentDir);
 }

@@ -2,6 +2,7 @@
  * Created on 2025/9/18
  */
 package ohos_app_cangjie_hm_metricx_cj.util
+
 import std.time.DateTime
 import std.unicode.UnicodeStringExtension
 import std.fs.*
@@ -10,7 +11,6 @@ import std.time.*
 import stdx.encoding.json.*
 import ohos.base.AppLog
 import std.collection.HashMap
-
 
 public const defaultPageName = "mainPage"
 
@@ -53,6 +53,7 @@ public func json2map(input: HashMap<String, JsonValue>) {
 }
 
 let ESCAPE_MAP: HashMap<String, String> = HashMap<String, String>([("\\n", "\n"), ("\\t", "\t")])
+
 public func unescapeString(str: String): String {
     var res: String = str
     for (escape in ESCAPE_MAP) {
@@ -60,6 +61,7 @@ public func unescapeString(str: String): String {
     }
     res
 }
+
 public func formatWithCommasAndPadding(num: Int64, width: Int64): String {
     let numStr = num.toString().toRuneArray()
     let len = numStr.size
