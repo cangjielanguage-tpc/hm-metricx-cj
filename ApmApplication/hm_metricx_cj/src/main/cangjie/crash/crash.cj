@@ -6,7 +6,6 @@ package ohos_app_cangjie_hm_metricx_cj.crash
 import ohos_app_cangjie_hm_metricx_cj.util.*
 import std.fs.*
 import std.collection.*
-import ohos.base.AppLog
 import std.convert.*
 import std.process.*
 import std.env.*
@@ -643,7 +642,7 @@ private func reportLastCrash(persistentPaths: PersistentPaths, reportCrashInfo: 
             reportCrashInfo(crashInfo.toInteropCrashInfo())
             reported = true
         } catch (e: JsonException) {
-            AppLog.warn("hm-metricx-cj error: " + e.toString())
+            metricx_warn("hm-metricx-cj error: " + e.toString())
         }
     }
 }
@@ -655,7 +654,7 @@ private func initOOMHandler(persistentDir: String) {
         let targetFile = LibC.mallocCString(persistentDir + "/cj_OOM_pid" + Process.current.pid.toString() + ".dat")
         let zlibFile = LibC.mallocCString(persistentDir + "/cj_OOM_pid" + Process.current.pid.toString() + ".zlib")
         if (InitOOMHandler(targetFile) != 0) {
-            AppLog.warn("hm-metricx-cj error: InitOOMHandler failed.")
+            metricx_warn("hm-metricx-cj error: InitOOMHandler failed.")
         }
         else {
             OOMHandlerInited = true
@@ -700,12 +699,12 @@ private func initNativeSignalHandler(limits: String, collectCrashInfo: CFunc<() 
                 try {
                     crashInfo.extraInfo = collectCrashInfo().toString()
                 } catch (e: Exception) {
-                    AppLog.warn("hm-metricx-cj error: " + e.toString())
+                    metricx_warn("hm-metricx-cj error: " + e.toString())
                 }
                 writeFile(persistentFilePath.toString(), crashInfo.toString())
             }
         ) != 0) {
-            AppLog.warn("hm-metricx-cj error: InitNativeSignalHandler failed.")
+            metricx_warn("hm-metricx-cj error: InitNativeSignalHandler failed.")
         }
         LibC.free(cstr)
         LibC.free(lmts)
@@ -722,7 +721,7 @@ private func parseFDs(fds: String) {
     let map: HashMap<String, String> = HashMap()
     let arr = fds.split(",", removeEmpty: true)
     if (arr.size % 2 != 0) {
-        AppLog.warn("hm-metricx-cj error: parseFDs failed.")
+        metricx_warn("hm-metricx-cj error: parseFDs failed.")
         return map
     }
     var i = 0
@@ -738,7 +737,7 @@ private func waitOOMDumping(exit: () -> Unit, dumpTimePath: Path): Unit {
         let isOOMDumping = unsafe {
             IsOOMDumping()
         }
-        AppLog.warn("hm_metricx_cj: isOOMDumping: ${isOOMDumping}")
+        metricx_warn("hm_metricx_cj: isOOMDumping: ${isOOMDumping}")
         if (isOOMDumping) {
             waitOOMDumping(exit, dumpTimePath)
         }
@@ -775,7 +774,7 @@ private func initErrorObserver(crashInfo: CrashInfo, exit: () -> Unit,
                     exit()
                 }
             } catch (e: Exception) {
-                AppLog.warn("hm-metricx-cj error: initErrorObserver error, " + e.toString())
+                metricx_warn("hm-metricx-cj error: initErrorObserver error, " + e.toString())
                 exit()
             }
         }
@@ -783,7 +782,7 @@ private func initErrorObserver(crashInfo: CrashInfo, exit: () -> Unit,
     let index = ErrorManager.on("error", errorObserver)
     if (index != 0) {
         // TODO Once ErrorManager supports "freeze" handler, this condition may need to be tweaked.
-        AppLog.warn(
+        metricx_warn(
             "There are other error observers registered before crash obsverver, which may interfere with its behavior.")
     }
 }
@@ -792,9 +791,9 @@ private func writeFile(path: String, data: String) {
     try {
         File.writeTo(path, data.toArray())
     } catch (e: FSException) {
-        AppLog.warn("hm-metricx-cj error: " + e.toString())
+        metricx_warn("hm-metricx-cj error: " + e.toString())
     } catch (e: IllegalArgumentException) {
-        AppLog.warn("hm-metricx-cj error: " + e.toString())
+        metricx_warn("hm-metricx-cj error: " + e.toString())
     }
 }
 
@@ -802,9 +801,9 @@ private func writeFile(path: Path, data: String) {
     try {
         File.writeTo(path, data.toArray())
     } catch (e: FSException) {
-        AppLog.warn("hm-metricx-cj error: " + e.toString())
+        metricx_warn("hm-metricx-cj error: " + e.toString())
     } catch (e: IllegalArgumentException) {
-        AppLog.warn("hm-metricx-cj error: " + e.toString())
+        metricx_warn("hm-metricx-cj error: " + e.toString())
     }
 }
 
@@ -838,7 +837,7 @@ private func collectFDInfo() {
             }
         )
     } catch (e: Exception) {
-        AppLog.warn("hm-metricx-cj error: collectFDInfo failed: " + e.toString())
+        metricx_warn("hm-metricx-cj error: collectFDInfo failed: " + e.toString())
     }
     fds
 }
@@ -852,7 +851,7 @@ private func collectMemInfo() {
         let statm = readFile(statmPath)
         vss = "Vss:\t\t\t\t" + (Int32.tryParse(statm.split(" ", removeEmpty: true)[0]).getOrThrow() * 4).toString() + " KB"
     } catch (e:Exception) {
-        AppLog.warn("hm-metricx-cj error: statm failed: " + e.toString())
+        metricx_warn("hm-metricx-cj error: statm failed: " + e.toString())
     }
     smaps_rollup + "\n" + vss
 }
@@ -874,11 +873,11 @@ private func initCrashWatcher(reportCrashInfo: (crashInfo: InteropCrashInfo) -> 
                         let jsonObj = JsonValue.fromStr(String.fromUtf8(File.readFrom(persistentPaths.filePath))).asObject()
                         crashInfo = CrashInfo.fromJson(jsonObj)
                     } catch (e: JsonException) {
-                        AppLog.warn("hm-metricx-cj error: " + e.toString())
+                        metricx_warn("hm-metricx-cj error: " + e.toString())
                     }
                     deleteFile(persistentPaths.filePath)
                 } else {
-                    AppLog.warn("hm-metricx-cj error: No persistent crash file.")
+                    metricx_warn("hm-metricx-cj error: No persistent crash file.")
                 }
                 crashInfo.dumpTime = readFile(persistentPaths.dumpTimePath)
                 deleteFile(persistentPaths.dumpTimePath)
@@ -898,7 +897,7 @@ private func initCrashWatcher(reportCrashInfo: (crashInfo: InteropCrashInfo) -> 
                     deleteFile(persistentPaths.memMallocPath)
                     deleteFile(persistentPaths.parsedAddrPath)
                 } else {
-                    AppLog.warn("No persistent crash memory file.")
+                    metricx_warn("No persistent crash memory file.")
                 }
                 for (eventGroup in appEventGroups) {
                     if (eventGroup.name != "APP_CRASH") {
@@ -962,7 +961,7 @@ private func initCrashWatcher(reportCrashInfo: (crashInfo: InteropCrashInfo) -> 
                     }
                 }
             } catch (e: Exception) {
-            	AppLog.warn("hm-metricx-cj error: initCrashWatcher error, " + e.toString())
+            	metricx_warn("hm-metricx-cj error: initCrashWatcher error, " + e.toString())
             }
         }
     )
@@ -984,7 +983,7 @@ private func compressOOMFile(pid: String, dir: Path): Option<String> {
     let ret = compressFile(rawDumpOnOOMPath.toString(), dumpOnOOMPath.toString())
     deleteFile(rawDumpOnOOMPath)
     if (!ret) {
-        AppLog.warn("hm-metricx-cj error: compressFile failed in crash watcher.")
+        metricx_warn("hm-metricx-cj error: compressFile failed in crash watcher.")
         return Option.None
     }
     return dumpOnOOMPath.toString()
@@ -1077,7 +1076,7 @@ private func extractFromNativeCrashLog(lines: Array<String>) {
 
 private func compressFile(src: String, dest: String): Bool {
     if (!exists(src)) {
-        AppLog.warn("hm-metricx-cj error: compressFile failed due to ${src} does not exist")
+        metricx_warn("hm-metricx-cj error: compressFile failed due to ${src} does not exist")
         return false
     }
     var count: Int64 = 0
@@ -1102,7 +1101,7 @@ private func compressFile(src: String, dest: String): Bool {
         srcFile.close()
         destFile.close()
     } catch (e: Exception) {
-        AppLog.warn("hm-metricx-cj error: compressFile failed due to ${e.toString()}")
+        metricx_warn("hm-metricx-cj error: compressFile failed due to ${e.toString()}")
     }
     return count > 0
 }
@@ -1111,7 +1110,7 @@ private func writeSystemLog2File(persistentSystemLogPath: String) {
     unsafe {
         let filePath = LibC.mallocCString(persistentSystemLogPath)
         if (writeSystemLog(filePath) != 0) {
-            AppLog.warn("hm-metricx-cj error: write system log file failed.")
+            metricx_warn("hm-metricx-cj error: write system log file failed.")
         }
         LibC.free(filePath)
     }
@@ -1125,7 +1124,7 @@ private func persistMemoryData2File(persistentMemMapFileName: String, persistent
         let cParsedAddrPath = LibC.mallocCString(parsedAddrPath)
         let cMemPersistTimePath = LibC.mallocCString(memPersistTimePath)
         if (persistMemoryData(mapFilePath, memMallocPath, cParsedAddrPath, cMemPersistTimePath) != 0) {
-            AppLog.warn("write crash memMap file failed.")
+            metricx_warn("write crash memMap file failed.")
         }
         LibC.free(mapFilePath)
         LibC.free(memMallocPath)
@@ -1138,7 +1137,7 @@ private func writeLastNHilog2File(persistentLastNHilogPath: String) {
     unsafe {
         let filePath = LibC.mallocCString(persistentLastNHilogPath)
         if (writeLastNHiLog(filePath) != 0) {
-            AppLog.warn("hm-metricx-cj error: write lastNHilog log file failed.")
+            metricx_warn("hm-metricx-cj error: write lastNHilog log file failed.")
         }
         LibC.free(filePath)
     }
@@ -1147,10 +1146,10 @@ private func writeLastNHilog2File(persistentLastNHilogPath: String) {
 private func initHilogWatcher() {
     unsafe {
         if (registerCrashSystemlogCallback() != 0) {
-            AppLog.warn("hm-metricx-cj error: registerCrashSystemlogCallback failed.")
+            metricx_warn("hm-metricx-cj error: registerCrashSystemlogCallback failed.")
         }
         if (registerCrashLastNHilogCallback() != 0) {
-            AppLog.warn("hm-metricx-cj error: registerCrashLastNHilogCallback failed.")
+            metricx_warn("hm-metricx-cj error: registerCrashLastNHilogCallback failed.")
         }
     }
 }
@@ -1158,7 +1157,7 @@ private func initHilogWatcher() {
 private func initNativeMemoryWatcher() {
     unsafe {
         if (installNativeMemoryMonitor() != 0) {
-            AppLog.warn("registerNativeMemoryCallback failed.")
+            metricx_warn("registerNativeMemoryCallback failed.")
         }
     }
 }
@@ -1171,7 +1170,7 @@ private func parseMallocLog(filePath: Path): List<MallocModel> {
         while (let Some(line) <- reader.readln()) {
             let strings = line.trim().split(" ", removeEmpty: true)
             if (strings.size < 3) {
-                AppLog.info("parseMallocLog skiped line: " + line)
+                metricx_info("parseMallocLog skiped line: " + line)
                 continue
             }
             try {
@@ -1182,12 +1181,12 @@ private func parseMallocLog(filePath: Path): List<MallocModel> {
 
                 mallocModels.add(MallocModel(size, ptr, longStacks))
             } catch (e: Exception) {
-                AppLog.info("parseMallocLog skiped line: ${line},exception: ${e.toString()}")
+                metricx_info("parseMallocLog skiped line: ${line},exception: ${e.toString()}")
             }
         }
         reader.close()
     } catch (e: Exception) {
-        AppLog.warn("parse malloc log failed: " + e.toString())
+        metricx_warn("parse malloc log failed: " + e.toString())
     }
     mallocModels
 }
@@ -1217,12 +1216,12 @@ private func getParsedStacks(parsedPath: Path): HashMap<Int64, ParsedAddr> {
                 let soName = arr[2]
                 map.add(pcInt, ParsedAddr(pcInt, parsedAddr, soName))
             } catch (e: Exception){
-                AppLog.warn("getParsedStacks skip line: " + line)
+                metricx_warn("getParsedStacks skip line: " + line)
             }
         }
         reader.close()
     } catch (e: Exception) {
-        AppLog.warn("getParsedStacks failed: " + e.toString())
+        metricx_warn("getParsedStacks failed: " + e.toString())
     }
     map
 }
@@ -1352,7 +1351,7 @@ private func parseMaps(filePath: Path, headCount: Int32): String {
         while (let Some(line) <- reader.readln()) {
             let segments = line.trim().split(" ", removeEmpty: true)
             if (segments.size < 5) {
-                AppLog.info("parse memMap skiped line: " + line)
+                metricx_info("parse memMap skiped line: " + line)
                 continue
             }
             if (segments.size > 6) {
@@ -1386,12 +1385,12 @@ private func parseMaps(filePath: Path, headCount: Int32): String {
                     }
                 }
             } catch (e: Exception) {
-                AppLog.info("parse memMap skiped line: ${line}, exception: ${e.toString()}")
+                metricx_info("parse memMap skiped line: ${line}, exception: ${e.toString()}")
             }
         }
         reader.close()
     } catch (e: Exception) {
-        AppLog.warn("parse memMap failed: " + e.toString())
+        metricx_warn("parse memMap failed: " + e.toString())
     }
 
     // 统计Summarry和Details数据

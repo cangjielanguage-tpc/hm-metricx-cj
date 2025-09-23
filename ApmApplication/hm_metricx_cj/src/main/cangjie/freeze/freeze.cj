@@ -7,7 +7,6 @@ import ohos_app_cangjie_hm_metricx_cj.util.*
 import stdx.encoding.json.*
 import std.fs.*
 import std.collection.*
-import ohos.base.AppLog
 import ohos.device_info.DeviceInfo
 import ohos.hiappevent.*
 import ohos.ark_interop_macro.*
@@ -234,7 +233,7 @@ private func collectFreezeInfo(cpuUsageFilePath: Path, extraInfoFilePath: Path):
         let cpuUsageFilePathForC = LibC.mallocCString(cpuUsageFilePath.toString())
         let extraInfoFilePathForC = LibC.mallocCString(extraInfoFilePath.toString())
         if (registerFreezeCallback(cpuUsageFilePathForC, extraInfoFilePathForC, collectExtraFreezeInfo) != 0) {
-            AppLog.warn("registerFreezeCallback failed.")
+            metricx_warn("registerFreezeCallback failed.")
         }
         LibC.free(cpuUsageFilePathForC)
         LibC.free(extraInfoFilePathForC)
@@ -262,11 +261,11 @@ private func initFreezeWatcher(
                             freezeInfo.cpuThread = extractDataFromLog(fileContent)
                         }
                     } catch (e: Exception) {
-                        AppLog.warn(e.toString())
+                        metricx_warn(e.toString())
                     }
                     deleteFile(cpuUsageFilePath)
                 } else {
-                    AppLog.warn("No persistent cpuUsage file.")
+                    metricx_warn("No persistent cpuUsage file.")
                 }
                 if (exists(extraInfoFilePath)) {
                     try {
@@ -275,11 +274,11 @@ private func initFreezeWatcher(
                             freezeInfo.extraInfo = jsonObj.get("extraInfo")
                         }
                     } catch (e: Exception) {
-                        AppLog.warn(e.toString())
+                        metricx_warn(e.toString())
                     }
                     deleteFile(extraInfoFilePath)
                 } else {
-                    AppLog.warn("No persistent extraInfo file.")
+                    metricx_warn("No persistent extraInfo file.")
                 }
                 for (eventGroup in appEventGroups) {
                     if (eventGroup.name != "APP_FREEZE") {
@@ -319,13 +318,13 @@ private func initFreezeWatcher(
                             freezeInfo.stacktrace = res[2]
                             freezeInfo.cpu = res[3]
                         } catch (e: Exception) {
-                            AppLog.warn(e.toString())
+                            metricx_warn(e.toString())
                         }
                     }
                 }
                 reportFreezeInfo(freezeInfo.toInteropFreezeInfo())
             } catch (e: Exception) {
-                AppLog.warn("hm-metricx-cj freeze error: initFreezeWatcher error, " + e.toString())
+                metricx_warn("hm-metricx-cj freeze error: initFreezeWatcher error, " + e.toString())
             }
         }
     )
@@ -407,7 +406,7 @@ func collectExtraFreezeInfo(): CString {
     try {
         jsonObj.put("extraInfo", JsonValue.fromStr(extraInfo))
     } catch (e: Exception) {
-        AppLog.error(e.toString())
+        metricx_warn(e.toString())
     }
     unsafe {
         let crashInfoCStr = LibC.mallocCString(jsonObj.toString())
@@ -420,7 +419,7 @@ public func initHilogWatcher(cpuUsageFilePath: Path, extraInfoFilePath: Path): U
         let cpuUsageFilePath = LibC.mallocCString(cpuUsageFilePath.toString())
         let extraInfoFilePath = LibC.mallocCString(extraInfoFilePath.toString())
         if (registerFreezeHilogCallback(cpuUsageFilePath, extraInfoFilePath, collectExtraFreezeInfo) != 0) {
-            AppLog.warn("registerFreezeHilogCallback failed.")
+            metricx_warn("registerFreezeHilogCallback failed.")
         }
         LibC.free(cpuUsageFilePath)
         LibC.free(extraInfoFilePath)

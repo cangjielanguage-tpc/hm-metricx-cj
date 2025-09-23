@@ -5,7 +5,6 @@ package ohos_app_cangjie_hm_metricx_cj.memory
 
 import ohos_app_cangjie_hm_metricx_cj.util.*
 import std.posix.*
-import ohos.base.AppLog
 import ohos.ark_interop.*
 import ohos.ark_interop_macro.*
 
@@ -203,7 +202,7 @@ private func setMaxMemory(memoryValue: Int64): Unit {
             preference.put("max", memoryValue)
         }
     } catch (e: Exception) {
-        AppLog.warn(e.toString())
+        metricx_warn(e.toString())
     }
 }
 
@@ -217,7 +216,7 @@ private func getMaxMemory(): Int64 {
             }
         }
     } catch (e: Exception) {
-        AppLog.warn(e.toString())
+        metricx_warn(e.toString())
     }
     maxMemory
 }

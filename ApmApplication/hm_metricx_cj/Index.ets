@@ -15,14 +15,14 @@ import {
   InteropProcessMemoryInfo as ProcessMemoryInfo,
   InteropBatteryUsageInfo as BatteryUsageInfo,
   BatteryInfoInterface,
-  InteropThreadCpuUsageInfo as ThreadCpuUsageInfo,
   InteropAllThreadCpuUsageInfo as AllThreadCpuUsageInfo,
   FpsEventInfo,
   ScrollHitchInfo,
   ClickInfo,
   ResponseEvent,
   InteropPageResponseLaggyModel as PageResponseLaggyModel,
-  DisplaySyncInterface
+  DisplaySyncInterface,
+  Logger
 } from 'libark_interop_api.so';
 import { preferences } from '@kit.ArkData';
 import { uiObserver, window } from '@kit.ArkUI';
@@ -34,6 +34,12 @@ import { displaySync } from '@kit.ArkGraphics2D';
 
 const cjLib = requireCJLib('libohos_app_cangjie_hm_metricx_cj.wrapper.so') as CustomLib;
 const DOMAIN = 0x0021;
+const TAG = 'hm_metricx_cj';
+let logger: Logger = {
+  warn: (content: string): void => hilog.warn(DOMAIN, TAG, content),
+  info: (content: string): void => hilog.info(DOMAIN, TAG, content),
+};
+cjLib.initLogger(logger);
 
 export class CMemMonitorConfig {
   shouldBeClusteredToThisSo: (so: string) => boolean
@@ -285,17 +291,25 @@ export function initBatteryHandler(
   };
   let onAbilityForeGround = (cb: () => void) => {
     context.getApplicationContext().on('abilityLifecycle', {
-      onAbilityCreate() {},
-      onWindowStageCreate() {},
-      onWindowStageActive() {},
-      onWindowStageInactive() {},
-      onWindowStageDestroy() {},
-      onAbilityDestroy() {},
+      onAbilityCreate() {
+      },
+      onWindowStageCreate() {
+      },
+      onWindowStageActive() {
+      },
+      onWindowStageInactive() {
+      },
+      onWindowStageDestroy() {
+      },
+      onAbilityDestroy() {
+      },
       onAbilityForeground() {
         cb();
       },
-      onAbilityBackground() {},
-      onAbilityContinue() {}
+      onAbilityBackground() {
+      },
+      onAbilityContinue() {
+      }
     });
   };
 
@@ -385,7 +399,8 @@ export function initBatteryHandler(
     let id = setInterval(handler, 3 * 60 * 1000);
     clearCpuUsageHandler = () => clearInterval(id);
   };
-  cjLib.initBatteryHandler(batteryInterface, getBrightness, onApplicationStateChange, onAbilityForeGround, onNavDestinationSwitch,
+  cjLib.initBatteryHandler(batteryInterface, getBrightness, onApplicationStateChange, onAbilityForeGround,
+    onNavDestinationSwitch,
     getRunningProcessInfo, repeatHandlerCpuUsage, reportBatterInfo, reportThreadCpuUsageInfo, limit);
 }
 
@@ -411,13 +426,14 @@ export function initScrollEventHandler(
     on: (cb: (time: number, targetTime: number) => void): void => {
       scrokkDisplay.on('frame', (info: displaySync.IntervalInfo) => {
         cb(info.timestamp, info.targetTimestamp);
-      });    },
+      });
+    },
     off: (): void => {
       scrokkDisplay.off('frame');
     }
   }
 
-  let onScrollEvent = (onScrollStart: () => void, onScrollStop: ()=> void) => {
+  let onScrollEvent = (onScrollStart: () => void, onScrollStop: () => void) => {
     uiObserver.on('scrollEvent', (info) => {
       if (info.scrollEvent === uiObserver.ScrollEventType.SCROLL_START) {
         onScrollStart();
@@ -475,7 +491,8 @@ export function initLaggyHanddler(
     on: (cb: (time: number, targetTime: number) => void): void => {
       laggyDisplay.on('frame', (info: displaySync.IntervalInfo) => {
         cb(info.timestamp, info.targetTimestamp);
-      });    },
+      });
+    },
     off: (): void => {
       laggyDisplay.off('frame');
     }

@@ -9,7 +9,6 @@ import std.fs.*
 import std.regex.Regex
 import std.time.*
 import stdx.encoding.json.*
-import ohos.base.AppLog
 import std.collection.HashMap
 import ohos.ark_interop_macro.*
 import ohos.ark_interop.*
@@ -93,7 +92,7 @@ public func deleteFile(path: String) {
     try {
         remove(path)
     } catch (e: FSException) {
-        AppLog.warn(e.toString())
+        metricx_warn(e.toString())
     }
 }
 
@@ -109,12 +108,12 @@ public func readFile(path: Path, isReturnException!: Bool = false) {
     try {
         return String.fromUtf8(content)
     } catch (e: Exception) {
-        AppLog.warn(
+        metricx_warn(
             "hm-metricx-cj error: reading ${path} failed due to error occured in String.fromUtf8: ${e.toString()}")
         try {
             unsafe { return String.fromUtf8Unchecked(File.readFrom(path)) }
         } catch (e: Exception) {
-            AppLog.warn(
+            metricx_warn(
                 "hm-metricx-cj error: reading ${path} failed due to error occured in fromUtf8Unchecked: ${e.toString()}")
             if (isReturnException) {
                 return "hm-metricx-cj error: reading ${path} failed: ${e.toString()} content：" + content.toString()
@@ -131,7 +130,7 @@ public func deleteFile(path: Path) {
     try {
         remove(path)
     } catch (e: FSException) {
-        AppLog.warn(e.toString())
+        metricx_warn(e.toString())
     }
 }
 
@@ -141,7 +140,7 @@ public func renameFile(sourceFile: Path, targetFile: Path) {
             rename(sourceFile, to: targetFile, overwrite: true)
         }
     } catch (e: Exception) {
-        AppLog.warn(e.toString())
+        metricx_warn(e.toString())
     }
 }
 

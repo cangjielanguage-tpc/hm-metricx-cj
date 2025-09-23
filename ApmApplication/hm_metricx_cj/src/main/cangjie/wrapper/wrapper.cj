@@ -32,7 +32,6 @@ import ohos_app_cangjie_hm_metricx_cj.memory.getProcessMemoryInfo as _getProcess
 import ohos_app_cangjie_hm_metricx_cj.memory.initMemoryHandler as _initMemoryHandler
 import ohos_app_cangjie_hm_metricx_cj.memory.destroyMemoryHandler as _destroyMemoryHandler
 import ohos_app_cangjie_hm_metricx_cj.battery.InteropBatteryUsageInfo
-import ohos_app_cangjie_hm_metricx_cj.battery.InteropThreadCpuUsageInfo
 import ohos_app_cangjie_hm_metricx_cj.battery.InteropAllThreadCpuUsageInfo
 import ohos_app_cangjie_hm_metricx_cj.battery.BatteryInfoInterface
 import ohos_app_cangjie_hm_metricx_cj.battery.initBatteryHandler as _initBatteryHandler
@@ -46,6 +45,8 @@ import ohos_app_cangjie_hm_metricx_cj.laggy.ResponseEvent
 import ohos_app_cangjie_hm_metricx_cj.laggy.InteropPageResponseLaggyModel
 import ohos_app_cangjie_hm_metricx_cj.laggy.initLaggyHandler as _initLaggyHandler
 import ohos_app_cangjie_hm_metricx_cj.util.DisplaySyncInterface
+import ohos_app_cangjie_hm_metricx_cj.util.Logger
+import ohos_app_cangjie_hm_metricx_cj.util.initLogger as _initLogger
 
 import std.fs.*
 
@@ -223,4 +224,9 @@ public func initLaggyHandler(
 ): Unit {
     _initLaggyHandler(onDisplay, onAbilityBackground, onNavDestinationSwitch,
         onDidClick, maxTime, maxArraySize, reportResponseEvent, reportPageResponseLaggyModel)
+}
+
+@Interop[ArkTS]
+public func initLogger(logger: Logger): Unit {
+    _initLogger(logger)
 }

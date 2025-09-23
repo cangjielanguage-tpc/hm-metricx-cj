@@ -3,7 +3,6 @@
  */
 package ohos_app_cangjie_hm_metricx_cj.storage
 
-import std.core.*
 import std.fs.{Directory, Path, exists, FileInfo}
 import std.collection.{TreeSet, ArrayList}
 import ohos.ark_interop.*

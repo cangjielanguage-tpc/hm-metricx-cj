@@ -1,3 +1,8 @@
+export declare interface Logger {
+    warn: (content: string) => void
+    info: (content: string) => void
+}
+
 export declare interface DisplaySyncInterface {
     start: () => void
     stop: () => void

@@ -4,7 +4,6 @@
 package ohos_app_cangjie_hm_metricx_cj.traffic
 
 import std.convert.*
-import ohos.base.AppLog
 import std.collection.HashMap
 import ohos_app_cangjie_hm_metricx_cj.util.*
 import ohos.ark_interop_macro.*
@@ -217,7 +216,7 @@ private func setStoredData(key: String, value: String): Bool {
             status = true
         }
     } catch (e: Exception) {
-        AppLog.warn(e.toString())
+        metricx_warn(e.toString())
     }
     status
 }
@@ -231,7 +230,7 @@ private func getStoredData(key: String): String {
             }
         }
     } catch (e: Exception) {
-        AppLog.warn(e.toString())
+        metricx_warn(e.toString())
     }
     value
 }
