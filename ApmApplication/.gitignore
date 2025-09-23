@@ -14,6 +14,7 @@
 **/*.cj.macrocall
 **/ability_mainability_entry.cj
 **/module_**_entry.cj
+**/libs
 **/IDL_Dependencies_List~
 **/build-script-cache
 # macOS

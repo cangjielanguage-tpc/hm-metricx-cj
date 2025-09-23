@@ -203,6 +203,7 @@ public func initFreezeHandler(
     if (freezeInited) {
         return
     }
+    cleanHistoryLogFiles()
     extraInfo = collectFreezeInfo()
     let cpuUsageFilePath = persistentDir.join("cpuUsageFreeze.txt")
     let cpuUsageBakFilePath = persistentDir.join("cpuUsageFreeze-bak.txt")
@@ -301,7 +302,7 @@ private func initFreezeWatcher(
                         }
                         if (freezeLogPath.isEmpty()) {
                             freezeInfo.rawFile = "hm-metricx-cj freeze error: freezeLogPath is empty"
-                            freezeInfo.historyRawFiles = collectAndCleanHistoryLogFiles("FREEZE")
+                            freezeInfo.historyRawFiles = collectAndCleanHistoryLogFiles()
                             continue
                         }
                         if (!exists(freezeLogPath)) {
