@@ -1,3 +1,21 @@
+export declare class InteropBatteryUsageInfo {
+    currentPageName: string | undefined
+    level: number | undefined
+    temperature: number | undefined
+    capacity: number | undefined
+    scale: number | undefined
+    status: number | undefined
+    health: number | undefined
+    voltage: number | undefined
+    technology: string | undefined
+    plugged: number | undefined
+    charging: boolean | undefined
+    limit: number | undefined
+    brightness: number | undefined
+    useTime: number | undefined
+    time: number | undefined
+}
+
 export declare class InteropAllThreadCpuUsageInfo {
     threadCpuUsageInfoList: Array<InteropThreadCpuUsageInfo>
 }
@@ -219,25 +237,6 @@ export declare interface DisplaySyncInterface {
 export declare interface Logger {
     warn: (content: string) => void
     info: (content: string) => void
-}
-
-export declare class InteropBatteryUsageInfo {
-    currentPageName: string | undefined
-    level: number | undefined
-    temperature: number | undefined
-    capacity: number | undefined
-    scale: number | undefined
-    status: number | undefined
-    health: number | undefined
-    voltage: number | undefined
-    technology: string | undefined
-    plugged: number | undefined
-    charging: boolean | undefined
-    limit: number | undefined
-    brightness: number | undefined
-    useTime: number | undefined
-    time: number | undefined
-    constructor (c: string | undefined, l: number | undefined, t: number | undefined, ca: number | undefined, sc: number | undefined, st: number | undefined, h: number | undefined, v: number | undefined, te: string | undefined, p: number | undefined, ch: boolean | undefined, li: number | undefined, b: number | undefined, u: number | undefined, ti: number | undefined)
 }
 
 export declare interface CustomLib {
