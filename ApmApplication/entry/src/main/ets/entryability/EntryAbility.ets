@@ -25,24 +25,26 @@ export default class EntryAbility extends UIAbility {
   onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): void {
     this.context.getApplicationContext().setColorMode(ConfigurationConstant.ColorMode.COLOR_MODE_NOT_SET);
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onCreate');
-    getExitInfo(launchParam);
-    initCrashHandler(this.context.getApplicationContext(), () => "{}", data => {
-    }, "123", OOMHandlerMode.ASYNC, 1000, 1000, new CMemMonitorConfig(data => false));
+    // getExitInfo(launchParam);
+    // initCrashHandler(this.context.getApplicationContext(), () => "{}", data => {
+    // }, "123", OOMHandlerMode.ASYNC, 1000, 1000, new CMemMonitorConfig(data => false));
     initFreezeHandler(() => "{}", data => {
+      hilog.error(DOMAIN, 'testTag', '%{public}s',
+        data.timestamp + '\n' + data.pid + '\n' + data.exception + '\n' + data.hilog + '\n' + data.freezeLogPath);
     }, "123");
-    initTrafficHandler(this.context, data => {
-    });
-    initStorageHandler(data => {
-    }, 1, 1);
-    initCpuHandler(this.context, data => {
-    }, data => {
-    });
-    initMemoryHandler(this.context, data => {
-    }, data => {
-    }, 100 * 1024);
-    initBatteryHandler(this.context, data => {
-    }, data => {
-    });
+    // initTrafficHandler(this.context, data => {
+    // });
+    // initStorageHandler(data => {
+    // }, 1, 1);
+    // initCpuHandler(this.context, data => {
+    // }, data => {
+    // });
+    // initMemoryHandler(this.context, data => {
+    // }, data => {
+    // }, 100 * 1024);
+    // initBatteryHandler(this.context, data => {
+    // }, data => {
+    // });
   }
 
   onDestroy(): void {
@@ -64,9 +66,13 @@ export default class EntryAbility extends UIAbility {
     });
 
     windowStage.getMainWindow().then(() => {
-      initPageEventHandler(this.context, windowStage, data => {});
-      initScrollEventHandler(this.context, data => {});
-      initLaggyHanddler(this.context, windowStage, 100, 100, data => {}, data => {})
+      initPageEventHandler(this.context, windowStage, data => {
+      });
+      initScrollEventHandler(this.context, data => {
+      });
+      initLaggyHanddler(this.context, windowStage, 100, 100, data => {
+      }, data => {
+      })
     })
   }
 

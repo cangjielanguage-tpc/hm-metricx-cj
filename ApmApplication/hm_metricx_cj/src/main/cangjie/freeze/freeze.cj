@@ -4,10 +4,8 @@
 package ohos_app_cangjie_hm_metricx_cj.freeze
 
 import ohos_app_cangjie_hm_metricx_cj.util.*
-import stdx.encoding.json.*
 import std.fs.*
 import std.collection.*
-import ohos.hiappevent.*
 import ohos.ark_interop_macro.*
 import ohos.ark_interop.*
 
@@ -18,7 +16,7 @@ public class FreezeInfo {
     private var hilogValue: ?String = None
     private var tidValue: ?String = None
     private var tnameValue: ?String = None
-    private var extraInfoValue: ?JsonValue = None
+    private var extraInfoValue: ?String = None
     private var freezeLogPathValue: ?String = None
     private var cpuThreadValue: ?HashMap<String, String> = None
     private var cpuValue: ?HashMap<String, String> = None
@@ -80,7 +78,7 @@ public class FreezeInfo {
         }
     }
 
-    public mut prop extraInfo: ?JsonValue {
+    public mut prop extraInfo: ?String {
         get() {
             extraInfoValue
         }
@@ -143,7 +141,7 @@ public class FreezeInfo {
         }
     }
 
-    public func toInteropFreezeInfo(): InteropFreezeInfo {
+    func toInteropFreezeInfo(): InteropFreezeInfo {
         let freezeInfo = InteropFreezeInfo()
         freezeInfo.timestamp = timestampValue
         freezeInfo.pid = pidValue
@@ -161,7 +159,7 @@ public class FreezeInfo {
             freezeInfo.cpuThread = JSHashMapEx<String, String>(v)
         }
         if (let Some(v) <- cpuValue) {
-            freezeInfo.cpu = JSHashMapEx<String, String>(v)
+            // freezeInfo.cpu = JSHashMapEx<String, String>(v) TODO 互操作已知问题
         }
         if (let Some(v) <- stacktraceValue) {
             freezeInfo.stacktrace = JSArrayEx<String>(v.toString())
@@ -194,9 +192,9 @@ private var extraInfo = ""
 
 public func initFreezeHandler(
     sdkApiVersion: Int64,
+    addFreezeWatcher: (callback: (time: String, pid: String, exception: String, hilog: String, external_log: String) -> InteropFreezeInfo) -> Unit,
     onFreeze: (callback: () -> Unit) -> Unit,
     collectFreezeInfo: () -> String,
-    reportFreezeInfo: (freezeInfo: InteropFreezeInfo) -> Unit,
     persistentDir: Path
 ): Unit {
     if (freezeInited) {
@@ -207,10 +205,10 @@ public func initFreezeHandler(
     let cpuUsageFilePath = persistentDir.join("cpuUsageFreeze.txt")
     let cpuUsageBakFilePath = persistentDir.join("cpuUsageFreeze-bak.txt")
     renameFile(cpuUsageFilePath, cpuUsageBakFilePath)
-    let extraInfoFilePath = persistentDir.join("extraInfoFreeze.json")
-    let extraInfoBakFilePath = persistentDir.join("extraInfoFreeze-bak.json")
+    let extraInfoFilePath = persistentDir.join("extraInfoFreeze.txt")
+    let extraInfoBakFilePath = persistentDir.join("extraInfoFreeze-bak.txt")
     renameFile(extraInfoFilePath, extraInfoBakFilePath)
-    initFreezeWatcher(reportFreezeInfo, cpuUsageBakFilePath, extraInfoBakFilePath)
+    initFreezeWatcher(addFreezeWatcher, cpuUsageBakFilePath, extraInfoBakFilePath)
     if (sdkApiVersion >= 18) {
         onFreeze({=> freezeCallback(cpuUsageFilePath, extraInfoFilePath)})
     } else {
@@ -241,22 +239,19 @@ private func collectFreezeInfo(cpuUsageFilePath: Path, extraInfoFilePath: Path):
 }
 
 private func initFreezeWatcher(
-    reportFreezeInfo: (freeezeInfo: InteropFreezeInfo) -> Unit,
+    addFreezeWatcher: (callback: (time: String, pid: String, exception: String, hilog: String, external_log: String) -> InteropFreezeInfo) -> Unit,
     cpuUsageFilePath: Path,
     extraInfoFilePath: Path
 ) {
-    let watcher = Watcher(
-        "freezeWatcher",
-        appEventFilters: [AppEventFilter("OS", eventTypes: [FAULT], names: ["APP_FREEZE"])],
-        onReceive: {
-            domain: String, appEventGroups: Array<AppEventGroup> => try {
-                if (domain != "OS") {
-                    return
-                }
-                let freezeInfo = FreezeInfo()
+    let cb: (time: String, pid: String, exception: String, hilog: String, external_log: String) -> InteropFreezeInfo = {
+        time: String, pid: String, exception: String, hilog: String, external_log: String =>
+            let freezeInfo = FreezeInfo()
+            try {
                 if (exists(cpuUsageFilePath)) {
                     try {
-                        if (freezeInfo.cpuThread.isNone()) {
+                        if (freezeInfo
+                            .cpuThread
+                            .isNone()) {
                             let fileContent = String.fromUtf8(File.readFrom(cpuUsageFilePath))
                             freezeInfo.cpuThread = extractDataFromLog(fileContent)
                         }
@@ -268,67 +263,41 @@ private func initFreezeWatcher(
                     metricx_warn("No persistent cpuUsage file.")
                 }
                 if (exists(extraInfoFilePath)) {
-                    try {
-                        if (freezeInfo.extraInfo.isNone()) {
-                            let jsonObj = JsonValue.fromStr(String.fromUtf8(File.readFrom(extraInfoFilePath))).asObject()
-                            freezeInfo.extraInfo = jsonObj.get("extraInfo")
-                        }
-                    } catch (e: Exception) {
-                        metricx_warn(e.toString())
+                    if (freezeInfo
+                        .extraInfo
+                        .isNone()) {
+                        freezeInfo.extraInfo = readFile(extraInfoFilePath)
                     }
                     deleteFile(extraInfoFilePath)
                 } else {
                     metricx_warn("No persistent extraInfo file.")
                 }
-                for (eventGroup in appEventGroups) {
-                    if (eventGroup.name != "APP_FREEZE") {
-                        continue
-                    }
-                    for (eventInfo in eventGroup.appEventInfos) {
-                        var freezeLogPath = ""
-                        for (param in eventInfo.params) {
-                            if (param.key == "time") {
-                                freezeInfo.timestamp = param.value.value
-                            } else if (param.key == "pid") {
-                                freezeInfo.pid = param.value.value
-                            } else if (param.key == "exception") {
-                                freezeInfo.exception = param.value.value
-                            } else if (param.key == "hilog") {
-                                freezeInfo.hilog = hilogWordWrap(param.value.value)
-                            } else if (param.key == "external_log") {
-                                freezeLogPath = param.value.value.removePrefix("[").removeSuffix("]")
-                            }
-                        }
-                        if (freezeLogPath.isEmpty()) {
-                            freezeInfo.rawFile = "hm-metricx-cj freeze error: freezeLogPath is empty"
-                            freezeInfo.historyRawFiles = collectAndCleanHistoryLogFiles()
-                            continue
-                        }
-                        if (!exists(freezeLogPath)) {
-                            freezeInfo.rawFile = "hm-metricx-cj freeze error: freezeLogPath path ${freezeLogPath} does not exist"
-                            continue
-                        }
-                        freezeInfo.freezeLogPath = freezeLogPath
-                        try {
-                            freezeInfo.rawFile = readFile(Path(freezeLogPath), isReturnException: true)
-                            let res = extractFromFreezeLog(freezeInfo.rawFile.getOrThrow())
-                            deleteFile(freezeLogPath)
-                            freezeInfo.tid = res[0]
-                            freezeInfo.tname = res[1]
-                            freezeInfo.stacktrace = res[2]
-                            freezeInfo.cpu = res[3]
-                        } catch (e: Exception) {
-                            metricx_warn(e.toString())
-                        }
-                    }
+                freezeInfo.timestamp = time
+                freezeInfo.pid = pid
+                freezeInfo.exception = exception
+                freezeInfo.hilog = hilog
+                if (external_log.isEmpty()) {
+                    freezeInfo.rawFile = "hm-metricx-cj freeze error: freezeLogPath is empty"
+                    freezeInfo.historyRawFiles = collectAndCleanHistoryLogFiles()
+                } else if (!exists(external_log)) {
+                    freezeInfo.rawFile = "hm-metricx-cj freeze error: freezeLogPath path ${external_log} does not exist"
                 }
-                reportFreezeInfo(freezeInfo.toInteropFreezeInfo())
+                freezeInfo.freezeLogPath = external_log
+                freezeInfo.rawFile = readFile(Path(external_log), isReturnException: true)
+                let res = extractFromFreezeLog(freezeInfo
+                    .rawFile
+                    .getOrThrow())
+                deleteFile(external_log)
+                freezeInfo.tid = res[0]
+                freezeInfo.tname = res[1]
+                freezeInfo.stacktrace = res[2]
+                freezeInfo.cpu = res[3]
             } catch (e: Exception) {
-                metricx_warn("hm-metricx-cj freeze error: initFreezeWatcher error, " + e.toString())
+                metricx_warn(e.toString())
             }
-        }
-    )
-    HiAppEvent.addWatcher(watcher)
+            freezeInfo.toInteropFreezeInfo()
+    }
+    addFreezeWatcher(cb)
 }
 
 private func extractFromFreezeLog(content: String) {
@@ -402,19 +371,13 @@ foreign func registerFreezeCallback(cpuUsageFilePath: CString, extraInfoFile: CS
 
 @C
 func collectExtraFreezeInfo(): CString {
-    let jsonObj = JsonObject()
-    try {
-        jsonObj.put("extraInfo", JsonValue.fromStr(extraInfo))
-    } catch (e: Exception) {
-        metricx_warn(e.toString())
-    }
     unsafe {
-        let crashInfoCStr = LibC.mallocCString(jsonObj.toString())
+        let crashInfoCStr = LibC.mallocCString(extraInfo)
         crashInfoCStr
     }
 }
 
-public func initHilogWatcher(cpuUsageFilePath: Path, extraInfoFilePath: Path): Unit {
+func initHilogWatcher(cpuUsageFilePath: Path, extraInfoFilePath: Path): Unit {
     unsafe {
         let cpuUsageFilePath = LibC.mallocCString(cpuUsageFilePath.toString())
         let extraInfoFilePath = LibC.mallocCString(extraInfoFilePath.toString())

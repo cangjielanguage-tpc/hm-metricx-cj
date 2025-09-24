@@ -3,6 +3,8 @@ export declare function initCrashHandler(exit: () => void, collectCrashInfo: () 
 
 export declare function getExitInfo(lastExitMessage: string, lastExitReason: number): void
 
+export declare function initFreezeHandler(sdkApiVersion: number, addFreezeWatcher: (funcArg0: (funcArgfuncArg0: string, funcArgfuncArg1: string, funcArgfuncArg2: string, funcArgfuncArg3: string, funcArgfuncArg4: string) => void) => void, onFreeze: (funcArg0: () => void) => void, collectFreezeInfo: () => string, reportFreezeInfo: (funcArg0: InteropFreezeInfo) => void, persistentDir: string): void
+
 export declare function initTrafficHandler(preference: TrafficPreference, onNavDestinationSwitch: (funcArg0: (funcArgfuncArg0: string) => void) => void, repeatSampleTraffic: (funcArg0: () => void) => void, getUidRxAndTxBytes: (funcArg0: (funcArgfuncArg0: number, funcArgfuncArg1: number) => void) => void, reportTraffic: (funcArg0: InteropSampleTrafficInfo) => void, sampleThreshold: number): void
 
 export declare function destroyTrafficHandler(getUidRxAndTxBytes: (funcArg0: (funcArgfuncArg0: number, funcArgfuncArg1: number) => void) => void): void
@@ -37,4 +39,4 @@ export declare function initLaggyHandler(onDisplay: DisplaySyncInterface, onAbil
 
 export declare function initLogger(logger: Logger): void
 
-export declare function initFreezeHandler(sdkApiVersion: number, onFreeze: (funcArg0: () => void) => void, collectFreezeInfo: () => string, reportFreezeInfo: (funcArg0: InteropFreezeInfo) => void, persistentDir: string): void
+export declare function initFreezeHandler(sdkApiVersion: number, addFreezeWatcher: (funcArg0: (funcArgfuncArg0: string, funcArgfuncArg1: string, funcArgfuncArg2: string, funcArgfuncArg3: string, funcArgfuncArg4: string) => InteropFreezeInfo) => void, onFreeze: (funcArg0: () => void) => void, collectFreezeInfo: () => string, persistentDir: string): void

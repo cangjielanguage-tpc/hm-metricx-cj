@@ -47,7 +47,6 @@ import ohos_app_cangjie_hm_metricx_cj.laggy.initLaggyHandler as _initLaggyHandle
 import ohos_app_cangjie_hm_metricx_cj.util.DisplaySyncInterface
 import ohos_app_cangjie_hm_metricx_cj.util.Logger
 import ohos_app_cangjie_hm_metricx_cj.util.initLogger as _initLogger
-
 import std.fs.*
 
 private func transEnableDumpOnOOM(enableDumpOnOOM: Int8): Option<OOMHandlerMode> {
@@ -81,13 +80,10 @@ public func getExitInfo(lastExitMessage: String, lastExitReason: Int32): Unit {
 }
 
 @Interop[ArkTS]
-public func initFreezeHandler(
-    sdkApiVersion: Int64,
-    onFreeze: (() -> Unit) -> Unit,
-    collectFreezeInfo: () -> String,
-    reportFreezeInfo: (InteropFreezeInfo) -> Unit,
-    persistentDir: String): Unit {
-    _initFreezeHandler(sdkApiVersion, onFreeze, collectFreezeInfo, reportFreezeInfo, Path(persistentDir))
+public func initFreezeHandler(sdkApiVersion: Int64,
+    addFreezeWatcher: ((String, String, String, String, String) -> InteropFreezeInfo) -> Unit,
+    onFreeze: (() -> Unit) -> Unit, collectFreezeInfo: () -> String, persistentDir: String): Unit {
+    _initFreezeHandler(sdkApiVersion, addFreezeWatcher, onFreeze, collectFreezeInfo, Path(persistentDir))
 }
 
 @Interop[ArkTS]
@@ -223,8 +219,8 @@ public func initLaggyHandler(
     reportResponseEvent: (ResponseEvent) -> Unit,
     reportPageResponseLaggyModel: (InteropPageResponseLaggyModel) -> Unit
 ): Unit {
-    _initLaggyHandler(onDisplay, onAbilityBackground, onNavDestinationSwitch,
-        onDidClick, maxTime, maxArraySize, reportResponseEvent, reportPageResponseLaggyModel)
+    _initLaggyHandler(onDisplay, onAbilityBackground, onNavDestinationSwitch, onDidClick, maxTime, maxArraySize,
+        reportResponseEvent, reportPageResponseLaggyModel)
 }
 
 @Interop[ArkTS]

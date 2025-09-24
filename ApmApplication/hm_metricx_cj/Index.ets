@@ -28,7 +28,7 @@ import { preferences } from '@kit.ArkData';
 import { uiObserver, window } from '@kit.ArkUI';
 import { statistics } from '@kit.NetworkKit';
 import { storageStatistics } from '@kit.CoreFileKit';
-import { hidebug, hilog } from '@kit.PerformanceAnalysisKit';
+import { hiAppEvent, hidebug, hilog } from '@kit.PerformanceAnalysisKit';
 import { batteryInfo, BusinessError, deviceInfo, settings } from '@kit.BasicServicesKit';
 import { displaySync } from '@kit.ArkGraphics2D';
 
@@ -213,7 +213,42 @@ export function initFreezeHandler(
   let onFreeze = (cb: () => void) => {
     errorManager.on('freeze', cb);
   };
-  cjLib.initFreezeHandler(deviceInfo.sdkApiVersion, onFreeze, collectFreezeInfo, reportFreezeInfo, persistentDir);
+  let addFreezeWatcher =
+    (cb: (time: string, pid: string, exception: string, hilog: string, external_log: string) => FreezeInfo) => {
+      hiAppEvent.addWatcher({
+        name: 'freezeWatcher',
+        appEventFilters: [
+          {
+            domain: hiAppEvent.domain.OS,
+            names: [hiAppEvent.event.APP_FREEZE]
+          }
+        ],
+        onReceive: (domain: string, appEventGroups: Array<hiAppEvent.AppEventGroup>) => {
+          if (domain !== 'OS') {
+            return;
+          }
+          for (const eventGroup of appEventGroups) {
+            if (eventGroup.name !== 'APP_FREEZE') {
+              continue;
+            }
+            for (const eventInfo of eventGroup.appEventInfos) {
+              let time: number = eventInfo.params['time'];
+              let pid: number = eventInfo.params['pid'];
+              let exception: string = JSON.stringify(eventInfo.params['exception']);
+              let hilogs: string[] = eventInfo.params['hilog'];
+              let external_logs: string[] = eventInfo.params['external_log'];
+              let data =
+                cb(time.toString(), pid.toString(), exception, hilogs.reduce((acc, cur) => acc + '\n' + cur, ''),
+                  external_logs.length === 0 ? '' : external_logs[0]);
+              reportFreezeInfo(data);
+              break;
+            }
+            break;
+          }
+        }
+      });
+    };
+  cjLib.initFreezeHandler(deviceInfo.sdkApiVersion, addFreezeWatcher, onFreeze, collectFreezeInfo, persistentDir);
 }
 
 let offMemory = () => {
