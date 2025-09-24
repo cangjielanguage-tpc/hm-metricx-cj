@@ -205,16 +205,49 @@ export function initCrashHandler(applicationContext: common.ApplicationContext,
         'There are other error observers registered before crash obsverver, which may interfere with its behavior.');
     }
   };
-  if (enableMemMonitor != undefined) {
-    let memMonitor = new cjLib.CMemMonitorConfig(enableMemMonitor!.shouldBeClusteredToThisSo);
-    cjLib.initCrashHandler(onCrash, exit, collectCrashInfo, reportCrashInfo, persistentDir, enableDumpOnOOM,
-      lastNHilogNumber,
-      systemLogNumber, memMonitor);
-  } else {
-    cjLib.initCrashHandler(onCrash, exit, collectCrashInfo, reportCrashInfo, persistentDir, enableDumpOnOOM,
-      lastNHilogNumber,
-      systemLogNumber, undefined);
-  }
+  let addCrashWatcher =
+    (cb: (time: string, pid: string, exception: string, hilog: string, external_log: string, crash_type: string,
+      bundle_version: string) => void) => {
+      hiAppEvent.addWatcher({
+        name: 'crashWatcher',
+        appEventFilters: [
+          {
+            domain: hiAppEvent.domain.OS,
+            names: [hiAppEvent.event.APP_CRASH]
+          }
+        ],
+        onReceive: (domain: string, appEventGroups: Array<hiAppEvent.AppEventGroup>) => {
+          if (domain !== 'OS') {
+            return;
+          }
+          for (const eventGroup of appEventGroups) {
+            if (eventGroup.name !== 'APP_CRASH') {
+              continue;
+            }
+            for (const eventInfo of eventGroup.appEventInfos) {
+              let time: number = eventInfo.params['time'];
+              let pid: number = eventInfo.params['pid'];
+              let exception: string = JSON.stringify(eventInfo.params['exception']);
+              let hilogs: string[] = eventInfo.params['hilog'];
+              let external_logs: string[] = eventInfo.params['external_log'];
+              let crash_type: string = eventInfo.params['crash_type'];
+              let bundle_version: string = eventInfo.params['bundle_version'];
+              cb(time.toString(), pid.toString(), exception, hilogs.reduce((acc, cur) => acc + '\n' + cur, ''),
+                external_logs.length === 0 ? '' : external_logs[0], crash_type, bundle_version);
+              break;
+            }
+            break;
+          }
+        }
+      });
+    };
+  let memMonitor =
+    enableMemMonitor !== undefined ? new cjLib.CMemMonitorConfig(enableMemMonitor!.shouldBeClusteredToThisSo) :
+      undefined;
+  cjLib.initCrashHandler(addCrashWatcher, onCrash, exit, collectCrashInfo, reportCrashInfo, persistentDir,
+    enableDumpOnOOM,
+    lastNHilogNumber,
+    systemLogNumber, memMonitor);
 }
 
 export function getExitInfo(launchParam: AbilityConstant.LaunchParam): void {

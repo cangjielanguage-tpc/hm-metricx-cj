@@ -15,8 +15,9 @@ struct Index {
         })
         .onClick(() => {
           this.message = 'Welcome';
-          while (true) {
-          }
+          throw Error("my error")
+          // while (true) {
+          // }
         })
     }
     .height('100%')

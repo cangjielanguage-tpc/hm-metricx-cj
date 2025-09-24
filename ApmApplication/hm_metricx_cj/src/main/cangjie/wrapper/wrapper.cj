@@ -61,6 +61,7 @@ private func transEnableDumpOnOOM(enableDumpOnOOM: Int8): Option<OOMHandlerMode>
 
 @Interop[ArkTS]
 public func initCrashHandler(
+    addCrashWatcher: ((String, String, String, String, String, String, String) -> Unit) -> Unit,
     onCrash: (() -> Unit) -> Unit,
     exit: () -> Unit,
     collectCrashInfo: () -> String,
@@ -71,7 +72,7 @@ public func initCrashHandler(
     systemLogNumber: Int64,
     enableMemMonitor: Option<CMemMonitorConfig>
 ): Unit {
-    _initCrashHandler(onCrash, exit, collectCrashInfo, reportCrashInfo, Path(persistentDir),
+    _initCrashHandler(addCrashWatcher, onCrash, exit, collectCrashInfo, reportCrashInfo, Path(persistentDir),
         transEnableDumpOnOOM(enableDumpOnOOM), lastNHilogNumber, systemLogNumber, enableMemMonitor)
 }
 

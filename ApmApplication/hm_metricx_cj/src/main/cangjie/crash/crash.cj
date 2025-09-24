@@ -17,7 +17,6 @@ import std.io.*
 import std.unicode.UnicodeStringExtension
 import std.convert.*
 import std.sort.*
-import ohos.hiappevent.*
 import ohos.ark_interop_macro.*
 import ohos.ark_interop.*
 
@@ -584,6 +583,8 @@ func collectExtraCrashInfo(): CString {
 }
 
 public func initCrashHandler(
+    addCrashWatcher: (callback: (time: String, pid: String, exception: String, hilog: String, external_log: String,
+            crash_type: String, bundle_version: String) -> Unit) -> Unit,
     onCrash: (() -> Unit) -> Unit,
     exit: () -> Unit,
     collectCrashInfo: () -> String,
@@ -601,16 +602,17 @@ public func initCrashHandler(
     let persistentPaths = PersistentPaths(persistentDir)
     let hilogNumber = max(lastNHilogNumber, 0)
     let systemLogNum = max(systemLogNumber, 0)
-    spawn {
-        => reportLastCrash(persistentPaths, reportCrashInfo)
-    }
+    //    spawn {
+    //        => reportLastCrash(persistentPaths, reportCrashInfo)
+    //    }
+    reportLastCrash(persistentPaths, reportCrashInfo) // TODO
     let crashInfo = CrashInfo()
     crashInfo.limits = collectLimits()
     initErrorObserver(onCrash, crashInfo, exit, collectCrashInfo, enableDumpOnOOM, persistentPaths)
     initNativeSignalHandler(crashInfo
         .limits
         .getOrThrow(), collectExtraCrashInfo, persistentPaths, hilogNumber, systemLogNum)
-    initCrashWatcher(reportCrashInfo, persistentPaths, enableMemMonitor)
+    initCrashWatcher(addCrashWatcher, reportCrashInfo, persistentPaths, enableMemMonitor)
     initHilogWatcher()
     if (enableMemMonitor.isSome()) {
         spawn {
@@ -879,143 +881,104 @@ private func collectMemInfo() {
     smaps_rollup + "\n" + vss
 }
 
-private func initCrashWatcher(reportCrashInfo: (crashInfo: InteropCrashInfo) -> Unit, persistentPaths: PersistentPaths,
+private func initCrashWatcher(
+    addCrashWatcher: (callback: (time: String, pid: String, exception: String, hilog: String, external_log: String,
+            crash_type: String, bundle_version: String) -> Unit) -> Unit,
+    reportCrashInfo: (crashInfo: InteropCrashInfo) -> Unit, persistentPaths: PersistentPaths,
     enableMemMonitor: Option<CMemMonitorConfig>) {
-    let watcher = Watcher(
-        "crashWatcher",
-        appEventFilters: [AppEventFilter("OS", names: ["APP_CRASH"], eventTypes: [FAULT])],
-        onReceive: {
-            domain: String, appEventGroups: Array<AppEventGroup> => try {
-                if (domain != "OS") {
-                    return
+    let cb = {
+        time: String, pid: String, exception: String, hilog: String, external_log: String, crash_type: String, 
+            bundle_version: String => try {
+            var crashInfo = CrashInfo()
+            if (exists(persistentPaths.filePath)) {
+                try {
+                    let jsonObj = JsonValue
+                        .fromStr(String.fromUtf8(File.readFrom(persistentPaths.filePath)))
+                        .asObject()
+                    crashInfo = CrashInfo.fromJson(jsonObj)
+                } catch (e: JsonException) {
+                    metricx_warn("hm-metricx-cj error: " + e.toString())
                 }
-                var crashInfo = CrashInfo()
-                if (exists(persistentPaths.filePath)) {
-                    try {
-                        let jsonObj = JsonValue
-                            .fromStr(String.fromUtf8(File.readFrom(persistentPaths.filePath)))
-                            .asObject()
-                        crashInfo = CrashInfo.fromJson(jsonObj)
-                    } catch (e: JsonException) {
-                        metricx_warn("hm-metricx-cj error: " + e.toString())
-                    }
-                    deleteFile(persistentPaths.filePath)
-                } else {
-                    metricx_warn("hm-metricx-cj error: No persistent crash file.")
-                }
-                crashInfo.dumpTime = readFile(persistentPaths.dumpTimePath)
-                deleteFile(persistentPaths.dumpTimePath)
-                crashInfo.systemLog = readFile(persistentPaths.systemLogPath).replace("\n\n", "\n")
-                deleteFile(persistentPaths.systemLogPath)
-                crashInfo.lastNHilog = readFile(persistentPaths.lastNHilogPath).replace("\n\n", "\n")
-                deleteFile(persistentPaths.lastNHilogPath)
-                crashInfo.memPersistTime = readFile(persistentPaths.memPersistTimePath)
-                deleteFile(persistentPaths.memPersistTimePath)
-                if (exists(persistentPaths.memMapPath) && exists(persistentPaths.memMallocPath)) {
-                    var shouldBeClusteredToThisSo = {soName: String => false}
-                    if (let Some(v) <- enableMemMonitor) {
-                        shouldBeClusteredToThisSo = v.shouldBeClusteredToThisSo
-                    }
-                    crashInfo.nativeMemDetail = parseStackFrame(persistentPaths, shouldBeClusteredToThisSo)
-                    deleteFile(persistentPaths.memMapPath)
-                    deleteFile(persistentPaths.memMallocPath)
-                    deleteFile(persistentPaths.parsedAddrPath)
-                } else {
-                    metricx_warn("No persistent crash memory file.")
-                }
-                for (eventGroup in appEventGroups) {
-                    if (eventGroup.name != "APP_CRASH") {
-                        continue
-                    }
-                    for (eventInfo in eventGroup.appEventInfos) {
-                        var crashLogPath = ""
-                        for (param in eventInfo.params) {
-                            if (param.key == "external_log") {
-                                crashLogPath = param
-                                    .value
-                                    .value
-                                    .removePrefix("[")
-                                    .removeSuffix("]")
-                            } else if (param.key == "crash_type") {
-                                if (param
-                                    .value
-                                    .value == "JsError") {
-                                    crashInfo.language = "js_crash"
-                                } else if (param
-                                    .value
-                                    .value == "NativeCrash") {
-                                    crashInfo.language = "cpp_crash"
-                                }
-                            } else if (param.key == "time") {
-                                crashInfo.timestamp = param
-                                    .value
-                                    .value
-                            } else if (param.key == "pid") {
-                                crashInfo.pid = param
-                                    .value
-                                    .value
-                                    .removeSuffix(".000000")
-                            } else if (param.key == "exception") {
-                                crashInfo.stacktrace = param
-                                    .value
-                                    .value // TODO 验证不用extractStackTrace，unescapeString是否数据正确
-                            } else if (param.key == "hilog") {
-                                crashInfo.hilog = hilogWordWrap(unescapeString(param
-                                    .value
-                                    .value))
-                            } else if (param.key == "bundle_version") {
-                                crashInfo.appVersion = param
-                                    .value
-                                    .value
-                            }
-                        }
-                        if (crashLogPath.isEmpty()) {
-                            crashInfo.rawFile = "hm-metricx-cj error: crash log path is empty \n" + getLogFileInfo()
-                            crashInfo.historyRawFiles = collectAndCleanHistoryLogFiles()
-                            continue
-                        }
-                        if (!exists(crashLogPath)) {
-                            crashInfo.rawFile = "hm-metricx-cj error: crash log path ${crashLogPath} does not exist \n" +
-                                getLogFileInfo()
-                            continue
-                        }
-                        crashInfo.crashLogPath = crashLogPath
-                        let content = readFile(Path(crashLogPath), isReturnException: true)
-                        crashInfo.rawFile = content
-                        deleteFile(crashLogPath)
-                        let res = extractFromCrashLog(content.split("\n", removeEmpty: true), crashInfo.pid,
-                            crashInfo.threads)
-                        crashInfo.pname = res[0]
-                        crashInfo.tid = res[1]
-                        crashInfo.tname = res[2]
-                    }
-                }
-                if (Process
-                    .current
-                    .pid
-                    .toString() == crashInfo
-                    .pid
-                    .getOrDefault({=> ""})) {
-                    writeFile(persistentPaths.lastCrashFilePath, crashInfo.toString())
-                } else {
-                    if (!reported) {
-                        let crashInfoTemp: CrashInfo = crashInfo
-                        spawn {
-                            =>
-                                if (let Some(pid) <- crashInfoTemp.pid) {
-                                    crashInfoTemp.dumpOnOOMPath = compressOOMFile(pid, persistentPaths.dir)
-                                }
-                                // onReceive callback sometimes will be invoked both before app crash and next launch on high-verion (API 18?) devcies
-                                reportCrashInfo(crashInfoTemp.toInteropCrashInfo())
-                        }
-                    }
-                }
-            } catch (e: Exception) {
-                metricx_warn("hm-metricx-cj error: initCrashWatcher error, " + e.toString())
+                deleteFile(persistentPaths.filePath)
+            } else {
+                metricx_warn("hm-metricx-cj error: No persistent crash file.")
             }
+            crashInfo.dumpTime = readFile(persistentPaths.dumpTimePath)
+            deleteFile(persistentPaths.dumpTimePath)
+            crashInfo.systemLog = readFile(persistentPaths.systemLogPath).replace("\n\n", "\n")
+            deleteFile(persistentPaths.systemLogPath)
+            crashInfo.lastNHilog = readFile(persistentPaths.lastNHilogPath).replace("\n\n", "\n")
+            deleteFile(persistentPaths.lastNHilogPath)
+            crashInfo.memPersistTime = readFile(persistentPaths.memPersistTimePath)
+            deleteFile(persistentPaths.memPersistTimePath)
+            if (exists(persistentPaths.memMapPath) && exists(persistentPaths.memMallocPath)) {
+                var shouldBeClusteredToThisSo = {soName: String => false}
+                if (let Some(v) <- enableMemMonitor) {
+                    shouldBeClusteredToThisSo = v.shouldBeClusteredToThisSo
+                }
+                crashInfo.nativeMemDetail = parseStackFrame(persistentPaths, shouldBeClusteredToThisSo)
+                deleteFile(persistentPaths.memMapPath)
+                deleteFile(persistentPaths.memMallocPath)
+                deleteFile(persistentPaths.parsedAddrPath)
+            } else {
+                metricx_warn("hm-metricx-cj error: No persistent crash memory file.")
+            }
+            var crashLogPath = external_log
+            if (crash_type == "JsError") {
+                crashInfo.language = "js_crash"
+            } else if (crash_type == "NativeCrash") {
+                crashInfo.language = "cpp_crash"
+            }
+            crashInfo.timestamp = time
+            crashInfo.pid = pid
+            crashInfo.stacktrace = exception
+            crashInfo.hilog = hilog
+            crashInfo.appVersion = bundle_version
+            if (crashLogPath.isEmpty()) {
+                crashInfo.rawFile = "hm-metricx-cj error: crash log path is empty \n" + getLogFileInfo()
+                crashInfo.historyRawFiles = collectAndCleanHistoryLogFiles()
+            } else if (!exists(crashLogPath)) {
+                crashInfo.rawFile = "hm-metricx-cj error: crash log path ${crashLogPath} does not exist \n" +
+                    getLogFileInfo()
+            }
+            crashInfo.crashLogPath = crashLogPath
+            let content = readFile(Path(crashLogPath), isReturnException: true)
+            crashInfo.rawFile = content
+            deleteFile(crashLogPath)
+            let res = extractFromCrashLog(content.split("\n", removeEmpty: true), crashInfo.pid, crashInfo.threads)
+            crashInfo.pname = res[0]
+            crashInfo.tid = res[1]
+            crashInfo.tname = res[2]
+            if (Process
+                .current
+                .pid
+                .toString() == crashInfo
+                .pid
+                .getOrDefault({=> ""})) {
+                writeFile(persistentPaths.lastCrashFilePath, crashInfo.toString())
+            } else {
+                if (!reported) {
+                    let crashInfoTemp: CrashInfo = crashInfo
+                    if (let Some(pid) <- crashInfoTemp.pid) {
+                        crashInfoTemp.dumpOnOOMPath = compressOOMFile(pid, persistentPaths.dir)
+                    }
+                    // onReceive callback sometimes will be invoked both before app crash and next launch on high-verion (API 18?) devcies
+                    reportCrashInfo(crashInfoTemp.toInteropCrashInfo()) // TODO
+                    //                    spawn {
+                    //                        =>
+                    //                            if (let Some(pid) <- crashInfoTemp.pid) {
+                    //                                crashInfoTemp.dumpOnOOMPath = compressOOMFile(pid, persistentPaths.dir)
+                    //                            }
+                    //                            // onReceive callback sometimes will be invoked both before app crash and next launch on high-verion (API 18?) devcies
+                    //                            reportCrashInfo(crashInfoTemp.toInteropCrashInfo())
+                    //                    }
+                }
+            }
+        } catch (e: Exception) {
+            metricx_warn("hm-metricx-cj error: initCrashWatcher error, " + e.toString())
         }
-    )
-    HiAppEvent.addWatcher(watcher)
+    }
+    addCrashWatcher(cb)
 }
 
 private func compressOOMFile(pid: String, dir: Path): Option<String> {
@@ -1213,7 +1176,7 @@ private func initHilogWatcher() {
 private func initNativeMemoryWatcher() {
     unsafe {
         if (installNativeMemoryMonitor() != 0) {
-            metricx_warn("registerNativeMemoryCallback failed.")
+            metricx_warn("hm-metricx-cj error: registerNativeMemoryCallback failed.")
         }
     }
 }
@@ -1239,12 +1202,12 @@ private func parseMallocLog(filePath: Path): List<MallocModel> {
 
                 mallocModels.add(MallocModel(size, ptr, longStacks))
             } catch (e: Exception) {
-                metricx_info("parseMallocLog skiped line: ${line},exception: ${e.toString()}")
+                metricx_warn("hm-metricx-cj error: parseMallocLog skiped line: ${line},exception: ${e.toString()}")
             }
         }
         reader.close()
     } catch (e: Exception) {
-        metricx_warn("parse malloc log failed: " + e.toString())
+        metricx_warn("hm-metricx-cj error: parse malloc log failed: " + e.toString())
     }
     mallocModels
 }

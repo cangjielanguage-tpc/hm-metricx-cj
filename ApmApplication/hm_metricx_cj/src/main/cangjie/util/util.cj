@@ -4,9 +4,7 @@
 package ohos_app_cangjie_hm_metricx_cj.util
 
 import std.time.DateTime
-import std.unicode.UnicodeStringExtension
 import std.fs.*
-import std.regex.Regex
 import std.time.*
 import stdx.encoding.json.*
 import std.collection.HashMap
@@ -21,20 +19,6 @@ public func getCurTimeStamp(): String {
 
 public func getTodayDate(): String {
     DateTime.now().format("yyyy-MM-dd")
-}
-
-public func hilogWordWrap(str: String) {
-    let rule = ##"(\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3} )(.*?)(?=\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3} |$)"##
-    let arr = Regex(rule).findAll(str)
-    if (arr.size == 0) {
-        return str
-    }
-    var res: String = ""
-    for (md in arr) {
-        let cur = md.matchString().trim().removeSuffix(",")
-        res = res + cur + "\n"
-    }
-    return res
 }
 
 public func JsonValueToString(value: JsonValue): String {

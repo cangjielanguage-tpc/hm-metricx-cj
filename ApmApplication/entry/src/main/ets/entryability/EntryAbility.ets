@@ -26,8 +26,9 @@ export default class EntryAbility extends UIAbility {
     this.context.getApplicationContext().setColorMode(ConfigurationConstant.ColorMode.COLOR_MODE_NOT_SET);
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onCreate');
     // getExitInfo(launchParam);
-    // initCrashHandler(this.context.getApplicationContext(), () => "{}", data => {
-    // }, "123", OOMHandlerMode.ASYNC, 1000, 1000, new CMemMonitorConfig(data => false));
+    initCrashHandler(this.context.getApplicationContext(), () => "{}", data => {
+      hilog.error(DOMAIN, 'testTag', 'crash info: '+data.crashLogPath);
+    }, "123", OOMHandlerMode.NONE, 1000, 1000, new CMemMonitorConfig(data => false));
     initFreezeHandler(() => "{}", data => {
       hilog.error(DOMAIN, 'testTag', '%{public}s',
         data.timestamp + '\n' + data.pid + '\n' + data.exception + '\n' + data.hilog + '\n' + data.freezeLogPath);
