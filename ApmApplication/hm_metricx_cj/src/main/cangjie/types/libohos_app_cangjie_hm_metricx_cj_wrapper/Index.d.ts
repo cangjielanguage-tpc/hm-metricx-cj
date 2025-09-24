@@ -40,3 +40,5 @@ export declare function initLaggyHandler(onDisplay: DisplaySyncInterface, onAbil
 export declare function initLogger(logger: Logger): void
 
 export declare function initFreezeHandler(sdkApiVersion: number, addFreezeWatcher: (funcArg0: (funcArgfuncArg0: string, funcArgfuncArg1: string, funcArgfuncArg2: string, funcArgfuncArg3: string, funcArgfuncArg4: string) => InteropFreezeInfo) => void, onFreeze: (funcArg0: () => void) => void, collectFreezeInfo: () => string, persistentDir: string): void
+
+export declare function initCrashHandler(onCrash: (funcArg0: () => void) => void, exit: () => void, collectCrashInfo: () => string, reportCrashInfo: (funcArg0: InteropCrashInfo) => void, persistentDir: string, enableDumpOnOOM: number, lastNHilogNumber: number, systemLogNumber: number, enableMemMonitor: CMemMonitorConfig | undefined): void

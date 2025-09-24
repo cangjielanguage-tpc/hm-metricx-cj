@@ -191,12 +191,28 @@ export function initCrashHandler(applicationContext: common.ApplicationContext,
       hilog.warn(DOMAIN, 'hm_metricx_cj', 'killAllProcesses failed');
     });
   };
+  let onCrash = (cb: () => void) => {
+    let index = errorManager.on('error', {
+      onUnhandledException(errorMsg) {
+      },
+      onException(errorObj) {
+        cb();
+      }
+    });
+    if (index !== 0) {
+      // TODO Once ErrorManager supports "freeze" handler, this condition may need to be tweaked.
+      hilog.warn(DOMAIN, 'hm_metricx_cj',
+        'There are other error observers registered before crash obsverver, which may interfere with its behavior.');
+    }
+  };
   if (enableMemMonitor != undefined) {
     let memMonitor = new cjLib.CMemMonitorConfig(enableMemMonitor!.shouldBeClusteredToThisSo);
-    cjLib.initCrashHandler(exit, collectCrashInfo, reportCrashInfo, persistentDir, enableDumpOnOOM, lastNHilogNumber,
+    cjLib.initCrashHandler(onCrash, exit, collectCrashInfo, reportCrashInfo, persistentDir, enableDumpOnOOM,
+      lastNHilogNumber,
       systemLogNumber, memMonitor);
   } else {
-    cjLib.initCrashHandler(exit, collectCrashInfo, reportCrashInfo, persistentDir, enableDumpOnOOM, lastNHilogNumber,
+    cjLib.initCrashHandler(onCrash, exit, collectCrashInfo, reportCrashInfo, persistentDir, enableDumpOnOOM,
+      lastNHilogNumber,
       systemLogNumber, undefined);
   }
 }
