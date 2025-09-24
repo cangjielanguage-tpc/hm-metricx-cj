@@ -82,11 +82,12 @@ public func getExitInfo(lastExitMessage: String, lastExitReason: Int32): Unit {
 
 @Interop[ArkTS]
 public func initFreezeHandler(
+    sdkApiVersion: Int64,
     onFreeze: (() -> Unit) -> Unit,
     collectFreezeInfo: () -> String,
     reportFreezeInfo: (InteropFreezeInfo) -> Unit,
     persistentDir: String): Unit {
-    _initFreezeHandler(onFreeze, collectFreezeInfo, reportFreezeInfo, Path(persistentDir))
+    _initFreezeHandler(sdkApiVersion, onFreeze, collectFreezeInfo, reportFreezeInfo, Path(persistentDir))
 }
 
 @Interop[ArkTS]

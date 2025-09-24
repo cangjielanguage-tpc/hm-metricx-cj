@@ -7,7 +7,6 @@ import ohos_app_cangjie_hm_metricx_cj.util.*
 import stdx.encoding.json.*
 import std.fs.*
 import std.collection.*
-import ohos.device_info.DeviceInfo
 import ohos.hiappevent.*
 import ohos.ark_interop_macro.*
 import ohos.ark_interop.*
@@ -194,6 +193,7 @@ private var freezeInited = false
 private var extraInfo = ""
 
 public func initFreezeHandler(
+    sdkApiVersion: Int64,
     onFreeze: (callback: () -> Unit) -> Unit,
     collectFreezeInfo: () -> String,
     reportFreezeInfo: (freezeInfo: InteropFreezeInfo) -> Unit,
@@ -211,7 +211,7 @@ public func initFreezeHandler(
     let extraInfoBakFilePath = persistentDir.join("extraInfoFreeze-bak.json")
     renameFile(extraInfoFilePath, extraInfoBakFilePath)
     initFreezeWatcher(reportFreezeInfo, cpuUsageBakFilePath, extraInfoBakFilePath)
-    if (DeviceInfo.sdkApiVersion >= 18) {
+    if (sdkApiVersion >= 18) {
         onFreeze({=> freezeCallback(cpuUsageFilePath, extraInfoFilePath)})
     } else {
         initHilogWatcher(cpuUsageFilePath, extraInfoFilePath)

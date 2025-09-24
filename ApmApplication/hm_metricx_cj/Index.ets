@@ -29,7 +29,7 @@ import { uiObserver, window } from '@kit.ArkUI';
 import { statistics } from '@kit.NetworkKit';
 import { storageStatistics } from '@kit.CoreFileKit';
 import { hidebug, hilog } from '@kit.PerformanceAnalysisKit';
-import { batteryInfo, BusinessError, settings } from '@kit.BasicServicesKit';
+import { batteryInfo, BusinessError, deviceInfo, settings } from '@kit.BasicServicesKit';
 import { displaySync } from '@kit.ArkGraphics2D';
 
 const cjLib = requireCJLib('libohos_app_cangjie_hm_metricx_cj.wrapper.so') as CustomLib;
@@ -210,11 +210,10 @@ export function initFreezeHandler(
   reportFreezeInfo: (freezeInfo: FreezeInfo) => void,
   persistentDir: string
 ): void {
-
   let onFreeze = (cb: () => void) => {
     errorManager.on('freeze', cb);
   };
-  cjLib.initFreezeHandler(onFreeze, collectFreezeInfo, reportFreezeInfo, persistentDir);
+  cjLib.initFreezeHandler(deviceInfo.sdkApiVersion, onFreeze, collectFreezeInfo, reportFreezeInfo, persistentDir);
 }
 
 let offMemory = () => {
