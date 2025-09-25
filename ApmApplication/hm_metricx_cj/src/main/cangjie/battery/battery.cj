@@ -9,10 +9,10 @@ import std.fs.*
 import std.io.*
 import std.time.*
 import std.collection.*
-import std.process.Process
 import std.posix.isDir
 import ohos.ark_interop.*
 import ohos.ark_interop_macro.*
+import std.env.*
 
 @Interop[ArkTS]
 public class InteropBatteryUsageInfo {
@@ -492,12 +492,8 @@ private func diffThreadJiffiesSnapshot(current: JiffiesSnapshot, last: JiffiesSn
 }
 
 private func currentJiffiesSnapshot(): JiffiesSnapshot {
-    let currentPid = Process
-        .current
-        .pid
-    let jiffiesSnapshot: JiffiesSnapshot = JiffiesSnapshot(currentPid, Process
-        .current
-        .name)
+    let currentPid = getProcessId()
+    let jiffiesSnapshot: JiffiesSnapshot = JiffiesSnapshot(currentPid, getCommand())
     let threads: ArrayList<UInt32> = getAllThreadId()
 
     for (threadId in threads) {
