@@ -12,7 +12,6 @@ import stdx.compress.zlib.*
 import stdx.encoding.json.*
 import std.time.*
 import std.sync.*
-import std.io.*
 import std.convert.*
 import std.sort.*
 import ohos.ark_interop_macro.*
@@ -1172,31 +1171,25 @@ private func initNativeMemoryWatcher() {
 
 private func parseMallocLog(filePath: Path): List<MallocModel> {
     let mallocModels = ArrayList<MallocModel>()
-    try {
-        let reader = StringReader(File(filePath, OpenMode.Read))
-
-        while (let Some(line) <- reader.readln()) {
-            let strings = line
-                //.trim() TODO
-                .split(" ", removeEmpty: true)
-            if (strings.size < 3) {
-                metricx_info("parseMallocLog skiped line: " + line)
-                continue
-            }
-            try {
-                let size = Int64.parse(strings[0])
-                let ptr = Int64.parse("0x" + strings[1])
-                let stacks = strings[2].split(',', removeEmpty: true)
-                let longStacks = Array<Int64>(stacks.size, {i => Int64.parse("0x" + stacks[i])})
-
-                mallocModels.add(MallocModel(size, ptr, longStacks))
-            } catch (e: Exception) {
-                metricx_warn("hm-metricx-cj error: parseMallocLog skiped line: ${line},exception: ${e.toString()}")
-            }
+    let lines = readFile(filePath).split("\n", removeEmpty: true)
+    for (line in lines) {
+        let strings = line
+            //.trim() TODO
+            .split(" ", removeEmpty: true)
+        if (strings.size < 3) {
+            metricx_info("parseMallocLog skiped line: " + line)
+            continue
         }
-        reader.close()
-    } catch (e: Exception) {
-        metricx_warn("hm-metricx-cj error: parse malloc log failed: " + e.toString())
+        try {
+            let size = Int64.parse(strings[0])
+            let ptr = Int64.parse("0x" + strings[1])
+            let stacks = strings[2].split(',', removeEmpty: true)
+            let longStacks = Array<Int64>(stacks.size, {i => Int64.parse("0x" + stacks[i])})
+
+            mallocModels.add(MallocModel(size, ptr, longStacks))
+        } catch (e: Exception) {
+            metricx_warn("hm-metricx-cj error: parseMallocLog skiped line: ${line},exception: ${e.toString()}")
+        }
     }
     mallocModels
 }
@@ -1215,24 +1208,19 @@ private func parseStackFrame(persistentPaths: PersistentPaths, shouldBeClustered
 
 private func getParsedStacks(parsedPath: Path): HashMap<Int64, ParsedAddr> {
     let map = HashMap<Int64, ParsedAddr>()
-    try {
-        let reader = StringReader(File(parsedPath, OpenMode.Read))
-        while (let Some(line) <- reader.readln()) {
-            try {
-                let arr = line.split(" ", removeEmpty: true)
-                let pc = arr[0]
-                let pcInt = Int64.parse("0x" + pc)
-                let parsedAddr = line.removePrefix(pc)
-                //.trim() TODO
-                let soName = arr[2]
-                map.add(pcInt, ParsedAddr(pcInt, parsedAddr, soName))
-            } catch (e: Exception) {
-                metricx_warn("getParsedStacks skip line: " + line)
-            }
+    let lines = readFile(parsedPath).split("\n", removeEmpty: true)
+    for (line in lines) {
+        try {
+            let arr = line.split(" ", removeEmpty: true)
+            let pc = arr[0]
+            let pcInt = Int64.parse("0x" + pc)
+            let parsedAddr = line.removePrefix(pc)
+            //.trim() TODO
+            let soName = arr[2]
+            map.add(pcInt, ParsedAddr(pcInt, parsedAddr, soName))
+        } catch (e: Exception) {
+            metricx_warn("getParsedStacks skip line: " + line)
         }
-        reader.close()
-    } catch (e: Exception) {
-        metricx_warn("getParsedStacks failed: " + e.toString())
     }
     map
 }
@@ -1358,53 +1346,48 @@ private func parseMaps(filePath: Path, headCount: Int32): String {
     let pathLength = HashMap<String, Int64>()
     let specPathLength = HashMap<String, Int64>()
 
-    try {
-        let reader = StringReader(File(filePath, OpenMode.Read))
-        while (let Some(line) <- reader.readln()) {
-            let segments = line
-                //.trim() TODO
-                .split(" ", removeEmpty: true)
-            if (segments.size < 5) {
-                metricx_info("parse memMap skiped line: " + line)
-                continue
-            }
-            if (segments.size > 6) {
-                for (str in segments[6..]) {
-                    segments[5] += " " + str
-                }
-            }
-            var zonePath = "unknown"
-            if (segments.size >= 6) {
-                zonePath = segments[5]
-            }
-            let zoneItem = segments[0].split("-")
-            if (zoneItem.size != 2) {
-                continue
-            }
-            try {
-                let start = Int64.parse("0x" + zoneItem[0])
-                let end = Int64.parse("0x" + zoneItem[1])
-                let curSize = end - start
-
-                let originPathSize = pathLength.get(zonePath) ?? 0
-                pathLength.add(zonePath, originPathSize + curSize)
-
-                for ((spec, keywords) in specs) {
-                    for (keyword in keywords) {
-                        if (zonePath.contains(keyword)) {
-                            let specSize: Int64 = specPathLength.get(spec) ?? 0
-                            specPathLength.add(spec, specSize + curSize)
-                            break
-                        }
-                    }
-                }
-            } catch (e: Exception) {
-                metricx_info("parse memMap skiped line: ${line}, exception: ${e.toString()}")
+    let lines = readFile(filePath).split("\n", removeEmpty: true)
+    for (line in lines) {
+        let segments = line
+            //.trim() TODO
+            .split(" ", removeEmpty: true)
+        if (segments.size < 5) {
+            metricx_info("parse memMap skiped line: " + line)
+            continue
+        }
+        if (segments.size > 6) {
+            for (str in segments[6..]) {
+                segments[5] += " " + str
             }
         }
-        reader.close()
-    } catch (e: Exception) {
-        metricx_warn("parse memMap failed: " + e.toString())
+        var zonePath = "unknown"
+        if (segments.size >= 6) {
+            zonePath = segments[5]
+        }
+        let zoneItem = segments[0].split("-")
+        if (zoneItem.size != 2) {
+            continue
+        }
+        try {
+            let start = Int64.parse("0x" + zoneItem[0])
+            let end = Int64.parse("0x" + zoneItem[1])
+            let curSize = end - start
+
+            let originPathSize = pathLength.get(zonePath) ?? 0
+            pathLength.add(zonePath, originPathSize + curSize)
+
+            for ((spec, keywords) in specs) {
+                for (keyword in keywords) {
+                    if (zonePath.contains(keyword)) {
+                        let specSize: Int64 = specPathLength.get(spec) ?? 0
+                        specPathLength.add(spec, specSize + curSize)
+                        break
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            metricx_info("parse memMap skiped line: ${line}, exception: ${e.toString()}")
+        }
     }
 
     // 统计Summarry和Details数据

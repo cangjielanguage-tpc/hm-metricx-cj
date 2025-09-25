@@ -6,7 +6,6 @@ package ohos_app_cangjie_hm_metricx_cj.battery
 import ohos_app_cangjie_hm_metricx_cj.util.*
 import std.convert.*
 import std.fs.*
-import std.io.*
 import std.time.*
 import std.collection.*
 import std.posix.isDir
@@ -426,19 +425,17 @@ private func parseThreadInfo(pid: Int64, tid: UInt32, threadJiffiesSnapshot: Thr
     if (!exists(path)) {
         return
     }
-    try (file = File(path, Read)) {
-        let originText = String.fromUtf8(readToEnd(file))
-        let splitText = originText.split(" ")
-        threadJiffiesSnapshot.name = splitText[1]
-            .replace("(", "")
-            .replace(")", "")
-        threadJiffiesSnapshot.state = splitText[2]
-        let utime = Int64.parse(splitText[13])
-        let stime = Int64.parse(splitText[14])
-        let cutime = Int64.parse(splitText[15])
-        let cstime = Int64.parse(splitText[16])
-        threadJiffiesSnapshot.jiffies = utime + stime + cutime + cstime
-    }
+    let originText = readFile(Path(path))
+    let splitText = originText.split(" ")
+    threadJiffiesSnapshot.name = splitText[1]
+        .replace("(", "")
+        .replace(")", "")
+    threadJiffiesSnapshot.state = splitText[2]
+    let utime = Int64.parse(splitText[13])
+    let stime = Int64.parse(splitText[14])
+    let cutime = Int64.parse(splitText[15])
+    let cstime = Int64.parse(splitText[16])
+    threadJiffiesSnapshot.jiffies = utime + stime + cutime + cstime
 }
 
 //计算两个JiffiesSnapshot的差值
