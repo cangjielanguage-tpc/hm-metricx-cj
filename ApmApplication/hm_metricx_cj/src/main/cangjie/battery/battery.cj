@@ -11,8 +11,6 @@ import std.time.*
 import std.collection.*
 import std.process.Process
 import std.posix.isDir
-import ohos.common_event_manager.*
-import ohos.system_date_time.*
 import ohos.ark_interop.*
 import ohos.ark_interop_macro.*
 
@@ -221,6 +219,7 @@ public interface BatteryInfoInterface {
 var _batterInterface: Option<BatteryInfoInterface> = None
 var _getBrightness: () -> Int32 = {=> 0}
 var _getRunningProcessInfo: ((status: Bool) -> Unit) -> Unit = {_ =>}
+var _getUptime: () -> Int64 = {=> 0}
 
 private func isPluggedStatus(): Bool {
     if (let Some(inter) <- _batterInterface) {
@@ -229,18 +228,11 @@ private func isPluggedStatus(): Bool {
     false
 }
 
-var events: Array<String> = [
-    Support.COMMON_EVENT_POWER_CONNECTED,
-    Support.COMMON_EVENT_POWER_DISCONNECTED,
-    Support.COMMON_EVENT_BATTERY_CHANGED
-]
-var subscribeInfo: CommonEventSubscribeInfo = CommonEventSubscribeInfo(events)
-var eventSubscriber: CommonEventSubscriber = CommonEventManager.createSubscriber(subscribeInfo)
 var _reportBatteryCallback: (info: InteropBatteryUsageInfo) -> Unit = {_ =>}
 var batteryLimit: Int32 = 1
 var lastLevel: Int32 = -1
-var lastTime: Int64 = SystemDateTime.getUptime(TimeType.STARTUP)
-var lastScreenOnTimeStamp: Int64 = SystemDateTime.getUptime(TimeType.STARTUP)
+var lastTime: Int64 = -1 // TODO 初始化定义改变是否有影响
+var lastScreenOnTimeStamp: Int64 = -1 // TODO 初始化定义改变是否有影响
 var screenOnTotalSecond: Int64 = 0
 var frontStatus: Bool = true
 var currentPageName: String = defaultPageName
@@ -248,11 +240,11 @@ var currentPageName: String = defaultPageName
 private func reset() {
     lastLevel = -1
     screenOnTotalSecond = 0
-    lastScreenOnTimeStamp = SystemDateTime.getUptime(TimeType.STARTUP)
+    lastScreenOnTimeStamp = _getUptime()
 }
 
-let commonEventCallback = {
-    eventData: CommonEventData => if (eventData.event == Support.COMMON_EVENT_BATTERY_CHANGED) {
+let onBatteryChanged = {
+    =>
         let isCharging: Bool = isPluggedStatus()
         if (isCharging) {
             reset()
@@ -263,12 +255,12 @@ let commonEventCallback = {
             }
             if (lastLevel < 0) {
                 lastLevel = nowLevel
-                lastTime = SystemDateTime.getUptime(TimeType.STARTUP)
+                lastTime = _getUptime()
                 lastScreenOnTimeStamp = lastTime
                 screenOnTotalSecond = 0
             } else if (nowLevel == lastLevel) {
             } else if ((nowLevel + batteryLimit) <= lastLevel) {
-                let nowTime = SystemDateTime.getUptime(TimeType.STARTUP)
+                let nowTime = _getUptime()
                 let elapsedSecond = (nowTime - lastTime) / 1000
 
                 lastTime = nowTime
@@ -314,14 +306,15 @@ let commonEventCallback = {
                 _reportBatteryCallback(info.toInteropBatteryUsageInfo())
             }
         }
-    } else if (eventData.event == Support.COMMON_EVENT_POWER_DISCONNECTED || eventData.event == Support
-        .COMMON_EVENT_POWER_CONNECTED) {
-        reset()
-    }
 }
+let onConnected = reset
+let onDisconnected = reset
 var isOnBackground = false
 var needUpdateStartBgTime = true
-var startBgTime = DateTime.now().toUnixTimeStamp().toMilliseconds()
+var startBgTime = DateTime
+    .now()
+    .toUnixTimeStamp()
+    .toMilliseconds()
 var lastJiffiesSnapshot: ?JiffiesSnapshot = None
 var _reportThreadCpuUsageCallback: (info: InteropAllThreadCpuUsageInfo) -> Unit = {_ =>}
 
@@ -436,7 +429,9 @@ private func parseThreadInfo(pid: Int64, tid: UInt32, threadJiffiesSnapshot: Thr
     try (file = File(path, Read)) {
         let originText = String.fromUtf8(readToEnd(file))
         let splitText = originText.split(" ")
-        threadJiffiesSnapshot.name = splitText[1].replace("(", "").replace(")", "")
+        threadJiffiesSnapshot.name = splitText[1]
+            .replace("(", "")
+            .replace(")", "")
         threadJiffiesSnapshot.state = splitText[2]
         let utime = Int64.parse(splitText[13])
         let stime = Int64.parse(splitText[14])
@@ -453,22 +448,33 @@ private func diffThreadJiffiesSnapshot(current: JiffiesSnapshot, last: JiffiesSn
     let currentThreadEntries = current.threadEntries
     let lastThreadEntries = last.threadEntries
     for (currentThread in currentThreadEntries) {
-        if (currentThread.name.isNone()) {
+        if (currentThread
+            .name
+            .isNone()) {
             continue
         }
         var jiffiesConsumed = currentThread.jiffies
         for (lastThread in lastThreadEntries) {
-            if (lastThread.name.isNone()) {
+            if (lastThread
+                .name
+                .isNone()) {
                 continue
             }
-            if (currentThread.tid == lastThread.tid && currentThread.name.getOrThrow() == lastThread.name.getOrThrow()) {
+            if (currentThread.tid == lastThread.tid && currentThread
+                .name
+                .getOrThrow() == lastThread
+                .name
+                .getOrThrow()) {
                 jiffiesConsumed = currentThread.jiffies - lastThread.jiffies
                 break
             }
         }
         if (jiffiesConsumed > 0) {
-            let deltaThreadJiffies = ThreadJiffiesSnapshot(currentThread.tid, currentThread.name.getOrThrow(),
-                currentThread.state.getOrThrow(), jiffiesConsumed)
+            let deltaThreadJiffies = ThreadJiffiesSnapshot(currentThread.tid, currentThread
+                .name
+                .getOrThrow(), currentThread
+                .state
+                .getOrThrow(), jiffiesConsumed)
             deltaThreadJiffiesList.add(deltaThreadJiffies)
             totalJiffies += jiffiesConsumed
         }
@@ -486,8 +492,12 @@ private func diffThreadJiffiesSnapshot(current: JiffiesSnapshot, last: JiffiesSn
 }
 
 private func currentJiffiesSnapshot(): JiffiesSnapshot {
-    let currentPid = Process.current.pid
-    let jiffiesSnapshot: JiffiesSnapshot = JiffiesSnapshot(currentPid, Process.current.name)
+    let currentPid = Process
+        .current
+        .pid
+    let jiffiesSnapshot: JiffiesSnapshot = JiffiesSnapshot(currentPid, Process
+        .current
+        .name)
     let threads: ArrayList<UInt32> = getAllThreadId()
 
     for (threadId in threads) {
@@ -498,7 +508,9 @@ private func currentJiffiesSnapshot(): JiffiesSnapshot {
         }
         var threadJiffiesSnapshot: ThreadJiffiesSnapshot = ThreadJiffiesSnapshot(tid)
         parseThreadInfo(currentPid, tid, threadJiffiesSnapshot, path)
-        jiffiesSnapshot.threadEntries.add(threadJiffiesSnapshot)
+        jiffiesSnapshot
+            .threadEntries
+            .add(threadJiffiesSnapshot)
     }
     return jiffiesSnapshot
 }
@@ -512,8 +524,8 @@ private func getAllThreadId(): ArrayList<UInt32> {
             path,
             {
                 file =>
-                threadArray.add(file.name)
-                true
+                    threadArray.add(file.name)
+                    true
             }
         )
     }
@@ -536,16 +548,22 @@ private func isHitRule(deltaThreadJiffiesList: ArrayList<ThreadJiffiesSnapshot>,
     let threadNameJifffMap = HashMap<String, Int64>()
     //同名thread累加 不同名则比较
     for (deltaThreadJiffies in deltaThreadJiffiesList) {
-        let threadName = deltaThreadJiffies.name.getOrThrow()
+        let threadName = deltaThreadJiffies
+            .name
+            .getOrThrow()
         let threadJiff = deltaThreadJiffies.jiffies
         if (threadNameJifffMap.contains(threadName)) {
-            var threadTotalJiffies = threadNameJifffMap.get(threadName).getOrThrow()
+            var threadTotalJiffies = threadNameJifffMap
+                .get(threadName)
+                .getOrThrow()
             threadTotalJiffies += threadJiff
             threadNameJifffMap.add(threadName, threadTotalJiffies)
         } else {
             threadNameJifffMap.add(threadName, threadJiff)
         }
-        let threadNewJiff = threadNameJifffMap.get(threadName).getOrThrow()
+        let threadNewJiff = threadNameJifffMap
+            .get(threadName)
+            .getOrThrow()
         if (threadNewJiff > maxThreadJiff) {
             maxThreadJiff = threadNewJiff
         }
@@ -560,13 +578,17 @@ private func calculateAndReportCpuUsage(deltaThreadJiffiesList: ArrayList<Thread
     for (deltaThreadJiffies in deltaThreadJiffiesList) {
         //todo trace
         let threadJiffiesPercent = Float64(deltaThreadJiffies.jiffies) / Float64(singleIntervalTotalJiffies)
-        let threadCpuUsageInfo = ThreadCpuUsageInfo(deltaThreadJiffies.tid, deltaThreadJiffies.name.getOrThrow(),
-            deltaThreadJiffies.state.getOrThrow(), threadJiffiesPercent, deltaThreadJiffies.jiffies,
-            singleIntervalTotalJiffies)
+        let threadCpuUsageInfo = ThreadCpuUsageInfo(deltaThreadJiffies.tid, deltaThreadJiffies
+            .name
+            .getOrThrow(), deltaThreadJiffies
+            .state
+            .getOrThrow(), threadJiffiesPercent, deltaThreadJiffies.jiffies, singleIntervalTotalJiffies)
         if (isOnBackground) {
             threadCpuUsageInfo.startBgTime = startBgTime
-            threadCpuUsageInfo.exceptionTime = Float64(DateTime.now().toUnixTimeStamp().toMilliseconds() - startBgTime) /
-                1000.0
+            threadCpuUsageInfo.exceptionTime = Float64(DateTime
+                .now()
+                .toUnixTimeStamp()
+                .toMilliseconds() - startBgTime) / 1000.0
         }
         reportThreadList.add(threadCpuUsageInfo)
     }
@@ -576,7 +598,10 @@ private func calculateAndReportCpuUsage(deltaThreadJiffiesList: ArrayList<Thread
 private func checkRunningProcessInfo(status: Bool) {
     isOnBackground = status
     if (isOnBackground && needUpdateStartBgTime) {
-        startBgTime = DateTime.now().toUnixTimeStamp().toMilliseconds()
+        startBgTime = DateTime
+            .now()
+            .toUnixTimeStamp()
+            .toMilliseconds()
         needUpdateStartBgTime = false
     }
 }
@@ -602,6 +627,8 @@ let handleCpuReport: () -> Unit = {
 }
 
 public func initBatteryHandler(
+    subscribe: (onBatteryChanged: () -> Unit, onConnected: () -> Unit, onDisconnected: () -> Unit) -> Unit,
+    getUptime: () -> Int64,
     batteryInterface: BatteryInfoInterface,
     getBrightness: () -> Int32,
     onApplicationStateChange: (onApplicationForefround: () -> Unit, onApplicationBackground: () -> Unit) -> Unit,
@@ -613,6 +640,7 @@ public func initBatteryHandler(
     reportThreadCpuUsageInfo: (info: InteropAllThreadCpuUsageInfo) -> Unit,
     limit!: Int32 = 1
 ): Unit {
+    _getUptime = getUptime
     _batterInterface = batteryInterface
     _getBrightness = getBrightness
     _getRunningProcessInfo = getRunningProcessInfo
@@ -620,33 +648,30 @@ public func initBatteryHandler(
     _reportThreadCpuUsageCallback = reportThreadCpuUsageInfo
 
     batteryLimit = limit
+    lastTime = _getUptime()
+    lastScreenOnTimeStamp = _getUptime()
 
     lastJiffiesSnapshot = currentJiffiesSnapshot()
     repeatHandleCpuUsage(handleCpuReport)
     onApplicationStateChange(
         {
             =>
-            let currentTime = SystemDateTime.getUptime(TimeType.STARTUP)
-            lastScreenOnTimeStamp = currentTime
-            frontStatus = true
+                let currentTime = _getUptime()
+                lastScreenOnTimeStamp = currentTime
+                frontStatus = true
         },
         {
             =>
-            let currentTime = SystemDateTime.getUptime(TimeType.STARTUP)
-            let deltaTime = (currentTime - lastScreenOnTimeStamp) / 1000
-            screenOnTotalSecond += deltaTime
-            frontStatus = false
+                let currentTime = _getUptime()
+                let deltaTime = (currentTime - lastScreenOnTimeStamp) / 1000
+                screenOnTotalSecond += deltaTime
+                frontStatus = false
         }
     )
-    onNavDestinationSwitch(
-        {
-            targetPagaName: String => if (!targetPagaName.isEmpty()) {
-                currentPageName = targetPagaName
-            }
-        })
-    CommonEventManager.subscribe(eventSubscriber, commonEventCallback)
-}
-
-public func destroyBatteryHandler(): Unit {
-    CommonEventManager.unsubscribe(eventSubscriber)
+    onNavDestinationSwitch({
+        targetPagaName: String => if (!targetPagaName.isEmpty()) {
+            currentPageName = targetPagaName
+        }
+    })
+    subscribe(onBatteryChanged, onConnected, onDisconnected)
 }

@@ -29,7 +29,14 @@ import { uiObserver, window } from '@kit.ArkUI';
 import { statistics } from '@kit.NetworkKit';
 import { storageStatistics } from '@kit.CoreFileKit';
 import { hiAppEvent, hidebug, hilog } from '@kit.PerformanceAnalysisKit';
-import { batteryInfo, BusinessError, deviceInfo, settings } from '@kit.BasicServicesKit';
+import {
+  batteryInfo,
+  BusinessError,
+  commonEventManager,
+  deviceInfo,
+  settings,
+  systemDateTime
+} from '@kit.BasicServicesKit';
 import { displaySync } from '@kit.ArkGraphics2D';
 
 const cjLib = requireCJLib('libohos_app_cangjie_hm_metricx_cj.wrapper.so') as CustomLib;
@@ -354,6 +361,8 @@ let offBatteryHandlerCallback = () => {
 };
 let clearCpuUsageHandler = () => {
 };
+let unsubscribe = () => {
+};
 
 export function initBatteryHandler(
   context: common.UIAbilityContext,
@@ -482,7 +491,38 @@ export function initBatteryHandler(
     let id = setInterval(handler, 3 * 60 * 1000);
     clearCpuUsageHandler = () => clearInterval(id);
   };
-  cjLib.initBatteryHandler(batteryInterface, getBrightness, onApplicationStateChange, onAbilityForeGround,
+  let getUptime = () => {
+    return systemDateTime.getUptime(systemDateTime.TimeType.STARTUP);
+  };
+  let subscribeInfo: commonEventManager.CommonEventSubscribeInfo = {
+    events: [commonEventManager.Support.COMMON_EVENT_BATTERY_CHANGED,
+      commonEventManager.Support.COMMON_EVENT_POWER_CONNECTED,
+      commonEventManager.Support.COMMON_EVENT_POWER_DISCONNECTED]
+  };
+  let subscriber = commonEventManager.createSubscriberSync(subscribeInfo);
+  let subscribe = (onBatteryChanged: () => void, onConnected: () => void, onDisconnected: () => void) => {
+    commonEventManager.subscribe(subscriber, (err, data) => {
+      if (!data || err) {
+        hilog.warn(DOMAIN, TAG, err.name + ", " + err.message + ", " + err.code);
+        return;
+      }
+      switch (data.event) {
+        case commonEventManager.Support.COMMON_EVENT_BATTERY_CHANGED:
+          onBatteryChanged();
+          break;
+        case commonEventManager.Support.COMMON_EVENT_POWER_CONNECTED:
+          onConnected();
+          break;
+        case commonEventManager.Support.COMMON_EVENT_POWER_DISCONNECTED:
+          onDisconnected();
+          break;
+      }
+    });
+  };
+  unsubscribe = () => {
+    commonEventManager.unsubscribe(subscriber);
+  };
+  cjLib.initBatteryHandler(subscribe, getUptime, batteryInterface, getBrightness, onApplicationStateChange, onAbilityForeGround,
     onNavDestinationSwitch,
     getRunningProcessInfo, repeatHandlerCpuUsage, reportBatterInfo, reportThreadCpuUsageInfo, limit);
 }
@@ -490,7 +530,7 @@ export function initBatteryHandler(
 export function destroyBatteryHandler(): void {
   offBatteryHandlerCallback();
   clearCpuUsageHandler();
-  cjLib.destroyBatteryHandler();
+  unsubscribe();
 }
 
 export function initScrollEventHandler(

@@ -35,7 +35,6 @@ import ohos_app_cangjie_hm_metricx_cj.battery.InteropBatteryUsageInfo
 import ohos_app_cangjie_hm_metricx_cj.battery.InteropAllThreadCpuUsageInfo
 import ohos_app_cangjie_hm_metricx_cj.battery.BatteryInfoInterface
 import ohos_app_cangjie_hm_metricx_cj.battery.initBatteryHandler as _initBatteryHandler
-import ohos_app_cangjie_hm_metricx_cj.battery.destroyBatteryHandler as _destroyBatteryHandler
 import ohos_app_cangjie_hm_metricx_cj.fps.ScrollHitchInfo
 import ohos_app_cangjie_hm_metricx_cj.fps.FpsEventInfo
 import ohos_app_cangjie_hm_metricx_cj.fps.initPageEventHandler as _initPageEventHandler
@@ -169,6 +168,8 @@ public func destroyMemoryHandler(): Unit {
 
 @Interop[ArkTS]
 public func initBatteryHandler(
+    subscribe: (() -> Unit, () -> Unit, () -> Unit) -> Unit,
+    getUptime: () -> Int64,
     batteryInterface: BatteryInfoInterface,
     getBrightness: () -> Int32,
     onApplicationStateChange: (() -> Unit, () -> Unit) -> Unit,
@@ -180,14 +181,9 @@ public func initBatteryHandler(
     reportThreadCpuUsageInfo: (InteropAllThreadCpuUsageInfo) -> Unit,
     limit: Int32
 ): Unit {
-    _initBatteryHandler(batteryInterface, getBrightness, onApplicationStateChange, onAbilityForeground,
+    _initBatteryHandler(subscribe, getUptime, batteryInterface, getBrightness, onApplicationStateChange, onAbilityForeground,
         onNavDestinationSwitch, getRunningProcessInfo, repeatHandleCpuUsage, reportBatteryInfo, reportThreadCpuUsageInfo,
         limit: limit)
-}
-
-@Interop[ArkTS]
-public func destroyBatteryHandler(): Unit {
-    _destroyBatteryHandler()
 }
 
 @Interop[ArkTS]

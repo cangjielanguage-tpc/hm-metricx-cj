@@ -1,3 +1,13 @@
+export declare class InteropAllThreadCpuUsageInfo {
+    threadCpuUsageInfoList: Array<InteropThreadCpuUsageInfo>
+}
+
+export declare interface MemoryPreference {
+    put: (key: string, value: number) => void
+    has: (key: string) => boolean
+    get: (key: string, defaultValue: number) => number
+}
+
 export declare class InteropThreadCpuUsageInfo {
     threadId: number
     threadName: string
@@ -9,8 +19,46 @@ export declare class InteropThreadCpuUsageInfo {
     exceptionTime: number
 }
 
-export declare class CMemMonitorConfig {
-    shouldBeClusteredToThisSo: (varArg0: string) => boolean
+export declare class InteropProcessMemoryInfo {
+    avgMemory: number
+    maxMemory: number
+    sampleCount: number
+    pid: number
+}
+
+export declare interface BatteryInfoInterface {
+    getBatterySOC: () => number
+    getChargingStatus: () => number
+    getHealthStatus: () => number
+    getPluggedType: () => number
+    getVoltage: () => number
+    getTechnology: () => string
+    getBatteryTemperature: () => number
+}
+
+export declare class InteropPageMemoryInfo {
+    avgMemory: number
+    maxMemory: number
+    sampleCount: number
+    pageName: string
+}
+
+export declare class InteropBatteryUsageInfo {
+    currentPageName: string | undefined
+    level: number | undefined
+    temperature: number | undefined
+    capacity: number | undefined
+    scale: number | undefined
+    status: number | undefined
+    health: number | undefined
+    voltage: number | undefined
+    technology: string | undefined
+    plugged: number | undefined
+    charging: boolean | undefined
+    limit: number | undefined
+    brightness: number | undefined
+    useTime: number | undefined
+    time: number | undefined
 }
 
 export declare interface TrafficPreference {
@@ -29,32 +77,6 @@ export declare class InteropPageTrafficInfo {
     upTotal: number
     downTotal: number
     pageName: string
-}
-
-export declare class InteropCrashInfo {
-    language: string | undefined
-    meminfo: string | undefined
-    timestamp: string | undefined
-    pid: string | undefined
-    pname: string | undefined
-    stacktrace: string | undefined
-    hilog: string | undefined
-    tid: string | undefined
-    tname: string | undefined
-    fds: Map<string, string> | undefined
-    limits: string | undefined
-    threads: string | undefined
-    extraInfo: string | undefined
-    crashLogPath: string | undefined
-    dumpOnOOMPath: string | undefined
-    appVersion: string | undefined
-    rawFile: string | undefined
-    systemLog: string | undefined
-    lastNHilog: string | undefined
-    dumpTime: string | undefined
-    historyRawFiles: string | undefined
-    nativeMemDetail: string | undefined
-    memPersistTime: string | undefined
 }
 
 export declare class InteropSystemTrafficInfo {
@@ -98,56 +120,8 @@ export declare class ResponseEvent {
     hitHeight: number
 }
 
-export declare interface MemoryPreference {
-    put: (key: string, value: number) => void
-    has: (key: string) => boolean
-    get: (key: string, defaultValue: number) => number
-}
-
-export declare class InteropAllThreadCpuUsageInfo {
-    threadCpuUsageInfoList: Array<InteropThreadCpuUsageInfo>
-}
-
-export declare class InteropProcessMemoryInfo {
-    avgMemory: number
-    maxMemory: number
-    sampleCount: number
-    pid: number
-}
-
-export declare class InteropPageMemoryInfo {
-    avgMemory: number
-    maxMemory: number
-    sampleCount: number
-    pageName: string
-}
-
-export declare interface BatteryInfoInterface {
-    getBatterySOC: () => number
-    getChargingStatus: () => number
-    getHealthStatus: () => number
-    getPluggedType: () => number
-    getVoltage: () => number
-    getTechnology: () => string
-    getBatteryTemperature: () => number
-}
-
-export declare class InteropBatteryUsageInfo {
-    currentPageName: string | undefined
-    level: number | undefined
-    temperature: number | undefined
-    capacity: number | undefined
-    scale: number | undefined
-    status: number | undefined
-    health: number | undefined
-    voltage: number | undefined
-    technology: string | undefined
-    plugged: number | undefined
-    charging: boolean | undefined
-    limit: number | undefined
-    brightness: number | undefined
-    useTime: number | undefined
-    time: number | undefined
+export declare class CMemMonitorConfig {
+    shouldBeClusteredToThisSo: (varArg0: string) => boolean
 }
 
 export declare class ScrollHitchInfo {
@@ -176,20 +150,30 @@ export declare class FpsEventInfo {
     pageName: string
 }
 
-export declare class InteropFreezeInfo {
+export declare class InteropCrashInfo {
+    language: string | undefined
+    meminfo: string | undefined
     timestamp: string | undefined
     pid: string | undefined
-    exception: string | undefined
+    pname: string | undefined
+    stacktrace: string | undefined
     hilog: string | undefined
     tid: string | undefined
     tname: string | undefined
+    fds: Map<string, string> | undefined
+    limits: string | undefined
+    threads: string | undefined
     extraInfo: string | undefined
-    freezeLogPath: string | undefined
-    cpuThread: Map<string, string> | undefined
-    cpu: Map<string, string> | undefined
-    stacktrace: Array<string> | undefined
+    crashLogPath: string | undefined
+    dumpOnOOMPath: string | undefined
+    appVersion: string | undefined
     rawFile: string | undefined
+    systemLog: string | undefined
+    lastNHilog: string | undefined
+    dumpTime: string | undefined
     historyRawFiles: string | undefined
+    nativeMemDetail: string | undefined
+    memPersistTime: string | undefined
 }
 
 export declare class InteropProcessCpuInfo {
@@ -206,6 +190,22 @@ export declare class InteropPageCpuInfo {
     pageName: string
 }
 
+export declare class InteropFreezeInfo {
+    timestamp: string | undefined
+    pid: string | undefined
+    exception: string | undefined
+    hilog: string | undefined
+    tid: string | undefined
+    tname: string | undefined
+    extraInfo: string | undefined
+    freezeLogPath: string | undefined
+    cpuThread: Map<string, string> | undefined
+    cpu: Map<string, string> | undefined
+    stacktrace: Array<string> | undefined
+    rawFile: string | undefined
+    historyRawFiles: string | undefined
+}
+
 export declare class InteropStorageInfo {
     appSize: number
     cacheSize: number
@@ -213,18 +213,6 @@ export declare class InteropStorageInfo {
     totalSize: number
     topStorageFileList: Array<InteropStorageFileInfo>
     exceptionDirList: Array<InteropStorageFileInfo>
-}
-
-export declare class InteropStorageFileInfo {
-    path: string
-    size: number
-    subfileList: Array<InteropStorageFileInfo>
-    isDir: boolean
-}
-
-export declare class ExitInfo {
-    lastExitMessage: string
-    lastExitReason: string
 }
 
 export declare interface DisplaySyncInterface {
@@ -239,28 +227,39 @@ export declare interface Logger {
     info: (content: string) => void
 }
 
+export declare class ExitInfo {
+    lastExitMessage: string
+    lastExitReason: string
+}
+
+export declare class InteropStorageFileInfo {
+    path: string
+    size: number
+    subfileList: Array<InteropStorageFileInfo>
+    isDir: boolean
+}
+
 export declare interface CustomLib {
     ExitInfo: {new (exitMessage: string, exitReason: string): ExitInfo}
-    InteropStorageFileInfo: {new (p: string, s: number, ss: Array<InteropStorageFileInfo>, i: boolean): InteropStorageFileInfo}
     InteropStorageInfo: {new (a: number, c: number, d: number, t: number, ts: Array<InteropStorageFileInfo>, es: Array<InteropStorageFileInfo>): InteropStorageInfo}
+    InteropFreezeInfo: {new (): InteropFreezeInfo}
     InteropPageCpuInfo: {new (a: number, m: number, s: number, p: string): InteropPageCpuInfo}
     InteropProcessCpuInfo: {new (a: number, m: number, s: number, p: number): InteropProcessCpuInfo}
-    InteropFreezeInfo: {new (): InteropFreezeInfo}
+    InteropCrashInfo: {new (): InteropCrashInfo}
     FpsEventInfo: {new (minFps: number, avgFps: number, pageName: string): FpsEventInfo}
     ScrollHitchInfo: {new (minFps: number, avgFps: number, frameDropRatio: number, jankRate: number, bigJankRate: number, htLessThan0: number, ht0To00001: number, ht00001To0001: number, ht0001To001: number, ht001To005: number, ht005To01: number, ht01To1: number, htBiggerThan1: number, targetFPS: number, longestLostFrame: number, totalFrameCount: number, pageName: string): ScrollHitchInfo}
-    InteropBatteryUsageInfo: {new (c: string | undefined, l: number | undefined, t: number | undefined, ca: number | undefined, sc: number | undefined, st: number | undefined, h: number | undefined, v: number | undefined, te: string | undefined, p: number | undefined, ch: boolean | undefined, li: number | undefined, b: number | undefined, u: number | undefined, ti: number | undefined): InteropBatteryUsageInfo}
-    InteropPageMemoryInfo: {new (a: number, m: number, s: number, p: string): InteropPageMemoryInfo}
-    InteropThreadCpuUsageInfo: {new (threadId: number, threadName: string, threadState: string, threadJiffiesPercent: number, threadJiffies: number, totalJiffies: number, st: number, et: number): InteropThreadCpuUsageInfo}
-    InteropProcessMemoryInfo: {new (a: number, m: number, s: number, p: number): InteropProcessMemoryInfo}
-    InteropAllThreadCpuUsageInfo: {new (t: Array<InteropThreadCpuUsageInfo>): InteropAllThreadCpuUsageInfo}
+    CMemMonitorConfig: {new (shouldBeClusteredToThisSo: (funcArg0: string) => boolean): CMemMonitorConfig}
     ResponseEvent: {new (): ResponseEvent}
     InteropPageResponseLaggyModel: {new (): InteropPageResponseLaggyModel}
     ClickInfo: {new (time: number, wx: number, wy: number, id: string, nodeType: string, hX: number, hY: number, hH: number, hW: number): ClickInfo}
     InteropSystemTrafficInfo: {new (u: number, d: number, t: string): InteropSystemTrafficInfo}
-    InteropCrashInfo: {new (): InteropCrashInfo}
     InteropPageTrafficInfo: {new (u: number, d: number, p: string): InteropPageTrafficInfo}
     InteropSampleTrafficInfo: {new (s: InteropSystemTrafficInfo, p: Map<string, InteropPageTrafficInfo>): InteropSampleTrafficInfo}
-    CMemMonitorConfig: {new (shouldBeClusteredToThisSo: (funcArg0: string) => boolean): CMemMonitorConfig}
+    InteropBatteryUsageInfo: {new (c: string | undefined, l: number | undefined, t: number | undefined, ca: number | undefined, sc: number | undefined, st: number | undefined, h: number | undefined, v: number | undefined, te: string | undefined, p: number | undefined, ch: boolean | undefined, li: number | undefined, b: number | undefined, u: number | undefined, ti: number | undefined): InteropBatteryUsageInfo}
+    InteropPageMemoryInfo: {new (a: number, m: number, s: number, p: string): InteropPageMemoryInfo}
+    InteropProcessMemoryInfo: {new (a: number, m: number, s: number, p: number): InteropProcessMemoryInfo}
+    InteropThreadCpuUsageInfo: {new (threadId: number, threadName: string, threadState: string, threadJiffiesPercent: number, threadJiffies: number, totalJiffies: number, st: number, et: number): InteropThreadCpuUsageInfo}
+    InteropAllThreadCpuUsageInfo: {new (t: Array<InteropThreadCpuUsageInfo>): InteropAllThreadCpuUsageInfo}
     initCrashHandler(addCrashWatcher: (funcArg0: (funcArgfuncArg0: string, funcArgfuncArg1: string, funcArgfuncArg2: string, funcArgfuncArg3: string, funcArgfuncArg4: string, funcArgfuncArg5: string, funcArgfuncArg6: string) => void) => void, onCrash: (funcArg0: () => void) => void, exit: () => void, collectCrashInfo: () => string, reportCrashInfo: (funcArg0: InteropCrashInfo) => void, persistentDir: string, enableDumpOnOOM: number, lastNHilogNumber: number, systemLogNumber: number, enableMemMonitor: CMemMonitorConfig | undefined): void
     getExitInfo(lastExitMessage: string, lastExitReason: number): void
     initFreezeHandler(sdkApiVersion: number, addFreezeWatcher: (funcArg0: (funcArgfuncArg0: string, funcArgfuncArg1: string, funcArgfuncArg2: string, funcArgfuncArg3: string, funcArgfuncArg4: string) => InteropFreezeInfo) => void, onFreeze: (funcArg0: () => void) => void, collectFreezeInfo: () => string, persistentDir: string): void
@@ -275,10 +274,10 @@ export declare interface CustomLib {
     getProcessMemoryInfo(): InteropProcessMemoryInfo
     initMemoryHandler(memoryPreference: MemoryPreference, getMemoryUsage: () => number, onNavDestinationSwitch: (funcArg0: (funcArgfuncArg0: string) => void) => void, repeatSampleAndReportMemory: (funcArg0: () => void, funcArg1: () => void) => void, reporPageMemoryInfo: (funcArg0: InteropPageMemoryInfo) => void, reporProcessMemoryInfo: (funcArg0: InteropProcessMemoryInfo) => void, memoryThreshold: number): void
     destroyMemoryHandler(): void
-    initBatteryHandler(batteryInterface: BatteryInfoInterface, getBrightness: () => number, onApplicationStateChange: (funcArg0: () => void, funcArg1: () => void) => void, onAbilityForeground: (funcArg0: () => void) => void, onNavDestinationSwitch: (funcArg0: (funcArgfuncArg0: string) => void) => void, getRunningProcessInfo: (funcArg0: (funcArgfuncArg0: boolean) => void) => void, repeatHandleCpuUsage: (funcArg0: () => void) => void, reportBatteryInfo: (funcArg0: InteropBatteryUsageInfo) => void, reportThreadCpuUsageInfo: (funcArg0: InteropAllThreadCpuUsageInfo) => void, limit: number): void
-    destroyBatteryHandler(): void
+    initBatteryHandler(subscribe: (funcArg0: () => void, funcArg1: () => void, funcArg2: () => void) => void, getUptime: () => number, batteryInterface: BatteryInfoInterface, getBrightness: () => number, onApplicationStateChange: (funcArg0: () => void, funcArg1: () => void) => void, onAbilityForeground: (funcArg0: () => void) => void, onNavDestinationSwitch: (funcArg0: (funcArgfuncArg0: string) => void) => void, getRunningProcessInfo: (funcArg0: (funcArgfuncArg0: boolean) => void) => void, repeatHandleCpuUsage: (funcArg0: () => void) => void, reportBatteryInfo: (funcArg0: InteropBatteryUsageInfo) => void, reportThreadCpuUsageInfo: (funcArg0: InteropAllThreadCpuUsageInfo) => void, limit: number): void
     initScrollEventHandler(onDisplay: DisplaySyncInterface, onScrollEvect: (funcArg0: () => void, funcArg1: () => void) => void, onNavDestinationSwitch: (funcArg0: (funcArgfuncArg0: string) => void) => void, reportPageScrollInfo: (funcArg0: ScrollHitchInfo) => void): void
     initPageEventHandler(onNavDestinationSwitch: (funcArg0: (funcArgfuncArg0: string) => void) => void, onWindowEvent: (funcArg0: () => void, funcArg1: () => void) => void, reportFpsInfo: (funcArg0: FpsEventInfo) => void): void
     initLaggyHandler(onDisplay: DisplaySyncInterface, onAbilityBackground: (funcArg0: () => void) => void, onNavDestinationSwitch: (funcArg0: (funcArgfuncArg0: string) => void) => void, onDidClick: (funcArg0: (funcArgfuncArg0: ClickInfo) => void) => void, maxTime: number, maxArraySize: number, reportResponseEvent: (funcArg0: ResponseEvent) => void, reportPageResponseLaggyModel: (funcArg0: InteropPageResponseLaggyModel) => void): void
     initLogger(logger: Logger): void
+    InteropStorageFileInfo: {new (p: string, s: number, ss: Array<InteropStorageFileInfo>, i: boolean): InteropStorageFileInfo}
 }
