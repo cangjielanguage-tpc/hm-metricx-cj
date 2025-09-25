@@ -8,7 +8,6 @@ import std.convert.*
 import std.fs.*
 import std.time.*
 import std.collection.*
-import std.posix.isDir
 import ohos.ark_interop.*
 import ohos.ark_interop_macro.*
 import std.env.*
@@ -512,7 +511,7 @@ private func getAllThreadId(): ArrayList<UInt32> {
     let threadIdArray = ArrayList<UInt32>()
     let path = "/proc/self/task/"
     let threadArray = ArrayList<String>()
-    if (exists(path) && isDir(path)) {
+    if (exists(path)) {
         Directory.walk(
             path,
             {

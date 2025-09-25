@@ -4,9 +4,9 @@
 package ohos_app_cangjie_hm_metricx_cj.memory
 
 import ohos_app_cangjie_hm_metricx_cj.util.*
-import std.posix.*
 import ohos.ark_interop.*
 import ohos.ark_interop_macro.*
+import std.env.*
 
 public open class MemoryInfo {
     private var avgMemoryValue: Int64 = 0
@@ -117,8 +117,8 @@ public class InteropProcessMemoryInfo {
     public let avgMemory: Int64
     public let maxMemory: Int64
     public let sampleCount: Int64
-    public let pid: Int32
-    public init(a: Int64, m: Int64, s: Int64, p: Int32) {
+    public let pid: Int64
+    public init(a: Int64, m: Int64, s: Int64, p: Int64) {
         this.avgMemory = a
         this.maxMemory = m
         this.sampleCount = s
@@ -127,9 +127,9 @@ public class InteropProcessMemoryInfo {
 }
 
 public class ProcessMemoryInfo <: MemoryInfo {
-    private var pidValue: Int32 = 0
+    private var pidValue: Int64 = 0
 
-    mut prop pid: Int32 {
+    mut prop pid: Int64 {
         get() {
             this.pidValue
         }
@@ -139,15 +139,11 @@ public class ProcessMemoryInfo <: MemoryInfo {
     }
 
     public init() {
-        this.pidValue = getpid()
+        this.pidValue = getProcessId()
     }
 
-    public init(pidValue: Int32) {
+    public init(pidValue: Int64) {
         this.pidValue = pidValue
-    }
-
-    public func getProcessName(): Int32 {
-        this.pidValue
     }
 
     func toInteropProcessMemotyInfo(): InteropProcessMemoryInfo {
@@ -173,16 +169,16 @@ var _getMemoryUsage: () -> Int64 = {=> 0}
 var _memoryPreference: Option<MemoryPreference> = None
 let doMemorySample: () -> Unit = {
     =>
-    let memoryUsage = _getMemoryUsage()
-    if (!thresholdReported) {
-        if (memoryUsage >= MEMOMRY_THRESHOLD) {
-            processMemoryInfo.maxMemory = memoryUsage
-            _reportProcessMemoryInfo(processMemoryInfo.toInteropProcessMemotyInfo())
-            thresholdReported = true
+        let memoryUsage = _getMemoryUsage()
+        if (!thresholdReported) {
+            if (memoryUsage >= MEMOMRY_THRESHOLD) {
+                processMemoryInfo.maxMemory = memoryUsage
+                _reportProcessMemoryInfo(processMemoryInfo.toInteropProcessMemotyInfo())
+                thresholdReported = true
+            }
         }
-    }
-    pageMemoryInfo.computeAvg(memoryUsage)
-    processMemoryInfo.computeAvg(memoryUsage)
+        pageMemoryInfo.computeAvg(memoryUsage)
+        processMemoryInfo.computeAvg(memoryUsage)
 }
 let handleMemoryReport: () -> Unit = {
     => _reportProcessMemoryInfo(processMemoryInfo.toInteropProcessMemotyInfo())
@@ -247,13 +243,13 @@ public func initMemoryHandler(
     onNavDestinationSwitch(
         {
             targetPageName: String =>
-            if (!targetPageName.isEmpty()) {
-                currentPageName = targetPageName
-            }
-            doMemorySample()
-            _reportPageMemoryInfo(pageMemoryInfo.toInteropPageMemoryInfo())
-            pageMemoryInfo.reset()
-            pageMemoryInfo.pageName = currentPageName
+                if (!targetPageName.isEmpty()) {
+                    currentPageName = targetPageName
+                }
+                doMemorySample()
+                _reportPageMemoryInfo(pageMemoryInfo.toInteropPageMemoryInfo())
+                pageMemoryInfo.reset()
+                pageMemoryInfo.pageName = currentPageName
         }
     )
 }

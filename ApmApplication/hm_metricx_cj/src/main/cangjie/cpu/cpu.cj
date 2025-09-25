@@ -4,9 +4,9 @@
 package ohos_app_cangjie_hm_metricx_cj.cpu
 
 import ohos_app_cangjie_hm_metricx_cj.util.*
-import std.posix.*
 import ohos.ark_interop.*
 import ohos.ark_interop_macro.*
+import std.env.*
 
 public open class CpuInfo {
     private var avgCpuValue: Float64 = 0.0
@@ -119,8 +119,8 @@ public class InteropProcessCpuInfo {
     public let avgCpu: Float64
     public let maxCpu: Float64
     public let sampleCount: Int64
-    public let pid: Int32
-    public init(a: Float64, m: Float64, s: Int64, p: Int32) {
+    public let pid: Int64
+    public init(a: Float64, m: Float64, s: Int64, p: Int64) {
         this.avgCpu = a
         this.maxCpu = m
         this.sampleCount = s
@@ -129,9 +129,9 @@ public class InteropProcessCpuInfo {
 }
 
 public class ProcessCpuInfo <: CpuInfo {
-    private var pidValue: Int32 = 0
+    private var pidValue: Int64 = 0
 
-    mut prop pid: Int32 {
+    mut prop pid: Int64 {
         get() {
             this.pidValue
         }
@@ -141,15 +141,11 @@ public class ProcessCpuInfo <: CpuInfo {
     }
 
     public init() {
-        this.pidValue = getpid()
+        this.pidValue = getProcessId()
     }
 
-    public init(pidValue: Int32) {
+    public init(pidValue: Int64) {
         this.pidValue = pidValue
-    }
-
-    func getProcessName(): Int32 {
-        this.pidValue
     }
 
     func toInteropProcessCpuInfo(): InteropProcessCpuInfo {
