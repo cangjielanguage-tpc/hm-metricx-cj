@@ -18,336 +18,129 @@ import ohos.ark_interop_macro.*
 import ohos.ark_interop.*
 
 public class CrashInfo {
-    private var languageValue: ?String = None
-    private var meminfoValue: ?String = None
-    private var timestampValue: ?String = None
-    private var pidValue: ?String = None
-    private var pnameValue: ?String = None
-    private var stacktraceValue: ?String = None
-    private var hilogValue: ?String = None
-    private var tidValue: ?String = None
-    private var tnameValue: ?String = None
-    private var fdsValue: ?HashMap<String, String> = None
-    private var limitsValue: ?String = None
-    private var threadsValue: ?String = None
-    private var extraInfoValue: ?String = None
-    private var crashLogPathValue: ?String = None
-    private var dumpOnOOMPathValue: ?String = None
-    private var appVersionValue: ?String = None
-    private var rawFileValue: ?String = None
-    private var systemLogValue: ?String = None
-    private var lastNHilogValue: ?String = None
-    private var dumpTimeValue: ?String = None
-    private var historyRawFilesValue: ?String = None
-    private var nativeMemDetailValue: ?String = None
-    private var memPersistTimeValue: ?String = None
-
-    public mut prop language: ?String {
-        get() {
-            languageValue
-        }
-        set(value) {
-            languageValue = value
-        }
-    }
-
-    public mut prop meminfo: ?String {
-        get() {
-            meminfoValue
-        }
-        set(value) {
-            meminfoValue = value
-        }
-    }
-
-    public mut prop timestamp: ?String {
-        get() {
-            timestampValue
-        }
-        set(value) {
-            timestampValue = value
-        }
-    }
-
-    public mut prop pid: ?String {
-        get() {
-            pidValue
-        }
-        set(value) {
-            pidValue = value
-        }
-    }
-
-    public mut prop pname: ?String {
-        get() {
-            pnameValue
-        }
-        set(value) {
-            pnameValue = value
-        }
-    }
-
-    public mut prop stacktrace: ?String {
-        get() {
-            stacktraceValue
-        }
-        set(value) {
-            stacktraceValue = value
-        }
-    }
-
-    public mut prop hilog: ?String {
-        get() {
-            hilogValue
-        }
-        set(value) {
-            hilogValue = value
-        }
-    }
-
-    public mut prop tid: ?String {
-        get() {
-            tidValue
-        }
-        set(value) {
-            tidValue = value
-        }
-    }
-
-    public mut prop limits: ?String {
-        get() {
-            limitsValue
-        }
-        set(value) {
-            limitsValue = value
-        }
-    }
-
-    public mut prop fds: ?HashMap<String, String> {
-        get() {
-            fdsValue
-        }
-        set(value) {
-            fdsValue = value
-        }
-    }
-
-    public mut prop tname: ?String {
-        get() {
-            tnameValue
-        }
-        set(value) {
-            tnameValue = value
-        }
-    }
-
-    public mut prop threads: ?String {
-        get() {
-            threadsValue
-        }
-        set(value) {
-            threadsValue = value
-        }
-    }
-
-    public mut prop crashLogPath: ?String {
-        get() {
-            crashLogPathValue
-        }
-        set(value) {
-            crashLogPathValue = value
-        }
-    }
-
-    public mut prop extraInfo: ?String {
-        get() {
-            extraInfoValue
-        }
-        set(value) {
-            extraInfoValue = value
-        }
-    }
-
-    public mut prop dumpOnOOMPath: ?String {
-        get() {
-            dumpOnOOMPathValue
-        }
-        set(value) {
-            dumpOnOOMPathValue = value
-        }
-    }
-
-    public mut prop appVersion: ?String {
-        get() {
-            appVersionValue
-        }
-        set(value) {
-            appVersionValue = value
-        }
-    }
-
-    public mut prop rawFile: ?String {
-        get() {
-            rawFileValue
-        }
-        set(value) {
-            rawFileValue = value
-        }
-    }
-
-    public mut prop systemLog: ?String {
-        get() {
-            systemLogValue
-        }
-        set(value) {
-            systemLogValue = value
-        }
-    }
-
-    public mut prop lastNHilog: ?String {
-        get() {
-            lastNHilogValue
-        }
-        set(value) {
-            lastNHilogValue = value
-        }
-    }
-
-    public mut prop dumpTime: ?String {
-        get() {
-            dumpTimeValue
-        }
-        set(value) {
-            dumpTimeValue = value
-        }
-    }
-
-    public mut prop historyRawFiles: ?String {
-        get() {
-            historyRawFilesValue
-        }
-        set(value) {
-            historyRawFilesValue = value
-        }
-    }
-
-    public mut prop nativeMemDetail: ?String {
-        get() {
-            nativeMemDetailValue
-        }
-        set(value) {
-            nativeMemDetailValue = value
-        }
-    }
-
-    public mut prop memPersistTime: ?String {
-        get() {
-            memPersistTimeValue
-        }
-        set(value) {
-            memPersistTimeValue = value
-        }
-    }
+    public var language: ?String = None
+    public var meminfo: ?String = None
+    public var timestamp: ?String = None
+    public var pid: ?String = None
+    public var pname: ?String = None
+    public var stacktrace: ?String = None
+    public var hilog: ?String = None
+    public var tid: ?String = None
+    public var tname: ?String = None
+    public var fds: ?HashMap<String, String> = None
+    public var limits: ?String = None
+    public var threads: ?String = None
+    public var extraInfo: ?String = None
+    public var crashLogPath: ?String = None
+    public var dumpOnOOMPath: ?String = None
+    public var appVersion: ?String = None
+    public var rawFile: ?String = None
+    public var systemLog: ?String = None
+    public var lastNHilog: ?String = None
+    public var dumpTime: ?String = None
+    public var historyRawFiles: ?String = None
+    public var nativeMemDetail: ?String = None
+    public var memPersistTime: ?String = None
 
     public func toInteropCrashInfo(): InteropCrashInfo {
         let crashInfo = InteropCrashInfo()
-        crashInfo.language = languageValue
-        crashInfo.meminfo = meminfoValue
-        crashInfo.timestamp = timestampValue
-        crashInfo.pid = pidValue
-        crashInfo.pname = pnameValue
-        crashInfo.stacktrace = stacktraceValue
-        crashInfo.hilog = hilogValue
-        crashInfo.tid = tidValue
-        crashInfo.tname = tnameValue
-        if (let Some(v) <- fdsValue) {
+        crashInfo.language = language
+        crashInfo.meminfo = meminfo
+        crashInfo.timestamp = timestamp
+        crashInfo.pid = pid
+        crashInfo.pname = pname
+        crashInfo.stacktrace = stacktrace
+        crashInfo.hilog = hilog
+        crashInfo.tid = tid
+        crashInfo.tname = tname
+        if (let Some(v) <- fds) {
             crashInfo.fds = JSHashMapEx<String, String>(v)
         }
-        crashInfo.limits = limitsValue
-        crashInfo.threads = threadsValue
-        crashInfo.extraInfo = extraInfoValue
-        crashInfo.crashLogPath = crashLogPathValue
-        crashInfo.dumpOnOOMPath = dumpOnOOMPathValue
-        crashInfo.appVersion = appVersionValue
-        crashInfo.rawFile = rawFileValue
-        crashInfo.systemLog = systemLogValue
-        crashInfo.lastNHilog = lastNHilogValue
-        crashInfo.dumpTime = dumpTimeValue
+        crashInfo.limits = limits
+        crashInfo.threads = threads
+        crashInfo.extraInfo = extraInfo
+        crashInfo.crashLogPath = crashLogPath
+        crashInfo.dumpOnOOMPath = dumpOnOOMPath
+        crashInfo.appVersion = appVersion
+        crashInfo.rawFile = rawFile
+        crashInfo.systemLog = systemLog
+        crashInfo.lastNHilog = lastNHilog
+        crashInfo.dumpTime = dumpTime
         crashInfo.historyRawFiles = historyRawFiles
-        crashInfo.nativeMemDetail = nativeMemDetailValue
-        crashInfo.memPersistTime = memPersistTimeValue
+        crashInfo.nativeMemDetail = nativeMemDetail
+        crashInfo.memPersistTime = memPersistTime
         crashInfo
     }
 
     public func toString(): String {
         let jsonObj = JsonObject()
-        if (let Some(v) <- languageValue) {
+        if (let Some(v) <- language) {
             jsonObj.put("language", JsonString(v))
         }
-        if (let Some(v) <- meminfoValue) {
+        if (let Some(v) <- meminfo) {
             jsonObj.put("meminfo", JsonString(v))
         }
-        if (let Some(v) <- timestampValue) {
+        if (let Some(v) <- timestamp) {
             jsonObj.put("timestamp", JsonString(v))
         }
-        if (let Some(v) <- pidValue) {
+        if (let Some(v) <- pid) {
             jsonObj.put("pid", JsonString(v))
         }
-        if (let Some(v) <- pnameValue) {
+        if (let Some(v) <- pname) {
             jsonObj.put("pname", JsonString(v))
         }
-        if (let Some(v) <- stacktraceValue) {
+        if (let Some(v) <- stacktrace) {
             jsonObj.put("stacktrace", JsonString(v))
         }
-        if (let Some(v) <- hilogValue) {
+        if (let Some(v) <- hilog) {
             jsonObj.put("hilog", JsonString(v))
         }
-        if (let Some(v) <- tidValue) {
+        if (let Some(v) <- tid) {
             jsonObj.put("tid", JsonString(v))
         }
-        if (let Some(v) <- tnameValue) {
+        if (let Some(v) <- tname) {
             jsonObj.put("tname", JsonString(v))
         }
-        if (let Some(v) <- fdsValue) {
+        if (let Some(v) <- fds) {
             jsonObj.put("fds", map2json(v))
         }
-        if (let Some(v) <- limitsValue) {
+        if (let Some(v) <- limits) {
             jsonObj.put("limits", JsonString(v))
         }
-        if (let Some(v) <- threadsValue) {
+        if (let Some(v) <- threads) {
             jsonObj.put("threads", JsonString(v))
         }
-        if (let Some(v) <- extraInfoValue) {
+        if (let Some(v) <- extraInfo) {
             jsonObj.put("extraInfo", JsonString(v))
         }
-        if (let Some(v) <- crashLogPathValue) {
+        if (let Some(v) <- crashLogPath) {
             jsonObj.put("crashLogPath", JsonString(v))
         }
-        if (let Some(v) <- dumpOnOOMPathValue) {
+        if (let Some(v) <- dumpOnOOMPath) {
             jsonObj.put("dumpOnOOMPath", JsonString(v))
         }
-        if (let Some(v) <- appVersionValue) {
+        if (let Some(v) <- appVersion) {
             jsonObj.put("appVersion", JsonString(v))
         }
-        if (let Some(v) <- rawFileValue) {
+        if (let Some(v) <- rawFile) {
             jsonObj.put("rawFile", JsonString(v))
         }
-        if (let Some(v) <- systemLogValue) {
+        if (let Some(v) <- systemLog) {
             jsonObj.put("systemLog", JsonString(v))
         }
-        if (let Some(v) <- lastNHilogValue) {
+        if (let Some(v) <- lastNHilog) {
             jsonObj.put("lastNHilog", JsonString(v))
         }
-        if (let Some(v) <- dumpTimeValue) {
+        if (let Some(v) <- dumpTime) {
             jsonObj.put("dumpTime", JsonString(v))
         }
         if (let Some(v) <- historyRawFiles) {
             jsonObj.put("historyRawFiles", JsonString(v))
         }
-        if (let Some(v) <- nativeMemDetailValue) {
+        if (let Some(v) <- nativeMemDetail) {
             jsonObj.put("nativeMemDetail", JsonString(v))
         }
-        if (let Some(v) <- memPersistTimeValue) {
+        if (let Some(v) <- memPersistTime) {
             jsonObj.put("memPersistTime", JsonString(v))
         }
         jsonObj.toString()
@@ -431,28 +224,28 @@ public class CrashInfo {
     }
 
     func reset() {
-        this.meminfoValue = None
-        this.languageValue = None
-        this.timestampValue = None
-        this.pidValue = None
-        this.pnameValue = None
-        this.stacktraceValue = None
-        this.hilogValue = None
-        this.tidValue = None
-        this.tnameValue = None
-        this.fdsValue = None
-        this.limitsValue = None
-        this.threadsValue = None
-        this.extraInfoValue = None
-        this.crashLogPathValue = None
-        this.dumpOnOOMPathValue = None
-        this.appVersionValue = None
-        this.rawFileValue = None
-        this.systemLogValue = None
-        this.dumpTimeValue = None
-        this.historyRawFilesValue = None
-        this.nativeMemDetailValue = None
-        this.memPersistTimeValue = None
+        this.meminfo = None
+        this.language = None
+        this.timestamp = None
+        this.pid = None
+        this.pname = None
+        this.stacktrace = None
+        this.hilog = None
+        this.tid = None
+        this.tname = None
+        this.fds = None
+        this.limits = None
+        this.threads = None
+        this.extraInfo = None
+        this.crashLogPath = None
+        this.dumpOnOOMPath = None
+        this.appVersion = None
+        this.rawFile = None
+        this.systemLog = None
+        this.dumpTime = None
+        this.historyRawFiles = None
+        this.nativeMemDetail = None
+        this.memPersistTime = None
     }
 }
 

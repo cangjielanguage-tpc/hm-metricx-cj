@@ -8,7 +8,8 @@
           "**/ohos/**libabilitykit**",
           "**/ohos/**libappkit**",
           "**/ohos/**libcontact**",
-          "**/ohos/**libcjLibLoader**"
+          "**/ohos/**libcjLibLoader**",
+//          "**/libc++_shared.so"
         ]
       }
     }
