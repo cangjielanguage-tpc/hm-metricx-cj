@@ -7,14 +7,12 @@ import ohos_app_cangjie_hm_metricx_cj.util.*
 import std.fs.*
 import std.collection.*
 import std.convert.*
-import std.process.*
 import std.env.*
 import stdx.compress.zlib.*
 import stdx.encoding.json.*
 import std.time.*
 import std.sync.*
 import std.io.*
-import std.unicode.UnicodeStringExtension
 import std.convert.*
 import std.sort.*
 import ohos.ark_interop_macro.*
@@ -655,14 +653,8 @@ private func initOOMHandler(persistentDir: String) {
     setVariable("cjHeapDumpOnOOM", "on")
     setVariable("cjHeapDumpLog", persistentDir)
     unsafe {
-        let targetFile = LibC.mallocCString(persistentDir + "/cj_OOM_pid" + Process
-            .current
-            .pid
-            .toString() + ".dat")
-        let zlibFile = LibC.mallocCString(persistentDir + "/cj_OOM_pid" + Process
-            .current
-            .pid
-            .toString() + ".zlib")
+        let targetFile = LibC.mallocCString(persistentDir + "/cj_OOM_pid" + getProcessId().toString() + ".dat")
+        let zlibFile = LibC.mallocCString(persistentDir + "/cj_OOM_pid" + getProcessId().toString() + ".zlib")
         if (InitOOMHandler(targetFile) != 0) {
             metricx_warn("hm-metricx-cj error: InitOOMHandler failed.")
         } else {
@@ -949,10 +941,7 @@ private func initCrashWatcher(
             crashInfo.pname = res[0]
             crashInfo.tid = res[1]
             crashInfo.tname = res[2]
-            if (Process
-                .current
-                .pid
-                .toString() == crashInfo
+            if (getProcessId().toString() == crashInfo
                 .pid
                 .getOrDefault({=> ""})) {
                 writeFile(persistentPaths.lastCrashFilePath, crashInfo.toString())
@@ -1188,7 +1177,7 @@ private func parseMallocLog(filePath: Path): List<MallocModel> {
 
         while (let Some(line) <- reader.readln()) {
             let strings = line
-                .trim()
+                //.trim() TODO
                 .split(" ", removeEmpty: true)
             if (strings.size < 3) {
                 metricx_info("parseMallocLog skiped line: " + line)
@@ -1233,9 +1222,8 @@ private func getParsedStacks(parsedPath: Path): HashMap<Int64, ParsedAddr> {
                 let arr = line.split(" ", removeEmpty: true)
                 let pc = arr[0]
                 let pcInt = Int64.parse("0x" + pc)
-                let parsedAddr = line
-                    .removePrefix(pc)
-                    .trim()
+                let parsedAddr = line.removePrefix(pc)
+                //.trim() TODO
                 let soName = arr[2]
                 map.add(pcInt, ParsedAddr(pcInt, parsedAddr, soName))
             } catch (e: Exception) {
@@ -1374,7 +1362,7 @@ private func parseMaps(filePath: Path, headCount: Int32): String {
         let reader = StringReader(File(filePath, OpenMode.Read))
         while (let Some(line) <- reader.readln()) {
             let segments = line
-                .trim()
+                //.trim() TODO
                 .split(" ", removeEmpty: true)
             if (segments.size < 5) {
                 metricx_info("parse memMap skiped line: " + line)
