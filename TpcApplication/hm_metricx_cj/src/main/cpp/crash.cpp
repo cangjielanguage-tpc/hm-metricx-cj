@@ -168,6 +168,10 @@ int8_t writeSystemLog(const char *pFilePath);
 int8_t writeLastNHiLog(const char *pFilePath);
 }
 
+bool startsWith(const std::string& str, const std::string& prefix) {
+    return str.size() >= prefix.size() && str.substr(0, prefix.size()) == prefix;
+}
+
 static void CrashSignalHandler(int sig, siginfo_t *si, void *context) {
     if (initSuccess == 0) {
         signalCrashInfo[sig].oldact.sa_sigaction(sig, si, context);
@@ -180,6 +184,14 @@ static void CrashSignalHandler(int sig, siginfo_t *si, void *context) {
         return;
     }
     inCrash = 1;
+    if (std::__fs::filesystem::exists("/data/storage/el2/log/hiappevent/")) {
+        for (const auto &entry : std::__fs::filesystem::directory_iterator("/data/storage/el2/log/hiappevent/")) {
+            std::string fileName = entry.path().filename().string();
+            if (startsWith(fileName, "APP_CRASH")) {
+                std::__fs::filesystem::remove(entry.path());
+            }
+        }
+    }
     std::string fds = "";
     if (std::__fs::filesystem::exists("/proc/self/fd")) {
         for (auto &entry : std::__fs::filesystem::directory_iterator("/proc/self/fd")) {

@@ -107,20 +107,47 @@ public func renameFile(sourceFile: Path, targetFile: Path) {
     }
 }
 
-public func collectAndCleanHistoryLogFiles(): String {
+let hiappeventPath = Path("/data/storage/el2/log/hiappevent/")
+
+public func collectAndCleanHistoryLogFiles(predicate: (String) -> Bool): String {
     var historyFiles = ""
-    let logPath = Path("/data/storage/el2/log/hiappevent/")
-    if (!exists(logPath)) {
+    if (!exists(hiappeventPath)) {
         return historyFiles
     }
-    let fileList = Directory.readFrom(logPath)
+    let fileList = Directory.readFrom(hiappeventPath)
     for (file in fileList) {
-        if (exists(file.path)) {
+        if (exists(file.path) && predicate(file.name)) {
             historyFiles += "fileName: ${file.name}\n" + readFile(file.path) + "\n"
             deleteFile(file.path)
         }
     }
     historyFiles
+}
+
+public func cleanHistoryLogFiles(predicate: (String) -> Bool, keepLatest!: Bool = true): Unit {
+    if (!exists(hiappeventPath)) {
+        return
+    }
+    let fileList = Directory.readFrom(hiappeventPath)
+    var latestFile: Option<FileInfo> = None
+    for (file in fileList) {
+        if (exists(file.path) && predicate(file.name)) {
+            if (!keepLatest) {
+                deleteFile(file.path)
+                continue
+            }
+            if (let Some(v) <- latestFile) {
+                if (file.creationTime >= v.creationTime) {
+                    deleteFile(v.path)
+                    latestFile = file
+                } else {
+                    deleteFile(file.path)
+                }
+            } else {
+                latestFile = file
+            }
+        }
+    }
 }
 
 public func cleanHistoryLogFiles(keepLatest!: Bool = true): Unit {
