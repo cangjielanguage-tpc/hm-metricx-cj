@@ -7,8 +7,7 @@ import ohos_app_cangjie_hm_metricx_cj.util.*
 import std.fs.*
 import std.collection.*
 import std.convert.*
-import stdx.compress.zlib.*
-import stdx.encoding.json.*
+//import stdx.compress.zlib.*
 import std.time.*
 import std.sync.*
 import std.convert.*
@@ -72,179 +71,178 @@ public class CrashInfo {
     }
 
     func toString(): String {
-        let jsonObj = JsonObject()
+        var res = ""
+        res += "language:\n"
         if (let Some(v) <- language) {
-            jsonObj.put("language", JsonString(v))
+            res += "${v}\n"
         }
+        res += "meminfo:\n"
         if (let Some(v) <- meminfo) {
-            jsonObj.put("meminfo", JsonString(v))
+            res += "${v}\n"
         }
+        res += "timestamp:\n"
         if (let Some(v) <- timestamp) {
-            jsonObj.put("timestamp", JsonString(v))
+            res += "${v}\n"
         }
+        res += "pid:\n"
         if (let Some(v) <- pid) {
-            jsonObj.put("pid", JsonString(v))
+            res += "${v}\n"
         }
+        res += "pname:\n"
         if (let Some(v) <- pname) {
-            jsonObj.put("pname", JsonString(v))
+            res += "${v}\n"
         }
+        res += "stacktrace:\n"
         if (let Some(v) <- stacktrace) {
-            jsonObj.put("stacktrace", JsonString(v))
+            res += "${v}\n"
         }
+        res += "hilog:\n"
         if (let Some(v) <- hilog) {
-            jsonObj.put("hilog", JsonString(v))
+            res += "${v}\n"
         }
+        res += "tid:\n"
         if (let Some(v) <- tid) {
-            jsonObj.put("tid", JsonString(v))
+            res += "${v}\n"
         }
+        res += "tname:\n"
         if (let Some(v) <- tname) {
-            jsonObj.put("tname", JsonString(v))
+            res += "${v}\n"
         }
+        res += "fds:\n"
         if (let Some(v) <- fds) {
-            jsonObj.put("fds", map2json(v))
+            for (entry in v) {
+                res += "${entry[0]}#${entry[1]}\n"
+            }
         }
+        res += "limits:\n"
         if (let Some(v) <- limits) {
-            jsonObj.put("limits", JsonString(v))
+            res += "${v}\n"
         }
+        res += "threads:\n"
         if (let Some(v) <- threads) {
-            jsonObj.put("threads", JsonString(v))
+            res += "${v}\n"
         }
+        res += "extraInfo:\n"
         if (let Some(v) <- extraInfo) {
-            jsonObj.put("extraInfo", JsonString(v))
+            res += "${v}\n"
         }
+        res += "crashLogPath:\n"
         if (let Some(v) <- crashLogPath) {
-            jsonObj.put("crashLogPath", JsonString(v))
+            res += "${v}\n"
         }
+        res += "dumpOnOOMPath:\n"
         if (let Some(v) <- dumpOnOOMPath) {
-            jsonObj.put("dumpOnOOMPath", JsonString(v))
+            res += "${v}\n"
         }
+        res += "appVersion:\n"
         if (let Some(v) <- appVersion) {
-            jsonObj.put("appVersion", JsonString(v))
+            res += "${v}\n"
         }
+        res += "rawFile:\n"
         if (let Some(v) <- rawFile) {
-            jsonObj.put("rawFile", JsonString(v))
+            res += "${v}\n"
         }
+        res += "systemLog:\n"
         if (let Some(v) <- systemLog) {
-            jsonObj.put("systemLog", JsonString(v))
+            res += "${v}\n"
         }
+        res += "lastNHilog:\n"
         if (let Some(v) <- lastNHilog) {
-            jsonObj.put("lastNHilog", JsonString(v))
+            res += "${v}\n"
         }
+        res += "dumpTime:\n"
         if (let Some(v) <- dumpTime) {
-            jsonObj.put("dumpTime", JsonString(v))
+            res += "${v}\n"
         }
+        res += "historyRawFiles:\n"
         if (let Some(v) <- historyRawFiles) {
-            jsonObj.put("historyRawFiles", JsonString(v))
+            res += "${v}\n"
         }
+        res += "nativeMemDetail:\n"
         if (let Some(v) <- nativeMemDetail) {
-            jsonObj.put("nativeMemDetail", JsonString(v))
+            res += "${v}\n"
         }
+        res += "memPersistTime:\n"
         if (let Some(v) <- memPersistTime) {
-            jsonObj.put("memPersistTime", JsonString(v))
+            res += "${v}\n"
         }
-        jsonObj.toString()
+        res
     }
 
-    static func fromJson(jsonObject: JsonObject): CrashInfo {
+    static func fromString(str: String): CrashInfo {
         let crashInfo = CrashInfo()
-        if (let Some(v) <- jsonObject.get("language")) {
-            crashInfo.language = JsonValueToString(v)
+        let lines = str.split("\n", removeEmpty: true)
+        let info = ArrayList<String>()
+        let collect = {
+            =>
+                let res = reduce({acc, cur => "${cur}\n${acc}"})(info)
+                info.clear()
+                res
         }
-        if (let Some(v) <- jsonObject.get("meminfo")) {
-            crashInfo.meminfo = JsonValueToString(v)
+        for (line in lines) {
+            if (line == "language:") {
+            } else if (line == "meminfo:") {
+                crashInfo.language = collect()
+            } else if (line == "timestamp:") {
+                crashInfo.meminfo = collect()
+            } else if (line == "pid:") {
+                crashInfo.timestamp = collect()
+            } else if (line == "pname:") {
+                crashInfo.pid = collect()
+            } else if (line == "stacktrace:") {
+                crashInfo.pname = collect()
+            } else if (line == "hilog:") {
+                crashInfo.stacktrace = collect()
+            } else if (line == "tid:") {
+                crashInfo.hilog = collect()
+            } else if (line == "tname:") {
+                crashInfo.tid = collect()
+            } else if (line == "fds:") {
+                crashInfo.tname = collect()
+            } else if (line == "limits:") {
+                if (info.size != 0) {
+                    let fds = HashMap<String, String>()
+                    for (entry in info) {
+                        let arr = entry.split("#")
+                        if (arr.size == 2) {
+                            fds.add(arr[0], arr[1])
+                        } else {
+                            metricx_warn("invalid fd: ${arr.toString()}")
+                        }
+                    }
+                    crashInfo.fds = fds
+                    info.clear()
+                }
+            } else if (line == "threads:") {
+                crashInfo.limits = collect()
+            } else if (line == "extraInfo:") {
+                crashInfo.threads = collect()
+            } else if (line == "crashLogPath:") {
+                crashInfo.extraInfo = collect()
+            } else if (line == "dumpOnOOMPath:") {
+                crashInfo.crashLogPath = collect()
+            } else if (line == "appVersion:") {
+                crashInfo.dumpOnOOMPath = collect()
+            } else if (line == "rawFile:") {
+                crashInfo.appVersion = collect()
+            } else if (line == "systemLog:") {
+                crashInfo.rawFile = collect()
+            } else if (line == "lastNHilog:") {
+                crashInfo.systemLog = collect()
+            } else if (line == "dumpTime:") {
+                crashInfo.lastNHilog = collect()
+            } else if (line == "historyRawFiles:") {
+                crashInfo.dumpTime = collect()
+            } else if (line == "nativeMemDetail:") {
+                crashInfo.historyRawFiles = collect()
+            } else if (line == "memPersistTime:") {
+                crashInfo.nativeMemDetail = collect()
+            } else {
+                info.add(line)
+            }
         }
-        if (let Some(v) <- jsonObject.get("timestamp")) {
-            crashInfo.timestamp = JsonValueToString(v)
-        }
-        if (let Some(v) <- jsonObject.get("pid")) {
-            crashInfo.pid = JsonValueToString(v)
-        }
-        if (let Some(v) <- jsonObject.get("pname")) {
-            crashInfo.pname = JsonValueToString(v)
-        }
-        if (let Some(v) <- jsonObject.get("stacktrace")) {
-            crashInfo.stacktrace = JsonValueToString(v)
-        }
-        if (let Some(v) <- jsonObject.get("hilog")) {
-            crashInfo.hilog = JsonValueToString(v)
-        }
-        if (let Some(v) <- jsonObject.get("tid")) {
-            crashInfo.tid = JsonValueToString(v)
-        }
-        if (let Some(v) <- jsonObject.get("tname")) {
-            crashInfo.tname = JsonValueToString(v)
-        }
-        if (let Some(v) <- jsonObject.get("fds")) {
-            let fields: HashMap<String, JsonValue> = v
-                .asObject()
-                .getFields()
-            crashInfo.fds = json2map(fields)
-        }
-        if (let Some(v) <- jsonObject.get("limits")) {
-            crashInfo.limits = JsonValueToString(v)
-        }
-        if (let Some(v) <- jsonObject.get("threads")) {
-            crashInfo.threads = JsonValueToString(v)
-        }
-        if (let Some(v) <- jsonObject.get("extraInfo")) {
-            crashInfo.extraInfo = JsonValueToString(v)
-        }
-        if (let Some(v) <- jsonObject.get("crashLogPath")) {
-            crashInfo.crashLogPath = JsonValueToString(v)
-        }
-        if (let Some(v) <- jsonObject.get("dumpOnOOMPath")) {
-            crashInfo.dumpOnOOMPath = JsonValueToString(v)
-        }
-        if (let Some(v) <- jsonObject.get("appVersion")) {
-            crashInfo.appVersion = JsonValueToString(v)
-        }
-        if (let Some(v) <- jsonObject.get("rawFile")) {
-            crashInfo.rawFile = JsonValueToString(v)
-        }
-        if (let Some(v) <- jsonObject.get("systemLog")) {
-            crashInfo.systemLog = JsonValueToString(v)
-        }
-        if (let Some(v) <- jsonObject.get("lastNHilog")) {
-            crashInfo.lastNHilog = JsonValueToString(v)
-        }
-        if (let Some(v) <- jsonObject.get("dumpTime")) {
-            crashInfo.dumpTime = JsonValueToString(v)
-        }
-        if (let Some(v) <- jsonObject.get("historyRawFiles")) {
-            crashInfo.historyRawFiles = JsonValueToString(v)
-        }
-        if (let Some(v) <- jsonObject.get("nativeMemDetail")) {
-            crashInfo.nativeMemDetail = JsonValueToString(v)
-        }
-        if (let Some(v) <- jsonObject.get("memPersistTime")) {
-            crashInfo.memPersistTime = JsonValueToString(v)
-        }
+        crashInfo.memPersistTime = collect()
         crashInfo
-    }
-
-    func reset() {
-        this.meminfo = None
-        this.language = None
-        this.timestamp = None
-        this.pid = None
-        this.pname = None
-        this.stacktrace = None
-        this.hilog = None
-        this.tid = None
-        this.tname = None
-        this.fds = None
-        this.limits = None
-        this.threads = None
-        this.extraInfo = None
-        this.crashLogPath = None
-        this.dumpOnOOMPath = None
-        this.appVersion = None
-        this.rawFile = None
-        this.systemLog = None
-        this.dumpTime = None
-        this.historyRawFiles = None
-        this.nativeMemDetail = None
-        this.memPersistTime = None
     }
 }
 
@@ -280,7 +278,7 @@ public class InteropCrashInfo {
 class PersistentPaths {
     let dir: Path
     let lastCrashFilePath: Path
-    let filePath: Path
+    let crashFilePath: Path
     let systemLogPath: Path
     let memMapPath: Path
     let memMallocPath: Path
@@ -291,8 +289,8 @@ class PersistentPaths {
 
     public init(persistentDir: Path) {
         this.dir = persistentDir
-        this.lastCrashFilePath = persistentDir.join("lastCrash.json")
-        this.filePath = persistentDir.join("crash.json")
+        this.lastCrashFilePath = persistentDir.join("lastCrash.txt")
+        this.crashFilePath = persistentDir.join("crash.txt")
         this.systemLogPath = persistentDir.join("crashSystemLog.txt")
         this.memMapPath = persistentDir.join("crashMemMap.txt")
         this.memMallocPath = persistentDir.join("crashMemMalloc.txt")
@@ -422,10 +420,7 @@ public func initCrashHandler(
 private func reportLastCrash(persistentPaths: PersistentPaths, reportCrashInfo: (crashInfo: InteropCrashInfo) -> Unit) {
     if (exists(persistentPaths.lastCrashFilePath)) {
         try {
-            let jsonObj = JsonValue
-                .fromStr(readFile(persistentPaths.lastCrashFilePath))
-                .asObject()
-            let crashInfo = CrashInfo.fromJson(jsonObj)
+            let crashInfo = CrashInfo.fromString(readFile(persistentPaths.lastCrashFilePath))
             deleteFile(persistentPaths.lastCrashFilePath)
             crashInfo.dumpTime = readFile(persistentPaths.dumpTimePath)
             deleteFile(persistentPaths.dumpTimePath)
@@ -434,7 +429,7 @@ private func reportLastCrash(persistentPaths: PersistentPaths, reportCrashInfo: 
             }
             reportCrashInfo(crashInfo.toInteropCrashInfo())
             reported = true
-        } catch (e: JsonException) {
+        } catch (e: Exception) {
             metricx_warn("hm-metricx-cj error: " + e.toString())
         }
     }
@@ -458,7 +453,7 @@ private func initNativeSignalHandler(limits: String, collectCrashInfo: CFunc<() 
     persistentPaths: PersistentPaths, lastNHilogNumber: Int64, systemLogNumber: Int64) {
     unsafe {
         let cstr = LibC.mallocCString(persistentPaths
-            .filePath
+            .crashFilePath
             .toString())
         let lmts = LibC.mallocCString(limits)
         let cSystemLogPath = LibC.mallocCString(persistentPaths
@@ -563,7 +558,7 @@ private func initErrorObserver(onCrash: (() -> Unit) -> Unit, crashInfo: CrashIn
             crashInfo.fds = collectFDInfo()
             crashInfo.threads = collectThreads()
             crashInfo.extraInfo = collectCrashInfo()
-            writeFile(persistentPaths.filePath, crashInfo.toString())
+            writeFile(persistentPaths.crashFilePath, crashInfo.toString())
             writeSystemLog2File(persistentPaths
                 .systemLogPath
                 .toString())
@@ -668,19 +663,15 @@ private func initCrashWatcher(
     reportCrashInfo: (crashInfo: InteropCrashInfo) -> Unit, persistentPaths: PersistentPaths,
     enableMemMonitor: Option<CMemMonitorConfig>) {
     let cb = {
-        time: String, pid: String, exception: String, hilog: String, external_log: String, crash_type: String, 
+        time: String, crashPid: String, exception: String, hilog: String, external_log: String, crash_type: String, 
             bundle_version: String => try {
             var crashInfo = CrashInfo()
-            if (exists(persistentPaths.filePath)) {
-                try {
-                    let jsonObj = JsonValue
-                        .fromStr(String.fromUtf8(File.readFrom(persistentPaths.filePath)))
-                        .asObject()
-                    crashInfo = CrashInfo.fromJson(jsonObj)
-                } catch (e: JsonException) {
-                    metricx_warn("hm-metricx-cj error: " + e.toString())
-                }
-                deleteFile(persistentPaths.filePath)
+            if (exists(persistentPaths.crashFilePath)) {
+                metricx_warn("xxx " + persistentPaths
+                    .crashFilePath
+                    .toString())
+                crashInfo = CrashInfo.fromString(readFile(persistentPaths.crashFilePath))
+                deleteFile(persistentPaths.crashFilePath)
             } else {
                 metricx_warn("hm-metricx-cj error: No persistent crash file.")
             }
@@ -711,7 +702,7 @@ private func initCrashWatcher(
                 crashInfo.language = "cpp_crash"
             }
             crashInfo.timestamp = time
-            crashInfo.pid = pid
+            crashInfo.pid = crashPid
             crashInfo.stacktrace = exception
             crashInfo.hilog = hilog
             crashInfo.appVersion = bundle_version
@@ -730,9 +721,7 @@ private func initCrashWatcher(
             crashInfo.pname = res[0]
             crashInfo.tid = res[1]
             crashInfo.tname = res[2]
-            if (pid.toString() == crashInfo
-                .pid
-                .getOrDefault({=> ""})) {
+            if (pid.toString() == crashPid) {
                 writeFile(persistentPaths.lastCrashFilePath, crashInfo.toString())
             } else {
                 if (!reported) {
@@ -875,32 +864,32 @@ private func compressFile(src: String, dest: String): Bool {
         return false
     }
     var count: Int64 = 0
-    try {
-        let srcFile: File = File(src, OpenMode.Read)
-        let destFile: File = File(dest, OpenMode.Append)
-
-        var tempBuf: Array<UInt8> = Array<UInt8>(1024, repeat: 0)
-        var compressOutputStream: CompressOutputStream = CompressOutputStream(destFile, wrap: GzipFormat)
-        while (true) {
-            var readNum = srcFile.read(tempBuf)
-            if (readNum > 0) {
-                compressOutputStream.write(tempBuf
-                    .slice(0, readNum)
-                    .toArray())
-                count += readNum
-            } else {
-                break
-            }
-        }
-        compressOutputStream.flush()
-        compressOutputStream.close()
-
-        srcFile.close()
-        destFile.close()
-    } catch (e: Exception) {
-        metricx_warn("hm-metricx-cj error: compressFile failed due to ${e.toString()}")
-    }
-    return count > 0
+    //    try {
+    //        let srcFile: File = File(src, OpenMode.Read)
+    //        let destFile: File = File(dest, OpenMode.Append)
+    //
+    //        var tempBuf: Array<UInt8> = Array<UInt8>(1024, repeat: 0)
+    //        var compressOutputStream: CompressOutputStream = CompressOutputStream(destFile, wrap: GzipFormat)
+    //        while (true) {
+    //            var readNum = srcFile.read(tempBuf)
+    //            if (readNum > 0) {
+    //                compressOutputStream.write(tempBuf
+    //                    .slice(0, readNum)
+    //                    .toArray())
+    //                count += readNum
+    //            } else {
+    //                break
+    //            }
+    //        }
+    //        compressOutputStream.flush()
+    //        compressOutputStream.close()
+    //
+    //        srcFile.close()
+    //        destFile.close()
+    //    } catch (e: Exception) {
+    //        metricx_warn("hm-metricx-cj error: compressFile failed due to ${e.toString()}")
+    //    }
+    count > 0
 }
 
 private func writeSystemLog2File(persistentSystemLogPath: String) {

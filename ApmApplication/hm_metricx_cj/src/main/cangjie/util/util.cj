@@ -3,11 +3,8 @@
  */
 package ohos_app_cangjie_hm_metricx_cj.util
 
-import std.time.DateTime
 import std.fs.*
 import std.time.*
-import stdx.encoding.json.*
-import std.collection.HashMap
 import ohos.ark_interop_macro.*
 import ohos.ark_interop.*
 
@@ -24,28 +21,6 @@ public func getTodayDate(): String {
     DateTime
         .now()
         .format("yyyy-MM-dd")
-}
-
-public func JsonValueToString(value: JsonValue): String {
-    return value
-        .asString()
-        .getValue()
-}
-
-public func map2json(input: HashMap<String, String>) {
-    let map = HashMap<String, JsonValue>()
-    input
-        .iterator()
-        .forEach({entry => map.add(entry[0], JsonString(entry[1]))})
-    JsonObject(map)
-}
-
-public func json2map(input: HashMap<String, JsonValue>) {
-    let map = HashMap<String, String>()
-    input
-        .iterator()
-        .forEach({entry => map.add(entry[0], JsonValueToString(entry[1]))})
-    map
 }
 
 public func formatWithCommasAndPadding(num: Int64, width: Int64): String {
@@ -93,18 +68,12 @@ public func readFile(path: Path, isReturnException!: Bool = false) {
     }
     let content = File.readFrom(path)
     try {
-        return String.fromUtf8(content)
+        unsafe { return String.fromUtf8Unchecked(File.readFrom(path)) }
     } catch (e: Exception) {
         metricx_warn(
-            "hm-metricx-cj error: reading ${path} failed due to error occured in String.fromUtf8: ${e.toString()}")
-        try {
-            unsafe { return String.fromUtf8Unchecked(File.readFrom(path)) }
-        } catch (e: Exception) {
-            metricx_warn(
-                "hm-metricx-cj error: reading ${path} failed due to error occured in fromUtf8Unchecked: ${e.toString()}")
-            if (isReturnException) {
-                return "hm-metricx-cj error: reading ${path} failed: ${e.toString()} content：" + content.toString()
-            }
+            "hm-metricx-cj error: reading ${path} failed due to error occured in fromUtf8Unchecked: ${e.toString()}")
+        if (isReturnException) {
+            return "hm-metricx-cj error: reading ${path} failed: ${e.toString()} content：" + content.toString()
         }
     }
     ""
