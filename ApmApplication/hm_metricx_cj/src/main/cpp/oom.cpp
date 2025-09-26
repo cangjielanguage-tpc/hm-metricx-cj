@@ -39,7 +39,7 @@ const char *cj_runtime = "libcangjie-runtime.so";
 
 uintptr_t gBaseAddr = 0;
 
-char *oomFile;
+std::string oomFile;
 
 FILE *gFp;
 
@@ -95,7 +95,7 @@ int replaceFunc(uintptr_t baseAddr, uintptr_t offset, void *newFunc) {
 }
 
 static FILE *Fopen(const char *filename, const char *mode) {
-    if (!oomFile || std::strcmp(oomFile, filename) != 0) {
+    if (oomFile != filename) {
         return fopen(filename, mode);
     }
     isOOMDumping = true;
@@ -205,7 +205,9 @@ void *Dlsym(void *handle, const char *name) {
 }
 
 extern "C" {
-int8_t InitOOMHandler(const char *targetFile) {
+int8_t InitOOMHandler(const char *targetFile, const char *dumpDir) {
+    setenv("cjHeapDumpOnOOM", "on", 1);
+    setenv("cjHeapDumpLog", dumpDir, 1);
     char line[512];
     FILE *fp;
     uintptr_t baseAddr = 0;
@@ -263,10 +265,7 @@ int8_t InitOOMHandler(const char *targetFile) {
     }
 
     gBaseAddr = baseAddr;
-    auto targetFileLen = strlen(targetFile);
-    oomFile = new char[targetFileLen + 1];
-    strncpy(oomFile, targetFile, targetFileLen);
-    oomFile[targetFileLen] = '\0';
+    oomFile = targetFile;
     return SUCCESS;
 }
 

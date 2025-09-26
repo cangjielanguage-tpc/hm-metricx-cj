@@ -12,28 +12,39 @@ import ohos.ark_interop_macro.*
 import ohos.ark_interop.*
 
 public const defaultPageName = "mainPage"
+public let pid = unsafe { GetPid() }
 
 public func getCurTimeStamp(): String {
-    DateTime.now().format("yyyy-MM-dd HH:mm:ss")
+    DateTime
+        .now()
+        .format("yyyy-MM-dd HH:mm:ss")
 }
 
 public func getTodayDate(): String {
-    DateTime.now().format("yyyy-MM-dd")
+    DateTime
+        .now()
+        .format("yyyy-MM-dd")
 }
 
 public func JsonValueToString(value: JsonValue): String {
-    return value.asString().getValue()
+    return value
+        .asString()
+        .getValue()
 }
 
 public func map2json(input: HashMap<String, String>) {
     let map = HashMap<String, JsonValue>()
-    input.iterator().forEach({entry => map.add(entry[0], JsonString(entry[1]))})
+    input
+        .iterator()
+        .forEach({entry => map.add(entry[0], JsonString(entry[1]))})
     JsonObject(map)
 }
 
 public func json2map(input: HashMap<String, JsonValue>) {
     let map = HashMap<String, String>()
-    input.iterator().forEach({entry => map.add(entry[0], JsonValueToString(entry[1]))})
+    input
+        .iterator()
+        .forEach({entry => map.add(entry[0], JsonValueToString(entry[1]))})
     map
 }
 
@@ -48,7 +59,9 @@ public func unescapeString(str: String): String {
 }
 
 public func formatWithCommasAndPadding(num: Int64, width: Int64): String {
-    let numStr = num.toString().toRuneArray()
+    let numStr = num
+        .toString()
+        .toRuneArray()
     let len = numStr.size
     let withCommas = StringBuilder()
     for (i in 0..len) {
@@ -170,3 +183,5 @@ public interface DisplaySyncInterface {
     func on(cb: (Int64, Int64) -> Unit): Unit
     func off(): Unit
 }
+
+foreign func GetPid(): Int64

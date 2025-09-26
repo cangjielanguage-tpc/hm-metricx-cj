@@ -10,7 +10,7 @@ import std.time.*
 import std.collection.*
 import ohos.ark_interop.*
 import ohos.ark_interop_macro.*
-import std.env.*
+import std.sort.sort
 
 @Interop[ArkTS]
 public class InteropBatteryUsageInfo {
@@ -389,16 +389,14 @@ public class AllThreadCpuUsageInfo {
 
 public class JiffiesSnapshot {
     public var pid: ?Int64 = -1
-    public var name: ?String = None
     public var totalJiffies: Int64 = 0
     public var threadEntries = ArrayList<ThreadJiffiesSnapshot>()
 
     public init() {
     }
 
-    public init(pid: Int64, name: String) {
+    public init(pid: Int64) {
         this.pid = pid
-        this.name = name
     }
 }
 
@@ -475,21 +473,13 @@ private func diffThreadJiffiesSnapshot(current: JiffiesSnapshot, last: JiffiesSn
             totalJiffies += jiffiesConsumed
         }
     }
-    deltaThreadJiffiesList.sortBy() {
-        t1: ThreadJiffiesSnapshot, t2: ThreadJiffiesSnapshot => if (t1.jiffies > t2.jiffies) {
-            return Ordering.LT
-        } else if (t1.jiffies < t2.jiffies) {
-            return Ordering.GT
-        } else {
-            return Ordering.EQ
-        }
-    }
-    return (totalJiffies, deltaThreadJiffiesList)
+    sort(deltaThreadJiffiesList, key: {x => x.jiffies}, descending: true)
+    (totalJiffies, deltaThreadJiffiesList)
 }
 
 private func currentJiffiesSnapshot(): JiffiesSnapshot {
-    let currentPid = getProcessId()
-    let jiffiesSnapshot: JiffiesSnapshot = JiffiesSnapshot(currentPid, getCommand())
+    let currentPid = pid
+    let jiffiesSnapshot: JiffiesSnapshot = JiffiesSnapshot(currentPid)
     let threads: ArrayList<UInt32> = getAllThreadId()
 
     for (threadId in threads) {
@@ -504,7 +494,7 @@ private func currentJiffiesSnapshot(): JiffiesSnapshot {
             .threadEntries
             .add(threadJiffiesSnapshot)
     }
-    return jiffiesSnapshot
+    jiffiesSnapshot
 }
 
 private func getAllThreadId(): ArrayList<UInt32> {
@@ -560,7 +550,7 @@ private func isHitRule(deltaThreadJiffiesList: ArrayList<ThreadJiffiesSnapshot>,
             maxThreadJiff = threadNewJiff
         }
     }
-    return Float64(maxThreadJiff) > Float64(singleIntervalTotalJiffies) * 0.5
+    Float64(maxThreadJiff) > Float64(singleIntervalTotalJiffies) * 0.5
 }
 
 private func calculateAndReportCpuUsage(deltaThreadJiffiesList: ArrayList<ThreadJiffiesSnapshot>,
@@ -614,10 +604,6 @@ private func cpuErrorPercentReport(): Unit {
     lastJiffiesSnapshot = currentJiffiesSnapshot
 }
 
-let handleCpuReport: () -> Unit = {
-    => cpuErrorPercentReport()
-}
-
 public func initBatteryHandler(
     subscribe: (onBatteryChanged: () -> Unit, onConnected: () -> Unit, onDisconnected: () -> Unit) -> Unit,
     getUptime: () -> Int64,
@@ -644,7 +630,7 @@ public func initBatteryHandler(
     lastScreenOnTimeStamp = _getUptime()
 
     lastJiffiesSnapshot = currentJiffiesSnapshot()
-    repeatHandleCpuUsage(handleCpuReport)
+    repeatHandleCpuUsage(cpuErrorPercentReport)
     onApplicationStateChange(
         {
             =>

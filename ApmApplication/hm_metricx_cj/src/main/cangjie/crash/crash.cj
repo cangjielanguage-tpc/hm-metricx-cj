@@ -7,7 +7,6 @@ import ohos_app_cangjie_hm_metricx_cj.util.*
 import std.fs.*
 import std.collection.*
 import std.convert.*
-import std.env.*
 import stdx.compress.zlib.*
 import stdx.encoding.json.*
 import std.time.*
@@ -442,18 +441,16 @@ private func reportLastCrash(persistentPaths: PersistentPaths, reportCrashInfo: 
 }
 
 private func initOOMHandler(persistentDir: String) {
-    setVariable("cjHeapDumpOnOOM", "on")
-    setVariable("cjHeapDumpLog", persistentDir)
     unsafe {
-        let targetFile = LibC.mallocCString(persistentDir + "/cj_OOM_pid" + getProcessId().toString() + ".dat")
-        let zlibFile = LibC.mallocCString(persistentDir + "/cj_OOM_pid" + getProcessId().toString() + ".zlib")
+        let targetFile = LibC.mallocCString(persistentDir + "/cj_OOM_pid" + pid.toString() + ".dat")
+        let dumpDir = LibC.mallocCString(persistentDir)
         if (InitOOMHandler(targetFile) != 0) {
             metricx_warn("hm-metricx-cj error: InitOOMHandler failed.")
         } else {
             OOMHandlerInited = true
         }
         LibC.free(targetFile)
-        LibC.free(zlibFile)
+        LibC.free(dumpDir)
     }
 }
 
@@ -733,7 +730,7 @@ private func initCrashWatcher(
             crashInfo.pname = res[0]
             crashInfo.tid = res[1]
             crashInfo.tname = res[2]
-            if (getProcessId().toString() == crashInfo
+            if (pid.toString() == crashInfo
                 .pid
                 .getOrDefault({=> ""})) {
                 writeFile(persistentPaths.lastCrashFilePath, crashInfo.toString())

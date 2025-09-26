@@ -6,8 +6,9 @@
 
 #include "common.h"
 #include <fstream>
-#include <vector>
 #include <mutex>
+#include <unistd.h>
+#include <vector>
 
 bool isLogCallbackRegistered = false;
 std::vector<LogCallback> logCallbacks;
@@ -86,4 +87,10 @@ bool writeFile(const char *filename, std::string str) {
     outfile << str;
     outfile.close();
     return true;
+}
+
+auto pid = getpid();
+
+extern "C" {
+pid_t GetPid() { return pid; }
 }

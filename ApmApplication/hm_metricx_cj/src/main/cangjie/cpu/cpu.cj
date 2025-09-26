@@ -6,7 +6,6 @@ package ohos_app_cangjie_hm_metricx_cj.cpu
 import ohos_app_cangjie_hm_metricx_cj.util.*
 import ohos.ark_interop.*
 import ohos.ark_interop_macro.*
-import std.env.*
 
 public open class CpuInfo {
     private var avgCpuValue: Float64 = 0.0
@@ -141,7 +140,7 @@ public class ProcessCpuInfo <: CpuInfo {
     }
 
     public init() {
-        this.pidValue = getProcessId()
+        this.pidValue = pid
     }
 
     public init(pidValue: Int64) {
