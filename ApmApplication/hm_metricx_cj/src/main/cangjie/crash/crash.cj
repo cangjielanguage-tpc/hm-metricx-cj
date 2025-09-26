@@ -41,7 +41,7 @@ public class CrashInfo {
     public var nativeMemDetail: ?String = None
     public var memPersistTime: ?String = None
 
-    public func toInteropCrashInfo(): InteropCrashInfo {
+    func toInteropCrashInfo(): InteropCrashInfo {
         let crashInfo = InteropCrashInfo()
         crashInfo.language = language
         crashInfo.meminfo = meminfo
@@ -71,7 +71,7 @@ public class CrashInfo {
         crashInfo
     }
 
-    public func toString(): String {
+    func toString(): String {
         let jsonObj = JsonObject()
         if (let Some(v) <- language) {
             jsonObj.put("language", JsonString(v))
@@ -145,7 +145,7 @@ public class CrashInfo {
         jsonObj.toString()
     }
 
-    public static func fromJson(jsonObject: JsonObject): CrashInfo {
+    static func fromJson(jsonObject: JsonObject): CrashInfo {
         let crashInfo = CrashInfo()
         if (let Some(v) <- jsonObject.get("language")) {
             crashInfo.language = JsonValueToString(v)

@@ -48,16 +48,6 @@ public func json2map(input: HashMap<String, JsonValue>) {
     map
 }
 
-let ESCAPE_MAP: HashMap<String, String> = HashMap<String, String>([("\\n", "\n"), ("\\t", "\t")])
-
-public func unescapeString(str: String): String {
-    var res: String = str
-    for (escape in ESCAPE_MAP) {
-        res = res.replace(escape[0], escape[1])
-    }
-    res
-}
-
 public func formatWithCommasAndPadding(num: Int64, width: Int64): String {
     let numStr = num
         .toString()
