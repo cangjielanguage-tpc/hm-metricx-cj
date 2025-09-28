@@ -9,7 +9,7 @@ import ohos.ark_interop_macro.*
 import ohos.ark_interop.*
 
 public const defaultPageName = "mainPage"
-public let pid = unsafe { GetPid() }
+public let PID = unsafe { GetPid() }
 
 public func getCurTimeStamp(): String {
     DateTime

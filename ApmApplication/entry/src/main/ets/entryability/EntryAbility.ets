@@ -1,6 +1,7 @@
 import { AbilityConstant, ConfigurationConstant, UIAbility, Want } from '@kit.AbilityKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { window } from '@kit.ArkUI';
+
 import {
   CMemMonitorConfig,
   OOMHandlerMode,
@@ -26,9 +27,9 @@ export default class EntryAbility extends UIAbility {
     this.context.getApplicationContext().setColorMode(ConfigurationConstant.ColorMode.COLOR_MODE_NOT_SET);
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onCreate');
     // getExitInfo(launchParam);
-    initCrashHandler(this.context.getApplicationContext(), () => "{}", data => {
-      hilog.error(DOMAIN, 'testTag', 'crash info: ' + data.crashLogPath);
-    }, this.context.cacheDir, OOMHandlerMode.NONE, 1000, 1000, new CMemMonitorConfig(data => false));
+    // initCrashHandler(this.context.getApplicationContext(), () => "{}", data => {
+    //   hilog.error(DOMAIN, 'testTag', 'crash info: ' + data.crashLogPath);
+    // }, this.context.cacheDir, OOMHandlerMode.NONE, 1000, 1000, new CMemMonitorConfig(data => false));
     initFreezeHandler(() => "{}", data => {
       hilog.error(DOMAIN, 'testTag', '%{public}s',
         data.timestamp + '\n' + data.pid + '\n' + data.exception + '\n' + data.hilog + '\n' + data.freezeLogPath);
@@ -74,7 +75,7 @@ export default class EntryAbility extends UIAbility {
       initLaggyHanddler(this.context, windowStage, 100, 100, data => {
       }, data => {
       })
-    })
+    });
   }
 
   onWindowStageDestroy(): void {

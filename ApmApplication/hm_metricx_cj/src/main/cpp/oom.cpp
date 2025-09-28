@@ -6,9 +6,11 @@
 
 #include "oom.h"
 #include "common.h"
+#include "memory/hook_helper.h"
 #include "xhook/xh_elf.h"
 #include "xhook/xhook.h"
 #include <KOOM/kwai_linker/elf_reader.h>
+#include <chrono>
 #include <cstdio>
 #include <dlfcn.h>
 #include <fcntl.h>
@@ -17,16 +19,13 @@
 #include <inttypes.h>
 #include <iostream>
 #include <link.h>
-#include <stdarg.h>
 #include <string.h>
 #include <string>
 #include <sys/mman.h>
-#include <sys/syscall.h>
 #include <sys/types.h>
-#include <unistd.h>
 #include <sys/wait.h>
-#include <chrono>
-#include "memory/hook_helper.h"
+#include <unistd.h>
+#include <zlib.h>
 
 #define PAGE_SHIFT 12
 #define PAGE_SIZE (1UL << PAGE_SHIFT)
@@ -108,10 +107,11 @@ static FILE *Fopen(const char *filename, const char *mode) {
     if (pid == 0) {
         pthread_mutex_lock(&hook_mutex);
         xhook_clear();
-        xhook_register(cj_runtime, "_ZN12MapleRuntime14MutatorManager12StopTheWorldEbNS_7GCPhaseE", (void *)Noop, nullptr);
+        xhook_register(cj_runtime, "_ZN12MapleRuntime14MutatorManager12StopTheWorldEbNS_7GCPhaseE", (void *)Noop,
+                       nullptr);
         xhook_refresh(0);
         pthread_mutex_unlock(&hook_mutex);
-        //replaceFunc(gBaseAddr, 0x11a440, (void *)Noop);
+        // replaceFunc(gBaseAddr, 0x11a440, (void *)Noop);
         FILE *fp = fopen(filename, mode);
         gFp = fp;
         return fp;
@@ -119,14 +119,16 @@ static FILE *Fopen(const char *filename, const char *mode) {
         startTheWorld(&mutatorManager);
         int status;
         if (waitpid(pid, &status, 0) == -1) {
-            OH_LOG_Print(LOG_APP, LOG_WARN, 0x00008, "hm_metricx_cj", "waitpid error: no child process or other reasons");
+            OH_LOG_Print(LOG_APP, LOG_WARN, 0x00008, "hm_metricx_cj",
+                         "waitpid error: no child process or other reasons");
         }
         if (errno == EINTR) {
             OH_LOG_Print(LOG_APP, LOG_WARN, 0x00008, "hm_metricx_cj", "waitpid error: interrupted system call");
         }
         if (!WIFEXITED(status)) {
             OH_LOG_Print(LOG_APP, LOG_WARN, 0x00008, "hm_metricx_cj",
-                         "waitpid error: child process %{public}d exited with status %{public}d, terminated by signal %{public}d",
+                         "waitpid error: child process %{public}d exited with status %{public}d, terminated by signal "
+                         "%{public}d",
                          pid, WEXITSTATUS(status), WTERMSIG(status));
         }
         auto t4 = std::chrono::high_resolution_clock::now();
@@ -134,8 +136,10 @@ static FILE *Fopen(const char *filename, const char *mode) {
         auto d1 = std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count();
         auto d2 = std::chrono::duration_cast<std::chrono::milliseconds>(t3 - t2).count();
         auto d3 = std::chrono::duration_cast<std::chrono::milliseconds>(t4 - t3).count();
-        OH_LOG_Print(LOG_APP, LOG_WARN, 0x00008, "hm_metricx_cj", "dump time: total: %{public}lld ms, stw: %{public}lld ms, fork: %{public}lld ms, dump: %{public}lld ms",
-                     total, d1, d2, d3);
+        OH_LOG_Print(
+            LOG_APP, LOG_WARN, 0x00008, "hm_metricx_cj",
+            "dump time: total: %{public}lld ms, stw: %{public}lld ms, fork: %{public}lld ms, dump: %{public}lld ms",
+            total, d1, d2, d3);
         dumpTime = {total, d1, d2, d3};
         isOOMDumping = false;
         return nullptr;
@@ -217,13 +221,12 @@ int8_t InitOOMHandler(const char *targetFile, const char *dumpDir) {
     }
 
     while (fgets(line, sizeof(line), fp)) {
-        if (NULL != strstr(line, cj_runtime) &&
-            sscanf(line, "%" PRIxPTR "-%*lx %*4s 00000000", &baseAddr) == 1) {
+        if (NULL != strstr(line, cj_runtime) && sscanf(line, "%" PRIxPTR "-%*lx %*4s 00000000", &baseAddr) == 1) {
             break;
         }
     }
     fclose(fp);
-    
+
     pthread_mutex_lock(&hook_mutex);
     xhook_clear();
     if (xhook_register(cj_runtime, "fopen", (void *)Fopen, nullptr) != EXIT_SUCCESS) {
@@ -269,11 +272,7 @@ int8_t InitOOMHandler(const char *targetFile, const char *dumpDir) {
     return SUCCESS;
 }
 
-bool IsOOMDumping() {
-    return isOOMDumping;
-}
+bool IsOOMDumping() { return isOOMDumping; }
 
-DumpTime GetDumpTime() {
-    return dumpTime;
-}
+DumpTime GetDumpTime() { return dumpTime; }
 }

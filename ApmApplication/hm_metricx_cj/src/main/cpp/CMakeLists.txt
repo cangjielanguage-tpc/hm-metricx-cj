@@ -15,6 +15,7 @@ add_library(hm_metricx_cj SHARED napi_init.cpp crash.cpp oom.cpp KOOM/elf_reader
 xhook/xh_core.c xhook/xh_elf.c xhook/xh_util.c xhook/xh_version.c xhook/xhook.c
 xdl/xdl.c xdl/xdl_iterate.c xdl/xdl_lzma.c xdl/xdl_util.c
 memory/hook_helper.cpp memory/memory_monitor.cpp memory/backtrace_64.cpp
+zlib.c
 )
 target_link_libraries(hm_metricx_cj PUBLIC libace_napi.z.so libhilog_ndk.z.so libohhicollie.so libhiappevent_ndk.z.so libohhidebug.so
-    libbundle_ndk.z.so libc++.a)
+    libbundle_ndk.z.so libc++.a z)

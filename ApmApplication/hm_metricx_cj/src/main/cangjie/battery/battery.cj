@@ -478,8 +478,7 @@ private func diffThreadJiffiesSnapshot(current: JiffiesSnapshot, last: JiffiesSn
 }
 
 private func currentJiffiesSnapshot(): JiffiesSnapshot {
-    let currentPid = pid
-    let jiffiesSnapshot: JiffiesSnapshot = JiffiesSnapshot(currentPid)
+    let jiffiesSnapshot: JiffiesSnapshot = JiffiesSnapshot(PID)
     let threads: ArrayList<UInt32> = getAllThreadId()
 
     for (threadId in threads) {
@@ -489,7 +488,7 @@ private func currentJiffiesSnapshot(): JiffiesSnapshot {
             continue
         }
         var threadJiffiesSnapshot: ThreadJiffiesSnapshot = ThreadJiffiesSnapshot(tid)
-        parseThreadInfo(currentPid, tid, threadJiffiesSnapshot, path)
+        parseThreadInfo(PID, tid, threadJiffiesSnapshot, path)
         jiffiesSnapshot
             .threadEntries
             .add(threadJiffiesSnapshot)

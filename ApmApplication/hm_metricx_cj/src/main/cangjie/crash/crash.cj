@@ -7,13 +7,13 @@ import ohos_app_cangjie_hm_metricx_cj.util.*
 import std.fs.*
 import std.collection.*
 import std.convert.*
-//import stdx.compress.zlib.*
 import std.time.*
 import std.sync.*
 import std.convert.*
 import std.sort.*
 import ohos.ark_interop_macro.*
 import ohos.ark_interop.*
+import ohos_app_cangjie_hm_metricx_cj.util.zlib.*
 
 public class CrashInfo {
     public var language: ?String = None
@@ -437,7 +437,7 @@ private func reportLastCrash(persistentPaths: PersistentPaths, reportCrashInfo: 
 
 private func initOOMHandler(persistentDir: String) {
     unsafe {
-        let targetFile = LibC.mallocCString(persistentDir + "/cj_OOM_pid" + pid.toString() + ".dat")
+        let targetFile = LibC.mallocCString(persistentDir + "/cj_OOM_pid" + PID.toString() + ".dat")
         let dumpDir = LibC.mallocCString(persistentDir)
         if (InitOOMHandler(targetFile) != 0) {
             metricx_warn("hm-metricx-cj error: InitOOMHandler failed.")
@@ -721,7 +721,7 @@ private func initCrashWatcher(
             crashInfo.pname = res[0]
             crashInfo.tid = res[1]
             crashInfo.tname = res[2]
-            if (pid.toString() == crashPid) {
+            if (PID.toString() == crashPid) {
                 writeFile(persistentPaths.lastCrashFilePath, crashInfo.toString())
             } else {
                 if (!reported) {
@@ -864,31 +864,31 @@ private func compressFile(src: String, dest: String): Bool {
         return false
     }
     var count: Int64 = 0
-    //    try {
-    //        let srcFile: File = File(src, OpenMode.Read)
-    //        let destFile: File = File(dest, OpenMode.Append)
-    //
-    //        var tempBuf: Array<UInt8> = Array<UInt8>(1024, repeat: 0)
-    //        var compressOutputStream: CompressOutputStream = CompressOutputStream(destFile, wrap: GzipFormat)
-    //        while (true) {
-    //            var readNum = srcFile.read(tempBuf)
-    //            if (readNum > 0) {
-    //                compressOutputStream.write(tempBuf
-    //                    .slice(0, readNum)
-    //                    .toArray())
-    //                count += readNum
-    //            } else {
-    //                break
-    //            }
-    //        }
-    //        compressOutputStream.flush()
-    //        compressOutputStream.close()
-    //
-    //        srcFile.close()
-    //        destFile.close()
-    //    } catch (e: Exception) {
-    //        metricx_warn("hm-metricx-cj error: compressFile failed due to ${e.toString()}")
-    //    }
+    try {
+        let srcFile: File = File(src, OpenMode.Read)
+        let destFile: File = File(dest, OpenMode.Append)
+
+        var tempBuf: Array<UInt8> = Array<UInt8>(1024, repeat: 0)
+        var compressOutputStream: CompressOutputStream = CompressOutputStream(destFile)
+        while (true) {
+            var readNum = srcFile.read(tempBuf)
+            if (readNum > 0) {
+                compressOutputStream.write(tempBuf
+                    .slice(0, readNum)
+                    .toArray())
+                count += readNum
+            } else {
+                break
+            }
+        }
+        compressOutputStream.flush()
+        compressOutputStream.close()
+
+        srcFile.close()
+        destFile.close()
+    } catch (e: Exception) {
+        metricx_warn("hm-metricx-cj error: compressFile failed due to ${e.toString()}")
+    }
     count > 0
 }
 
