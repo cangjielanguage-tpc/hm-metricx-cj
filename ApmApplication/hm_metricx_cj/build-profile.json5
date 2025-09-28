@@ -8,17 +8,6 @@
       "path": "./src/main/cpp/CMakeLists.txt",
       "arguments": "",
       "cppFlags": "",
-    },
-    "nativeLib": {
-      "filter": {
-        "excludes": [
-          "**/ohos/**libcj_**",
-          "**/ohos/**libabilitykit**",
-          "**/ohos/**libappkit**",
-          "**/ohos/**libcontact**",
-          "**/ohos/**libcjLibLoader**"
-        ]
-      }
     }
   },
   "buildOptionSet": [

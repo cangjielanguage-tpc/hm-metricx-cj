@@ -32,7 +32,7 @@ export default class EntryAbility extends UIAbility {
     // }, this.context.cacheDir, OOMHandlerMode.NONE, 1000, 1000, new CMemMonitorConfig(data => false));
     initFreezeHandler(() => "{}", data => {
       hilog.error(DOMAIN, 'testTag', '%{public}s',
-        data.timestamp + '\n' + data.pid + '\n' + data.exception + '\n' + data.hilog + '\n' + data.freezeLogPath);
+        data.timestamp + '\n' + data.pid + '\n' + data.exception + '\n' + data.freezeLogPath);
     }, this.context.cacheDir);
     // initTrafficHandler(this.context, data => {
     // });
@@ -51,8 +51,8 @@ export default class EntryAbility extends UIAbility {
 
   onDestroy(): void {
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onDestroy');
-    destroyMemoryHandler();
-    destroyBatteryHandler();
+    // destroyMemoryHandler();
+    // destroyBatteryHandler();
   }
 
   onWindowStageCreate(windowStage: window.WindowStage): void {
@@ -67,15 +67,15 @@ export default class EntryAbility extends UIAbility {
       hilog.info(DOMAIN, 'testTag', 'Succeeded in loading the content.');
     });
 
-    windowStage.getMainWindow().then(() => {
-      initPageEventHandler(this.context, windowStage, data => {
-      });
-      initScrollEventHandler(this.context, data => {
-      });
-      initLaggyHanddler(this.context, windowStage, 100, 100, data => {
-      }, data => {
-      })
-    });
+    // windowStage.getMainWindow().then(() => {
+    //   initPageEventHandler(this.context, windowStage, data => {
+    //   });
+    //   initScrollEventHandler(this.context, data => {
+    //   });
+    //   initLaggyHanddler(this.context, windowStage, 100, 100, data => {
+    //   }, data => {
+    //   })
+    // });
   }
 
   onWindowStageDestroy(): void {

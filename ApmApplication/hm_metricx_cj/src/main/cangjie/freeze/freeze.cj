@@ -156,7 +156,7 @@ public class FreezeInfo {
         freezeInfo.rawFile = rawFileValue
         freezeInfo.historyRawFiles = historyRawFilesValue
         if (let Some(v) <- cpuThreadValue) {
-            freezeInfo.cpuThread = JSHashMapEx<String, String>(v)
+            // freezeInfo.cpuThread = JSHashMapEx<String, String>(v)
         }
         if (let Some(v) <- cpuValue) {
             // freezeInfo.cpu = JSHashMapEx<String, String>(v) TODO 互操作已知问题
