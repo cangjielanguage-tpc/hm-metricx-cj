@@ -15,12 +15,17 @@ struct Index {
         })
         .onClick(() => {
           this.message = 'Welcome';
-          //throw Error("my error")
-          while (true) {
-          }
+          //oom();
+          throw Error("my error")
+          // while (true) {
+          // }
         })
     }
     .height('100%')
     .width('100%')
   }
+}
+
+function oom() {
+  let hugeArray: number[] = new Array(Number.MAX_SAFE_INTEGER);
 }

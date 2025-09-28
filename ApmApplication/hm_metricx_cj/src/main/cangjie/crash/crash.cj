@@ -667,9 +667,6 @@ private func initCrashWatcher(
             bundle_version: String => try {
             var crashInfo = CrashInfo()
             if (exists(persistentPaths.crashFilePath)) {
-                metricx_warn("xxx " + persistentPaths
-                    .crashFilePath
-                    .toString())
                 crashInfo = CrashInfo.fromString(readFile(persistentPaths.crashFilePath))
                 deleteFile(persistentPaths.crashFilePath)
             } else {

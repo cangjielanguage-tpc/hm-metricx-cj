@@ -27,13 +27,13 @@ export default class EntryAbility extends UIAbility {
     this.context.getApplicationContext().setColorMode(ConfigurationConstant.ColorMode.COLOR_MODE_NOT_SET);
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onCreate');
     // getExitInfo(launchParam);
-    // initCrashHandler(this.context.getApplicationContext(), () => "{}", data => {
-    //   hilog.error(DOMAIN, 'testTag', 'crash info: ' + data.crashLogPath);
-    // }, this.context.cacheDir, OOMHandlerMode.NONE, 1000, 1000, new CMemMonitorConfig(data => false));
-    initFreezeHandler(() => "{}", data => {
-      hilog.error(DOMAIN, 'testTag', '%{public}s',
-        data.timestamp + '\n' + data.pid + '\n' + data.exception + '\n' + data.freezeLogPath);
-    }, this.context.cacheDir);
+    initCrashHandler(this.context.getApplicationContext(), () => "{}", data => {
+      hilog.error(DOMAIN, 'testTag', 'xxx crash info: ' + data.crashLogPath);
+    }, this.context.cacheDir, OOMHandlerMode.NONE, 1000, 1000, new CMemMonitorConfig(data => false));
+    // initFreezeHandler(() => "{}", data => {
+    //   hilog.error(DOMAIN, 'testTag', '%{public}s',
+    //     data.timestamp + '\n' + data.pid + '\n' + data.exception + '\n' + data.freezeLogPath);
+    // }, this.context.cacheDir);
     // initTrafficHandler(this.context, data => {
     // });
     // initStorageHandler(data => {
