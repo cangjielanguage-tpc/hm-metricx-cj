@@ -270,7 +270,7 @@ export function initFreezeHandler(
     errorManager.on('freeze', cb);
   };
   let addFreezeWatcher =
-    (cb: (time: string, pid: string, exception: string, hilog: string, external_log: string) => FreezeInfo) => {
+    (cb: (time: string, pid: string, exception: string, hilog: string, external_log: string) => void) => {
       hiAppEvent.addWatcher({
         name: 'freezeWatcher',
         appEventFilters: [
@@ -293,10 +293,8 @@ export function initFreezeHandler(
               let exception: string = JSON.stringify(eventInfo.params['exception']);
               let hilogs: string[] = eventInfo.params['hilog'];
               let external_logs: string[] = eventInfo.params['external_log'];
-              let data =
-                cb(time.toString(), pid.toString(), exception, hilogs.reduce((acc, cur) => acc + '\n' + cur, ''),
-                  external_logs.length === 0 ? '' : external_logs[0]);
-              reportFreezeInfo(data);
+              cb(time.toString(), pid.toString(), exception, hilogs.reduce((acc, cur) => acc + '\n' + cur, ''),
+                external_logs.length === 0 ? '' : external_logs[0]);
               break;
             }
             break;
@@ -304,7 +302,8 @@ export function initFreezeHandler(
         }
       });
     };
-  cjLib.initFreezeHandler(deviceInfo.sdkApiVersion, addFreezeWatcher, onFreeze, collectFreezeInfo, persistentDir);
+  cjLib.initFreezeHandler(deviceInfo.sdkApiVersion, addFreezeWatcher, onFreeze, collectFreezeInfo, reportFreezeInfo,
+    persistentDir);
 }
 
 let offMemory = () => {
@@ -522,7 +521,8 @@ export function initBatteryHandler(
   unsubscribe = () => {
     commonEventManager.unsubscribe(subscriber);
   };
-  cjLib.initBatteryHandler(subscribe, getUptime, batteryInterface, getBrightness, onApplicationStateChange, onAbilityForeGround,
+  cjLib.initBatteryHandler(subscribe, getUptime, batteryInterface, getBrightness, onApplicationStateChange,
+    onAbilityForeGround,
     onNavDestinationSwitch,
     getRunningProcessInfo, repeatHandlerCpuUsage, reportBatterInfo, reportThreadCpuUsageInfo, limit);
 }

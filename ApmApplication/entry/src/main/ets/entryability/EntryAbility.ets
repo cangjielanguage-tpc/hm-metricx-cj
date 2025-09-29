@@ -30,10 +30,10 @@ export default class EntryAbility extends UIAbility {
     initCrashHandler(this.context.getApplicationContext(), () => "{}", data => {
       hilog.error(DOMAIN, 'testTag', 'xxx crash info: ' + data.crashLogPath);
     }, this.context.cacheDir, OOMHandlerMode.NONE, 1000, 1000, new CMemMonitorConfig(data => false));
-    // initFreezeHandler(() => "{}", data => {
-    //   hilog.error(DOMAIN, 'testTag', '%{public}s',
-    //     data.timestamp + '\n' + data.pid + '\n' + data.exception + '\n' + data.freezeLogPath);
-    // }, this.context.cacheDir);
+    initFreezeHandler(() => "{}", data => {
+      hilog.error(DOMAIN, 'testTag', 'xxx freeze info %{public}s',
+        data.timestamp + '\n' + data.pid + '\n' + data.exception + '\n' + data.freezeLogPath);
+    }, this.context.cacheDir);
     // initTrafficHandler(this.context, data => {
     // });
     // initStorageHandler(data => {

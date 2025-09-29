@@ -82,9 +82,10 @@ public func getExitInfo(lastExitMessage: String, lastExitReason: Int32): Unit {
 
 @Interop[ArkTS]
 public func initFreezeHandler(sdkApiVersion: Int64,
-    addFreezeWatcher: ((String, String, String, String, String) -> InteropFreezeInfo) -> Unit,
-    onFreeze: (() -> Unit) -> Unit, collectFreezeInfo: () -> String, persistentDir: String): Unit {
-    _initFreezeHandler(sdkApiVersion, addFreezeWatcher, onFreeze, collectFreezeInfo, Path(persistentDir))
+    addFreezeWatcher: ((String, String, String, String, String) -> Unit) -> Unit, onFreeze: (() -> Unit) -> Unit,
+    collectFreezeInfo: () -> String, reportFreezeInfo: (InteropFreezeInfo) -> Unit, persistentDir: String): Unit {
+    _initFreezeHandler(sdkApiVersion, addFreezeWatcher, onFreeze, collectFreezeInfo, reportFreezeInfo,
+        Path(persistentDir))
 }
 
 @Interop[ArkTS]
@@ -181,9 +182,9 @@ public func initBatteryHandler(
     reportThreadCpuUsageInfo: (InteropAllThreadCpuUsageInfo) -> Unit,
     limit: Int32
 ): Unit {
-    _initBatteryHandler(subscribe, getUptime, batteryInterface, getBrightness, onApplicationStateChange, onAbilityForeground,
-        onNavDestinationSwitch, getRunningProcessInfo, repeatHandleCpuUsage, reportBatteryInfo, reportThreadCpuUsageInfo,
-        limit: limit)
+    _initBatteryHandler(subscribe, getUptime, batteryInterface, getBrightness, onApplicationStateChange,
+        onAbilityForeground, onNavDestinationSwitch, getRunningProcessInfo, repeatHandleCpuUsage, reportBatteryInfo,
+        reportThreadCpuUsageInfo, limit: limit)
 }
 
 @Interop[ArkTS]

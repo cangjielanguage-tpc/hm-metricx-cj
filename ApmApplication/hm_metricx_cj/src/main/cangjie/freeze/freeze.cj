@@ -192,9 +192,10 @@ private var extraInfo = ""
 
 public func initFreezeHandler(
     sdkApiVersion: Int64,
-    addFreezeWatcher: (callback: (time: String, pid: String, exception: String, hilog: String, external_log: String) -> InteropFreezeInfo) -> Unit,
+    addFreezeWatcher: (callback: (time: String, pid: String, exception: String, hilog: String, external_log: String) -> Unit) -> Unit,
     onFreeze: (callback: () -> Unit) -> Unit,
     collectFreezeInfo: () -> String,
+    reportFreezeInfo: (data: InteropFreezeInfo) -> Unit,
     persistentDir: Path
 ): Unit {
     if (freezeInited) {
@@ -208,7 +209,7 @@ public func initFreezeHandler(
     let extraInfoFilePath = persistentDir.join("extraInfoFreeze.txt")
     let extraInfoBakFilePath = persistentDir.join("extraInfoFreeze-bak.txt")
     renameFile(extraInfoFilePath, extraInfoBakFilePath)
-    initFreezeWatcher(addFreezeWatcher, cpuUsageBakFilePath, extraInfoBakFilePath)
+    initFreezeWatcher(reportFreezeInfo, addFreezeWatcher, cpuUsageBakFilePath, extraInfoBakFilePath)
     if (sdkApiVersion >= 18) {
         onFreeze({=> freezeCallback(cpuUsageFilePath, extraInfoFilePath)})
     } else {
@@ -239,11 +240,12 @@ private func collectFreezeInfo(cpuUsageFilePath: Path, extraInfoFilePath: Path):
 }
 
 private func initFreezeWatcher(
-    addFreezeWatcher: (callback: (time: String, pid: String, exception: String, hilog: String, external_log: String) -> InteropFreezeInfo) -> Unit,
+    reportFreezeInfo: (data: InteropFreezeInfo) -> Unit,
+    addFreezeWatcher: (callback: (time: String, pid: String, exception: String, hilog: String, external_log: String) -> Unit) -> Unit,
     cpuUsageFilePath: Path,
     extraInfoFilePath: Path
 ) {
-    let cb: (time: String, pid: String, exception: String, hilog: String, external_log: String) -> InteropFreezeInfo = {
+    let cb: (time: String, pid: String, exception: String, hilog: String, external_log: String) -> Unit = {
         time: String, pid: String, exception: String, hilog: String, external_log: String =>
             let freezeInfo = FreezeInfo()
             try {
@@ -295,7 +297,7 @@ private func initFreezeWatcher(
             } catch (e: Exception) {
                 metricx_warn(e.toString())
             }
-            freezeInfo.toInteropFreezeInfo()
+            reportFreezeInfo(freezeInfo.toInteropFreezeInfo())
     }
     addFreezeWatcher(cb)
 }
