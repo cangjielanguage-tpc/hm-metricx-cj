@@ -157,9 +157,11 @@ public class FreezeInfo {
         freezeInfo.historyRawFiles = historyRawFilesValue
         if (let Some(v) <- cpuThreadValue) {
             // freezeInfo.cpuThread = JSHashMapEx<String, String>(v)
+            freezeInfo.cpuThread = map2String(v)
         }
         if (let Some(v) <- cpuValue) {
-            // freezeInfo.cpu = JSHashMapEx<String, String>(v) TODO 互操作已知问题
+            // freezeInfo.cpu = JSHashMapEx<String, String>(v)
+            freezeInfo.cpu = map2String(v)
         }
         if (let Some(v) <- stacktraceValue) {
             freezeInfo.stacktrace = JSArrayEx<String>(v.toString())
@@ -178,8 +180,10 @@ public class InteropFreezeInfo {
     public var tname: Option<String> = None
     public var extraInfo: Option<String> = None
     public var freezeLogPath: Option<String> = None
-    public var cpuThread: Option<JSHashMapEx<String, String>> = None
-    public var cpu: Option<JSHashMapEx<String, String>> = None
+    //    public var cpuThread: Option<JSHashMapEx<String, String>> = None TODO cannot use JSHashMapEx due to known bug in ark_interop lib
+    //    public var cpu: Option<JSHashMapEx<String, String>> = None
+    public var cpuThread: Option<String> = None
+    public var cpu: Option<String> = None
     public var stacktrace: Option<JSArrayEx<String>> = None
     public var rawFile: Option<String> = None
     public var historyRawFiles: Option<String> = None

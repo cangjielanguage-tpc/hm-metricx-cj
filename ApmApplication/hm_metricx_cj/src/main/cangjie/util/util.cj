@@ -7,6 +7,7 @@ import std.fs.*
 import std.time.*
 import ohos.ark_interop_macro.*
 import ohos.ark_interop.*
+import std.collection.*
 
 public const defaultPageName = "mainPage"
 public let PID = unsafe { GetPid() }
@@ -153,6 +154,14 @@ public class JSHelper {
     public static func postJSTask(callback: () -> Unit): Unit {
         ctx.postJSTask(callback)
     }
+}
+
+public func map2String(map: Map<String, String>): String {
+    var res: String = ""
+    for (entry in map) {
+        res += "${entry[0]}\t${entry[1]}\n"
+    }
+    res
 }
 
 foreign func GetPid(): Int64

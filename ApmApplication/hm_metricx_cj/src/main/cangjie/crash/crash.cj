@@ -52,7 +52,8 @@ public class CrashInfo {
         crashInfo.tid = tid
         crashInfo.tname = tname
         if (let Some(v) <- fds) {
-            // crashInfo.fds = JSHashMapEx<String, String>(v) TODO
+            // crashInfo.fds = JSHashMapEx<String, String>(v)
+            crashInfo.fds = map2String(v)
         }
         crashInfo.limits = limits
         crashInfo.threads = threads
@@ -257,7 +258,8 @@ public class InteropCrashInfo {
     public var hilog: Option<String> = None
     public var tid: Option<String> = None
     public var tname: Option<String> = None
-    public var fds: Option<JSHashMapEx<String, String>> = None
+    //    public var fds: Option<JSHashMapEx<String, String>> = None TODO cannot use JSHashMapEx due to known bug in ark_interop lib
+    public var fds: Option<String> = None
     public var limits: Option<String> = None
     public var threads: Option<String> = None
     public var extraInfo: Option<String> = None
@@ -627,9 +629,9 @@ private func collectFDInfo() {
                     let fdPath = file.path
                     if (exists(fdPath)) {
                         let realPath = SymbolicLink.readFrom(fdPath)
-                        fds.add(fdPath.toString(), realPath.toString())
+                        fds.add(file.name, realPath.toString())
                     } else {
-                        fds.add(fdPath.toString(), "unknown")
+                        fds.add(file.name, "unknown")
                     }
                     true
             }
