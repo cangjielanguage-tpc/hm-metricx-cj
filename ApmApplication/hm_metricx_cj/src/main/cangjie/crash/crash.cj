@@ -389,10 +389,9 @@ public func initCrashHandler(
     let persistentPaths = PersistentPaths(persistentDir)
     let hilogNumber = max(lastNHilogNumber, 0)
     let systemLogNum = max(systemLogNumber, 0)
-    //    spawn {
-    //        => reportLastCrash(persistentPaths, reportCrashInfo)
-    //    }
-    reportLastCrash(persistentPaths, reportCrashInfo) // TODO
+    spawn {
+        => JSHelper.postJSTask({=> reportLastCrash(persistentPaths, reportCrashInfo)})
+    }
     let crashInfo = CrashInfo()
     crashInfo.limits = collectLimits()
     initErrorObserver(onCrash, crashInfo, exit, collectCrashInfo, enableDumpOnOOM, persistentPaths)
@@ -944,9 +943,7 @@ private func parseMallocLog(filePath: Path): List<MallocModel> {
     let mallocModels = ArrayList<MallocModel>()
     let lines = readFile(filePath).split("\n", removeEmpty: true)
     for (line in lines) {
-        let strings = line
-            //.trim() TODO
-            .split(" ", removeEmpty: true)
+        let strings = line.split(" ", removeEmpty: true)
         if (strings.size < 3) {
             metricx_info("parseMallocLog skiped line: " + line)
             continue
@@ -986,7 +983,6 @@ private func getParsedStacks(parsedPath: Path): HashMap<Int64, ParsedAddr> {
             let pc = arr[0]
             let pcInt = Int64.parse("0x" + pc)
             let parsedAddr = line.removePrefix(pc)
-            //.trim() TODO
             let soName = arr[2]
             map.add(pcInt, ParsedAddr(pcInt, parsedAddr, soName))
         } catch (e: Exception) {
@@ -1119,9 +1115,7 @@ private func parseMaps(filePath: Path, headCount: Int32): String {
 
     let lines = readFile(filePath).split("\n", removeEmpty: true)
     for (line in lines) {
-        let segments = line
-            //.trim() TODO
-            .split(" ", removeEmpty: true)
+        let segments = line.split(" ", removeEmpty: true)
         if (segments.size < 5) {
             metricx_info("parse memMap skiped line: " + line)
             continue
