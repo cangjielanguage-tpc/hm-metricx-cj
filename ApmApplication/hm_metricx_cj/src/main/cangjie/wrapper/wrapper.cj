@@ -46,8 +46,11 @@ import ohos_app_cangjie_hm_metricx_cj.laggy.ResponseEvent
 import ohos_app_cangjie_hm_metricx_cj.laggy.InteropPageResponseLaggyModel
 import ohos_app_cangjie_hm_metricx_cj.laggy.initLaggyHandler as _initLaggyHandler
 import ohos_app_cangjie_hm_metricx_cj.util.DisplaySyncInterface
-
 import std.fs.*
+import ohos_app_cangjie_hm_metricx_cj.util.InteropClass
+import ohos_app_cangjie_hm_metricx_cj.exitInfo.ExitInfo
+import ohos_app_cangjie_hm_metricx_cj.traffic.InteropDayTrafficInfo
+import ohos_app_cangjie_hm_metricx_cj.traffic.getYesterdayTraffic as _getYesterdayTraffic
 
 private func transEnableDumpOnOOM(enableDumpOnOOM: Int8): Option<OOMHandlerMode> {
     if (enableDumpOnOOM == 1) {
@@ -70,21 +73,21 @@ public func initCrashHandler(
     systemLogNumber: Int64,
     enableMemMonitor: Option<CMemMonitorConfig>
 ): Unit {
-    _initCrashHandler(exit, collectCrashInfo, reportCrashInfo, Path(persistentDir),
+    let ctx = InteropClass.context
+    let jsReportCrashInfo = {crashInfo => ctx.postJSTask {reportCrashInfo(crashInfo)}}
+    let jsExit = {=> ctx.postJSTask {exit()}}
+    _initCrashHandler(jsExit, collectCrashInfo, jsReportCrashInfo, Path(persistentDir),
         transEnableDumpOnOOM(enableDumpOnOOM), lastNHilogNumber, systemLogNumber, enableMemMonitor)
 }
 
 @Interop[ArkTS]
-public func getExitInfo(lastExitMessage: String, lastExitReason: Int32): Unit {
+public func getExitInfo(lastExitMessage: String, lastExitReason: Int32): ExitInfo {
     _getExitInfo(lastExitMessage, lastExitReason)
 }
 
 @Interop[ArkTS]
-public func initFreezeHandler(
-    onFreeze: (() -> Unit) -> Unit,
-    collectFreezeInfo: () -> String,
-    reportFreezeInfo: (InteropFreezeInfo) -> Unit,
-    persistentDir: String): Unit {
+public func initFreezeHandler(onFreeze: (() -> Unit) -> Unit, collectFreezeInfo: () -> String,
+    reportFreezeInfo: (InteropFreezeInfo) -> Unit, persistentDir: String): Unit {
     _initFreezeHandler(onFreeze, collectFreezeInfo, reportFreezeInfo, Path(persistentDir))
 }
 
@@ -94,16 +97,22 @@ public func initTrafficHandler(
     onNavDestinationSwitch: ((String) -> Unit) -> Unit,
     repeatSampleTraffic: (() -> Unit) -> Unit,
     getUidRxAndTxBytes: ((Int64, Int64) -> Unit) -> Unit,
+    getPageUidRxAndTxBytes: ((Int64, Int64, String) -> Unit, String) -> Unit,
     reportTraffic: (InteropSampleTrafficInfo) -> Unit,
     sampleThreshold: Int64
 ): Unit {
-    _initTrafficHandler(preference, onNavDestinationSwitch, repeatSampleTraffic, getUidRxAndTxBytes, reportTraffic,
-        sampleThreshold: sampleThreshold)
+    _initTrafficHandler(preference, onNavDestinationSwitch, repeatSampleTraffic, getUidRxAndTxBytes,
+        getPageUidRxAndTxBytes, reportTraffic, sampleThreshold: sampleThreshold)
 }
 
 @Interop[ArkTS]
 public func destroyTrafficHandler(getUidRxAndTxBytes: ((Int64, Int64) -> Unit) -> Unit): Unit {
     _destroyTrafficHandler(getUidRxAndTxBytes)
+}
+
+@Interop[ArkTS]
+public func getYesterdayTraffic(): Option<InteropDayTrafficInfo> {
+    _getYesterdayTraffic()
 }
 
 @Interop[ArkTS]
@@ -221,6 +230,6 @@ public func initLaggyHandler(
     reportResponseEvent: (ResponseEvent) -> Unit,
     reportPageResponseLaggyModel: (InteropPageResponseLaggyModel) -> Unit
 ): Unit {
-    _initLaggyHandler(onDisplay, onAbilityBackground, onNavDestinationSwitch,
-        onDidClick, maxTime, maxArraySize, reportResponseEvent, reportPageResponseLaggyModel)
+    _initLaggyHandler(onDisplay, onAbilityBackground, onNavDestinationSwitch, onDidClick, maxTime, maxArraySize,
+        reportResponseEvent, reportPageResponseLaggyModel)
 }

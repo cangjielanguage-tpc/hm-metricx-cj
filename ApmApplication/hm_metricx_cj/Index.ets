@@ -22,7 +22,9 @@ import {
   ClickInfo,
   ResponseEvent,
   InteropPageResponseLaggyModel as PageResponseLaggyModel,
-  DisplaySyncInterface
+  DisplaySyncInterface,
+  ExitInfo,
+  InteropDayTrafficInfo as DayTrafficInfo
 } from 'libark_interop_api.so';
 import { preferences } from '@kit.ArkData';
 import { uiObserver, window } from '@kit.ArkUI';
@@ -48,6 +50,12 @@ let uid = bundleManager.getBundleInfoForSelfSync(bundleManager.BundleFlag.GET_BU
 let getUidRxAndTxBytes = (cb: (rxBytes: number, txBytes: number) => void) => {
   statistics.getUidRxBytes(uid).then(rxBytes => {
     statistics.getUidTxBytes(uid).then(txBytes => cb(rxBytes, txBytes));
+  });
+};
+
+let getPageUidRxAndTxBytes = (cb: (rxBytes: number, txBytes: number, page: string) => void, page: string) => {
+  statistics.getUidRxBytes(uid).then(rxBytes => {
+    statistics.getUidTxBytes(uid).then(txBytes => cb(rxBytes, txBytes, page));
   });
 };
 
@@ -81,14 +89,18 @@ export function initTrafficHandler(
     let id = setInterval(sample, sampleTime);
     clearSampleTraffic = () => clearInterval(id);
   };
-  cjLib.initTrafficHandler(p, onNavDestinationSwitch, repeatSampleTraffic, getUidRxAndTxBytes, reportTraffic,
-    sampleThreshold);
+  cjLib.initTrafficHandler(p, onNavDestinationSwitch, repeatSampleTraffic, getUidRxAndTxBytes, getPageUidRxAndTxBytes,
+    reportTraffic, sampleThreshold);
 }
 
 export function destroyTrafficHandler(): void {
   clearSampleTraffic();
   offTraffic();
   cjLib.destroyTrafficHandler(getUidRxAndTxBytes);
+}
+
+export function getYesterdayTraffic(): DayTrafficInfo | undefined {
+  return cjLib.getYesterdayTraffic();
 }
 
 export function initStorageHandler(reportStorageInfo: (data: InteropStorageInfo) => void, sizeLimit: number,
@@ -195,8 +207,8 @@ export function initCrashHandler(applicationContext: common.ApplicationContext,
   }
 }
 
-export function getExitInfo(launchParam: AbilityConstant.LaunchParam): void {
-  cjLib.getExitInfo(launchParam.lastExitMessage, launchParam.lastExitReason);
+export function getExitInfo(launchParam: AbilityConstant.LaunchParam): ExitInfo {
+  return cjLib.getExitInfo(launchParam.lastExitMessage, launchParam.lastExitReason);
 }
 
 export function initFreezeHandler(
@@ -385,7 +397,8 @@ export function initBatteryHandler(
     let id = setInterval(handler, 3 * 60 * 1000);
     clearCpuUsageHandler = () => clearInterval(id);
   };
-  cjLib.initBatteryHandler(batteryInterface, getBrightness, onApplicationStateChange, onAbilityForeGround, onNavDestinationSwitch,
+  cjLib.initBatteryHandler(batteryInterface, getBrightness, onApplicationStateChange, onAbilityForeGround,
+    onNavDestinationSwitch,
     getRunningProcessInfo, repeatHandlerCpuUsage, reportBatterInfo, reportThreadCpuUsageInfo, limit);
 }
 
