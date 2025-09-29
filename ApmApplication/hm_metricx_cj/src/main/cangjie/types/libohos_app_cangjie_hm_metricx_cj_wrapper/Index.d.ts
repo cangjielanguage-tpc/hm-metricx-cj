@@ -50,3 +50,7 @@ export declare function initBatteryHandler(getUptime: () => number, batteryInter
 export declare function initBatteryHandler(subscribe: (funcArg0: () => void, funcArg1: () => void, funcArg2: () => void) => void, getUptime: () => number, batteryInterface: BatteryInfoInterface, getBrightness: () => number, onApplicationStateChange: (funcArg0: () => void, funcArg1: () => void) => void, onAbilityForeground: (funcArg0: () => void) => void, onNavDestinationSwitch: (funcArg0: (funcArgfuncArg0: string) => void) => void, getRunningProcessInfo: (funcArg0: (funcArgfuncArg0: boolean) => void) => void, repeatHandleCpuUsage: (funcArg0: () => void) => void, reportBatteryInfo: (funcArg0: InteropBatteryUsageInfo) => void, reportThreadCpuUsageInfo: (funcArg0: InteropAllThreadCpuUsageInfo) => void, limit: number): void
 
 export declare function getExitInfo(lastExitMessage: string, lastExitReason: number): ExitInfo
+
+export declare function initTrafficHandler(preference: TrafficPreference, onNavDestinationSwitch: (funcArg0: (funcArgfuncArg0: string) => void) => void, repeatSampleTraffic: (funcArg0: () => void) => void, getUidRxAndTxBytes: (funcArg0: (funcArgfuncArg0: number, funcArgfuncArg1: number, funcArgfuncArg2: string) => void, funcArg1: string) => void, reportTraffic: (funcArg0: InteropSampleTrafficInfo) => void, sampleThreshold: number): void
+
+export declare function getYesterdayTraffic(): InteropDayTrafficInfo | undefined

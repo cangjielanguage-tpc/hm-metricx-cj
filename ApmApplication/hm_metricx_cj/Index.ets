@@ -59,9 +59,9 @@ export class CMemMonitorConfig {
 
 let uid = bundleManager.getBundleInfoForSelfSync(bundleManager.BundleFlag.GET_BUNDLE_INFO_WITH_APPLICATION).appInfo.uid;
 
-let getUidRxAndTxBytes = (cb: (rxBytes: number, txBytes: number) => void) => {
+let getUidRxAndTxBytes = (cb: (rxBytes: number, txBytes: number, pageName: string) => void, pageName: string) => {
   statistics.getUidRxBytes(uid).then(rxBytes => {
-    statistics.getUidTxBytes(uid).then(txBytes => cb(rxBytes, txBytes));
+    statistics.getUidTxBytes(uid).then(txBytes => cb(rxBytes, txBytes, pageName));
   });
 };
 
@@ -102,7 +102,9 @@ export function initTrafficHandler(
 export function destroyTrafficHandler(): void {
   clearSampleTraffic();
   offTraffic();
-  cjLib.destroyTrafficHandler(getUidRxAndTxBytes);
+  cjLib.destroyTrafficHandler((cb: (rxBytes: number, txBytes: number) => void) => {
+    getUidRxAndTxBytes(cb, '');
+  });
 }
 
 export function initStorageHandler(reportStorageInfo: (data: InteropStorageInfo) => void, sizeLimit: number,

@@ -8,6 +8,8 @@ import ohos_app_cangjie_hm_metricx_cj.traffic.initTrafficHandler as _initTraffic
 import ohos_app_cangjie_hm_metricx_cj.traffic.destroyTrafficHandler as _destroyTrafficHandler
 import ohos_app_cangjie_hm_metricx_cj.traffic.InteropSampleTrafficInfo
 import ohos_app_cangjie_hm_metricx_cj.storage.initStorageHandler as _initStorageHandler
+import ohos_app_cangjie_hm_metricx_cj.traffic.InteropDayTrafficInfo
+import ohos_app_cangjie_hm_metricx_cj.traffic.getYesterdayTraffic as _getYesterdayTraffic
 import ohos_app_cangjie_hm_metricx_cj.storage.reportAppStorageInfo as _reportAppStorageInfo
 import ohos_app_cangjie_hm_metricx_cj.storage.InteropStorageInfo
 import ohos_app_cangjie_hm_metricx_cj.cpu.initCpuHandler as _initCpuHandler
@@ -97,12 +99,17 @@ public func initTrafficHandler(
     preference: TrafficPreference,
     onNavDestinationSwitch: ((String) -> Unit) -> Unit,
     repeatSampleTraffic: (() -> Unit) -> Unit,
-    getUidRxAndTxBytes: ((Int64, Int64) -> Unit) -> Unit,
+    getUidRxAndTxBytes: ((Int64, Int64, String) -> Unit, String) -> Unit,
     reportTraffic: (InteropSampleTrafficInfo) -> Unit,
     sampleThreshold: Int64
 ): Unit {
     _initTrafficHandler(preference, onNavDestinationSwitch, repeatSampleTraffic, getUidRxAndTxBytes, reportTraffic,
         sampleThreshold: sampleThreshold)
+}
+
+@Interop[ArkTS]
+public func getYesterdayTraffic(): Option<InteropDayTrafficInfo> {
+    _getYesterdayTraffic()
 }
 
 @Interop[ArkTS]

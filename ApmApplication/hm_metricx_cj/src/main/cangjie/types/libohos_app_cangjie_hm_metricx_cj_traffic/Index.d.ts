@@ -10,6 +10,14 @@ export declare class InteropSampleTrafficInfo {
     constructor (s: InteropSystemTrafficInfo, p: Map<string, InteropPageTrafficInfo>)
 }
 
+export declare class InteropDayTrafficInfo {
+    total: number
+    upTotal: number
+    downTotal: number
+    date: string
+    constructor (u: number, d: number, date: string)
+}
+
 export declare class InteropPageTrafficInfo {
     total: number
     upTotal: number
