@@ -23,6 +23,7 @@ import std.sort.*
 import ohos.hiappevent.*
 import ohos.ark_interop_macro.*
 import ohos.ark_interop.*
+import ohos.base.Main
 
 public class CrashInfo {
     private var languageValue: ?String = None
@@ -637,11 +638,14 @@ private func reportLastCrash(persistentPaths: PersistentPaths, reportCrashInfo: 
             deleteFile(persistentPaths.lastCrashFilePath)
             crashInfo.dumpTime = readFile(persistentPaths.dumpTimePath)
             deleteFile(persistentPaths.dumpTimePath)
-            if (let Some(pid) <- crashInfo.pid) {
-                crashInfo.dumpOnOOMPath = compressOOMFile(pid, persistentPaths.dir)
+            let interopCrashInfo = crashInfo.toInteropCrashInfo()
+            spawn {
+                if (let Some(pid) <- crashInfo.pid) {
+                    interopCrashInfo.dumpOnOOMPath = compressOOMFile(pid, persistentPaths.dir)
+                }
+                reportCrashInfo(interopCrashInfo)
+                reported = true
             }
-            reportCrashInfo(crashInfo.toInteropCrashInfo())
-            reported = true
         } catch (e: JsonException) {
             AppLog.warn("hm-metricx-cj error: " + e.toString())
         }
@@ -951,13 +955,13 @@ private func initCrashWatcher(reportCrashInfo: (crashInfo: InteropCrashInfo) -> 
                     writeFile(persistentPaths.lastCrashFilePath, crashInfo.toString())
                 } else {
                     if (!reported) {
-                        let crashInfoTemp: CrashInfo = crashInfo
+                        let info = crashInfo.toInteropCrashInfo()
                         spawn { =>
-                            if (let Some(pid) <- crashInfoTemp.pid) {
-                                crashInfoTemp.dumpOnOOMPath = compressOOMFile(pid, persistentPaths.dir)
+                            if (let Some(pid) <- info.pid) {
+                                info.dumpOnOOMPath = compressOOMFile(pid, persistentPaths.dir)
                             }
                             // onReceive callback sometimes will be invoked both before app crash and next launch on high-verion (API 18?) devcies
-                            reportCrashInfo(crashInfoTemp.toInteropCrashInfo())
+                            reportCrashInfo(info)
                         }
                     }
                 }
@@ -1275,7 +1279,16 @@ private func findSo(mallocModel: MallocModel, stackMap: HashMap<Int64, ParsedAdd
 
     var so: String = "<unknown>"
     for (soName in soList) {
-        if (shouldBeClusteredToThisSo(soName)) {
+        var shouldBeClustered = false
+        if (InteropClass.context.isInBindThread()) {
+            shouldBeClustered = shouldBeClusteredToThisSo(soName)
+        } else {
+            let fut = spawn (Main) {
+                shouldBeClusteredToThisSo(soName)
+            }
+            shouldBeClustered = fut.get()
+        }
+        if (shouldBeClustered) {
             return soName
         }
         if (so == "<unknown>") {

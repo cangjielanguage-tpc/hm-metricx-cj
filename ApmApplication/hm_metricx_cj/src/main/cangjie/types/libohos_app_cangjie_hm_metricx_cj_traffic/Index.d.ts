@@ -1,3 +1,11 @@
+export declare class InteropDayTrafficInfo {
+    total: number
+    upTotal: number
+    downTotal: number
+    date: string
+    constructor (u: number, d: number, date: string)
+}
+
 export declare interface TrafficPreference {
     put: (key: string, value: string) => void
     has: (key: string) => boolean

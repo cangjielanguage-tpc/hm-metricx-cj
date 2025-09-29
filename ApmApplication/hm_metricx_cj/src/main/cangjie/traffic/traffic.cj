@@ -144,6 +144,20 @@ public class PageTrafficInfo <: TrafficInfo {
     }
 }
 
+@Interop[ArkTS]
+public class InteropDayTrafficInfo {
+    public let total: Int64
+    public let upTotal: Int64
+    public let downTotal: Int64
+    public let date: String
+    public init(u: Int64, d: Int64, date: String) {
+        this.upTotal = u
+        this.downTotal = d
+        this.total = u + d
+        this.date = date
+    }
+}
+
 public class DayTrafficInfo <: TrafficInfo {
     private var dateValue: String = ""
 
@@ -159,6 +173,10 @@ public class DayTrafficInfo <: TrafficInfo {
         set(value) {
             dateValue = value
         }
+    }
+
+    func toInteropDayTrafficInfo(): InteropDayTrafficInfo {
+        InteropDayTrafficInfo(this.upTotal, downTotal, this.date)
     }
 }
 
@@ -243,11 +261,11 @@ public interface TrafficPreference {
     func get(key: String, defaultValue: String): String
 }
 
-let updataPageMapCallback: (upload: Int64, download: Int64) -> Unit = {
-    upload: Int64, download: Int64 =>
+let updataPageMapCallback: (upload: Int64, download: Int64, page: String) -> Unit = {
+    upload: Int64, download: Int64, page: String =>
         let curTx = upload - pageTxStart
         let curRx = download - pageRxStart
-        updatePageMap(currentPageName, curTx, curRx)
+        updatePageMap(page, curTx, curRx)
         pageTxStart = upload
         pageRxStart = download
 }
@@ -317,6 +335,7 @@ public func initTrafficHandler(
     onNavDestinationSwitch: (cb: (targetPageName: String) -> Unit) -> Unit,
     repeatSampleTraffic: (sample: () -> Unit) -> Unit,
     getUidRxAndTxBytes: (cb: (rxBytes: Int64, txBytes: Int64) -> Unit) -> Unit,
+    getPageUidRxAndTxBytes: (cb: (rxBytes: Int64, txBytes: Int64, page: String) -> Unit, page: String) -> Unit,
     reportTraffic: (sampleTraffixInfo: InteropSampleTrafficInfo) -> Unit,
     sampleThreshold!: Int64 = 50 * 1024 * 1024
 ) {
@@ -326,7 +345,7 @@ public func initTrafficHandler(
     onNavDestinationSwitch(
         {
             targetPageName: String =>
-                getUidRxAndTxBytes(updataPageMapCallback)
+                getPageUidRxAndTxBytes(updataPageMapCallback, currentPageName)
                 currentPageName = targetPageName
         }
     )
@@ -352,7 +371,7 @@ private func updatePageMap(pageName: String, curTx: Int64, curRx: Int64) {
     pageTrafficInfo.downTotal += curRx
 }
 
-func getYesterdayTraffic(): Option<DayTrafficInfo> {
+public func getYesterdayTraffic(): Option<InteropDayTrafficInfo> {
     var res: Option<DayTrafficInfo> = None
     let reported: String = getStoredData(KEY_YESTERDAY_REPORTED)
     let yesterdayStored: String = getStoredData(KEY_YESTERDAY_DATE)
@@ -367,7 +386,11 @@ func getYesterdayTraffic(): Option<DayTrafficInfo> {
         res = DayTrafficInfo(date, upload, download)
         setStoredData(KEY_YESTERDAY_REPORTED, "true")
     }
-    res
+    if (let Some(v) <- res) {
+        v.toInteropDayTrafficInfo()
+    } else {
+        Option.None
+    }
 }
 
 public func destroyTrafficHandler(getUidRxAndTxBytes: (cb: (rxBytes: Int64, txBytes: Int64) -> Unit) -> Unit) {

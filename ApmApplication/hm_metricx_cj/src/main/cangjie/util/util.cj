@@ -187,3 +187,16 @@ public interface DisplaySyncInterface {
     func on(cb: (Int64, Int64) -> Unit): Unit
     func off(): Unit
 }
+
+public class InteropClass {
+    public static var context: JSContext
+    static init() {
+        JSModule.registerModule(
+            {
+                ctx, export =>
+                    context = ctx
+                    export
+            }
+        )
+    }
+}
