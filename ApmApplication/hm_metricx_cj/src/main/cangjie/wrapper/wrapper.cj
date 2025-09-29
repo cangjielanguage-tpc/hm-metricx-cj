@@ -22,6 +22,7 @@ import ohos_app_cangjie_hm_metricx_cj.crash.CMemMonitorConfig
 import ohos_app_cangjie_hm_metricx_cj.crash.InteropCrashInfo
 import ohos_app_cangjie_hm_metricx_cj.crash.initCrashHandler as _initCrashHandler
 import ohos_app_cangjie_hm_metricx_cj.exitInfo.getExitInfo as _getExitInfo
+import ohos_app_cangjie_hm_metricx_cj.exitInfo.ExitInfo
 import ohos_app_cangjie_hm_metricx_cj.freeze.InteropFreezeInfo
 import ohos_app_cangjie_hm_metricx_cj.freeze.initFreezeHandler as _initFreezeHandler
 import ohos_app_cangjie_hm_metricx_cj.memory.MemoryPreference
@@ -46,8 +47,8 @@ import ohos_app_cangjie_hm_metricx_cj.laggy.initLaggyHandler as _initLaggyHandle
 import ohos_app_cangjie_hm_metricx_cj.util.DisplaySyncInterface
 import ohos_app_cangjie_hm_metricx_cj.util.Logger
 import ohos_app_cangjie_hm_metricx_cj.util.initLogger as _initLogger
-import std.fs.*
 import ohos_app_cangjie_hm_metricx_cj.util.JSHelper
+import std.fs.*
 
 private func transEnableDumpOnOOM(enableDumpOnOOM: Int8): Option<OOMHandlerMode> {
     if (enableDumpOnOOM == 1) {
@@ -79,7 +80,7 @@ public func initCrashHandler(
 }
 
 @Interop[ArkTS]
-public func getExitInfo(lastExitMessage: String, lastExitReason: Int32): Unit {
+public func getExitInfo(lastExitMessage: String, lastExitReason: Int32): ExitInfo {
     _getExitInfo(lastExitMessage, lastExitReason)
 }
 

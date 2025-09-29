@@ -22,7 +22,8 @@ import {
   ResponseEvent,
   InteropPageResponseLaggyModel as PageResponseLaggyModel,
   DisplaySyncInterface,
-  Logger
+  Logger,
+  ExitInfo
 } from 'libark_interop_api.so';
 import { preferences } from '@kit.ArkData';
 import { uiObserver, window } from '@kit.ArkUI';
@@ -257,8 +258,8 @@ export function initCrashHandler(applicationContext: common.ApplicationContext,
     systemLogNumber, memMonitor);
 }
 
-export function getExitInfo(launchParam: AbilityConstant.LaunchParam): void {
-  cjLib.getExitInfo(launchParam.lastExitMessage, launchParam.lastExitReason);
+export function getExitInfo(launchParam: AbilityConstant.LaunchParam): ExitInfo {
+  return cjLib.getExitInfo(launchParam.lastExitMessage, launchParam.lastExitReason);
 }
 
 export function initFreezeHandler(
