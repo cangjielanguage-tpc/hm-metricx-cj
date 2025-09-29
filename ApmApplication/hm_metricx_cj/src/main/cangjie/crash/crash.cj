@@ -52,7 +52,7 @@ public class CrashInfo {
         crashInfo.tid = tid
         crashInfo.tname = tname
         if (let Some(v) <- fds) {
-            crashInfo.fds = JSHashMapEx<String, String>(v)
+            // crashInfo.fds = JSHashMapEx<String, String>(v) TODO
         }
         crashInfo.limits = limits
         crashInfo.threads = threads
@@ -723,23 +723,18 @@ private func initCrashWatcher(
             } else {
                 if (!reported) {
                     let crashInfoTemp: CrashInfo = crashInfo
-                    if (let Some(pid) <- crashInfoTemp.pid) {
-                        crashInfoTemp.dumpOnOOMPath = compressOOMFile(pid, persistentPaths.dir)
+                    spawn {
+                        =>
+                            if (let Some(pid) <- crashInfoTemp.pid) {
+                                crashInfoTemp.dumpOnOOMPath = compressOOMFile(pid, persistentPaths.dir)
+                            }
+                            // onReceive callback sometimes will be invoked both before app crash and next launch on high-verion (API 18?) devcies
+                            JSHelper.postJSTask({=> reportCrashInfo(crashInfoTemp.toInteropCrashInfo())})
                     }
-                    // onReceive callback sometimes will be invoked both before app crash and next launch on high-verion (API 18?) devcies
-                    reportCrashInfo(crashInfoTemp.toInteropCrashInfo()) // TODO
-                    //                    spawn {
-                    //                        =>
-                    //                            if (let Some(pid) <- crashInfoTemp.pid) {
-                    //                                crashInfoTemp.dumpOnOOMPath = compressOOMFile(pid, persistentPaths.dir)
-                    //                            }
-                    //                            // onReceive callback sometimes will be invoked both before app crash and next launch on high-verion (API 18?) devcies
-                    //                            reportCrashInfo(crashInfoTemp.toInteropCrashInfo())
-                    //                    }
                 }
             }
         } catch (e: Exception) {
-            metricx_warn("hm-metricx-cj error: initCrashWatcher error, " + e.toString())
+            metricx_warn("hm-metricx-cj error: initCrashWatcher error: " + e.toString())
         }
     }
     addCrashWatcher(cb)
