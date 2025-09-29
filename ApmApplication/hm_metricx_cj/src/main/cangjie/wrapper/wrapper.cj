@@ -47,6 +47,7 @@ import ohos_app_cangjie_hm_metricx_cj.util.DisplaySyncInterface
 import ohos_app_cangjie_hm_metricx_cj.util.Logger
 import ohos_app_cangjie_hm_metricx_cj.util.initLogger as _initLogger
 import std.fs.*
+import ohos_app_cangjie_hm_metricx_cj.util.JSHelper
 
 private func transEnableDumpOnOOM(enableDumpOnOOM: Int8): Option<OOMHandlerMode> {
     if (enableDumpOnOOM == 1) {
@@ -71,7 +72,9 @@ public func initCrashHandler(
     systemLogNumber: Int64,
     enableMemMonitor: Option<CMemMonitorConfig>
 ): Unit {
-    _initCrashHandler(addCrashWatcher, onCrash, exit, collectCrashInfo, reportCrashInfo, Path(persistentDir),
+    let jsReportCrashInfo = {crashInfo => JSHelper.postJSTask {reportCrashInfo(crashInfo)}}
+    let jsExit = {=> JSHelper.postJSTask {exit()}}
+    _initCrashHandler(addCrashWatcher, onCrash, jsExit, collectCrashInfo, jsReportCrashInfo, Path(persistentDir),
         transEnableDumpOnOOM(enableDumpOnOOM), lastNHilogNumber, systemLogNumber, enableMemMonitor)
 }
 

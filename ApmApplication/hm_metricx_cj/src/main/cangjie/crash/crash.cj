@@ -392,7 +392,7 @@ public func initCrashHandler(
     let hilogNumber = max(lastNHilogNumber, 0)
     let systemLogNum = max(systemLogNumber, 0)
     spawn {
-        => JSHelper.postJSTask({=> reportLastCrash(persistentPaths, reportCrashInfo)})
+        => reportLastCrash(persistentPaths, reportCrashInfo)
     }
     let crashInfo = CrashInfo()
     crashInfo.limits = collectLimits()
@@ -537,7 +537,6 @@ private func waitOOMDumping(exit: () -> Unit, dumpTimePath: Path): Unit {
         let isOOMDumping = unsafe {
             IsOOMDumping()
         }
-        metricx_warn("hm_metricx_cj: isOOMDumping: ${isOOMDumping}")
         if (isOOMDumping) {
             waitOOMDumping(exit, dumpTimePath)
         } else {
@@ -723,14 +722,14 @@ private func initCrashWatcher(
                 writeFile(persistentPaths.lastCrashFilePath, crashInfo.toString())
             } else {
                 if (!reported) {
-                    let crashInfoTemp: CrashInfo = crashInfo
+                    let info: CrashInfo = crashInfo
                     spawn {
                         =>
-                            if (let Some(pid) <- crashInfoTemp.pid) {
-                                crashInfoTemp.dumpOnOOMPath = compressOOMFile(pid, persistentPaths.dir)
+                            if (let Some(pid) <- info.pid) {
+                                info.dumpOnOOMPath = compressOOMFile(pid, persistentPaths.dir)
                             }
                             // onReceive callback sometimes will be invoked both before app crash and next launch on high-verion (API 18?) devcies
-                            JSHelper.postJSTask({=> reportCrashInfo(crashInfoTemp.toInteropCrashInfo())})
+                            reportCrashInfo(info.toInteropCrashInfo())
                     }
                 }
             }

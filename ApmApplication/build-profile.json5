@@ -7,11 +7,11 @@
         "material": {
           "certpath": "/Users/liuzheng/.ohos/config/default_ApmApplication_9uZak-6yaZVdP8xki1ii-l-a-koClU6cl4awKDDSsgI=.cer",
           "keyAlias": "debugKey",
-          "keyPassword": "0000001A6FC1880E6475B463BC0E3D88DFF84AD35B8E9F8A37979F5F63893C3312D32B1D296DBE3D43EC",
+          "keyPassword": "0000001B600CF25145CE5FD3AAD9C4AED7DD773F2B0AF893F4FA28BD3C36E4CD6A1E57ED24E68A8AA76EE1",
           "profile": "/Users/liuzheng/.ohos/config/default_ApmApplication_9uZak-6yaZVdP8xki1ii-l-a-koClU6cl4awKDDSsgI=.p7b",
           "signAlg": "SHA256withECDSA",
           "storeFile": "/Users/liuzheng/.ohos/config/default_ApmApplication_9uZak-6yaZVdP8xki1ii-l-a-koClU6cl4awKDDSsgI=.p12",
-          "storePassword": "0000001A36253BA67B0C47C4BD5E89E107DC1082E6908F9F2313304F89CA67A0B3ED4DB98087651978CE"
+          "storePassword": "0000001B5656AE096968781BFEE7E8694EE02D2D00AE4B853BC9FEE6E06CF25A0B5ACBF262D00ED6CC35F6"
         }
       }
     ],
