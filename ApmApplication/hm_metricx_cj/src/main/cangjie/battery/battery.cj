@@ -271,11 +271,6 @@ let onBatteryChanged = {
                 let screenOnSecond: Int64 = screenOnTotalSecond
                 screenOnTotalSecond = 0
                 lastScreenOnTimeStamp = nowTime
-
-                let info: BatteryUsageInfo = BatteryUsageInfo(batteryLimit)
-                info.currentPageName = currentPageName
-                info.level = nowLevel
-                info.scale = 100
                 var temperature: Int32 = 0
                 var chargingStatus: Int32 = 0
                 var health: Int32 = 0
@@ -292,12 +287,16 @@ let onBatteryChanged = {
                     plugged = inter.getPluggedType()
                 }
                 brightness = _getBrightness()
+                let info: BatteryUsageInfo = BatteryUsageInfo(batteryLimit)
+                info.currentPageName = currentPageName
+                info.level = nowLevel
+                info.scale = 100
                 info.temperature = Float64(temperature) / Float64(10.0)
                 info.health = health
                 info.voltage = voltage / 1000
                 info.technology = technology
                 info.plugged = plugged
-                info.charging = isPluggedStatus()
+                info.charging = false
                 info.brightness = brightness
                 info.useTime = screenOnSecond
                 info.time = elapsedSecond
@@ -377,13 +376,12 @@ public class InteropAllThreadCpuUsageInfo {
 public class AllThreadCpuUsageInfo {
     public var threadCpuUsageInfoList = ArrayList<ThreadCpuUsageInfo>()
     func toInteropAllThreadCpuUsageInfo(): InteropAllThreadCpuUsageInfo {
-        let t = JSArrayEx<InteropThreadCpuUsageInfo>()
-        var i = 0
-        for (info in threadCpuUsageInfoList) {
-            t.set(i, info.toInteropThreadCpuUsageInfo())
-            i++
-        }
-        InteropAllThreadCpuUsageInfo(t)
+        InteropAllThreadCpuUsageInfo(
+            JSArrayEx<InteropThreadCpuUsageInfo>(
+                this
+                    .threadCpuUsageInfoList
+                    .toArray()
+                    .map({x => x.toInteropThreadCpuUsageInfo()})))
     }
 }
 
@@ -645,6 +643,7 @@ public func initBatteryHandler(
                 frontStatus = false
         }
     )
+    onAbilityForeground({=> needUpdateStartBgTime = true})
     onNavDestinationSwitch({
         targetPagaName: String => if (!targetPagaName.isEmpty()) {
             currentPageName = targetPagaName

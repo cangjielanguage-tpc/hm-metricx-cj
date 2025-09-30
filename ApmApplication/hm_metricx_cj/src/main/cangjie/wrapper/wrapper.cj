@@ -46,7 +46,7 @@ import ohos_app_cangjie_hm_metricx_cj.laggy.ClickInfo
 import ohos_app_cangjie_hm_metricx_cj.laggy.ResponseEvent
 import ohos_app_cangjie_hm_metricx_cj.laggy.InteropPageResponseLaggyModel
 import ohos_app_cangjie_hm_metricx_cj.laggy.initLaggyHandler as _initLaggyHandler
-import ohos_app_cangjie_hm_metricx_cj.util.DisplaySyncInterface
+import ohos_app_cangjie_hm_metricx_cj.util.DisplaySync
 import ohos_app_cangjie_hm_metricx_cj.util.Logger
 import ohos_app_cangjie_hm_metricx_cj.util.initLogger as _initLogger
 import ohos_app_cangjie_hm_metricx_cj.util.JSHelper
@@ -200,7 +200,7 @@ public func initBatteryHandler(
 
 @Interop[ArkTS]
 public func initScrollEventHandler(
-    onDisplay: DisplaySyncInterface,
+    onDisplay: DisplaySync,
     onScrollEvect: (() -> Unit, () -> Unit) -> Unit,
     onNavDestinationSwitch: ((String) -> Unit) -> Unit,
     reportPageScrollInfo: (ScrollHitchInfo) -> Unit
@@ -210,17 +210,18 @@ public func initScrollEventHandler(
 
 @Interop[ArkTS]
 public func initPageEventHandler(
+    onDisplay: DisplaySync,
     onNavDestinationSwitch: ((String) -> Unit) -> Unit,
     onWindowEvent: (() -> Unit, () -> Unit) -> Unit,
     reportFpsInfo: (FpsEventInfo) -> Unit
 ): Unit {
-    _initPageEventHandler(onNavDestinationSwitch, reportFpsInfo)
-    _initPageEventHandler(onWindowEvent, reportFpsInfo)
+    _initPageEventHandler(onDisplay, onNavDestinationSwitch, reportFpsInfo)
+    _initPageEventHandler(onDisplay, onWindowEvent, reportFpsInfo)
 }
 
 @Interop[ArkTS]
 public func initLaggyHandler(
-    onDisplay: DisplaySyncInterface,
+    onDisplay: DisplaySync,
     onAbilityBackground: (() -> Unit) -> Unit,
     onNavDestinationSwitch: ((String) -> Unit) -> Unit,
     onDidClick: ((ClickInfo) -> Unit) -> Unit,

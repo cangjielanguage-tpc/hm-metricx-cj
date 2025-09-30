@@ -18,7 +18,7 @@ var isFirstCallBack = true
 var isComplite = false
 var maxResponsesTime = 0
 var maxSize = 0
-var _displySyncInterface: Option<DisplaySyncInterface> = None
+var _displySyncInterface: Option<DisplaySync> = None
 
 @Interop[ArkTS]
 public class ResponseEvent {
@@ -65,11 +65,7 @@ public class PageResponseLaggyModel {
         res.pageName = this.pageName
         res.touchTimes = this.touchTimes
         res.laggyTimes = this.laggyTimes
-        var i = 0
-        for (time in laggyTimeList) {
-            res.laggyTimeList.set(i, time)
-            i++
-        }
+        res.laggyTimeList = JSArrayEx<Float64>(this.laggyTimeList.toArray())
         res
     }
 }
@@ -87,15 +83,21 @@ public func syncCallBack(frameTime: Int64, frameTargetTime: Int64) {
         if (laggyMap.contains(currentPageName)) {
             var model = laggyMap[currentPageName]
             model.laggyTimes += 1
-            model.laggyTimeList.add(timeEnd - timeBegain)
-            if (model.laggyTimeList.size > maxSize) {
-                model.laggyTimeList.remove(at: 0)
+            model
+                .laggyTimeList
+                .add(timeEnd - timeBegain)
+            if (model
+                .laggyTimeList
+                .size > maxSize) {
+                model
+                    .laggyTimeList
+                    .remove(at: 0)
             }
             isComplite = true
         }
     }
     if (let Some(inter) <- _displySyncInterface) {
-    	inter.stop()
+        inter.stop()
         inter.off()
     }
     isFirstCallBack = true
@@ -153,7 +155,7 @@ public func didClickCallBack(info: ClickInfo) {
     }
 
     if (let Some(inter) <- _displySyncInterface) {
-    	inter.on(syncCallBack)
+        inter.on(syncCallBack)
         inter.start()
     }
 }
@@ -181,7 +183,7 @@ public func onAbilityBackgroundCallBack() {
 }
 
 public func initLaggyHandler(
-    onDisplay: DisplaySyncInterface,
+    onDisplay: DisplaySync,
     onAbilityBackground: (cb: () -> Unit) -> Unit,
     onNavDestinationSwitch: (cb: (targetPageName: String) -> Unit) -> Unit,
     onDidClick: (cb: (info: ClickInfo) -> Unit) -> Unit,

@@ -137,7 +137,7 @@ public func cleanHistoryLogFiles(keepLatest!: Bool = true): Unit {
 }
 
 @Interop[ArkTS]
-public interface DisplaySyncInterface {
+public interface DisplaySync {
     func start(): Unit
     func stop(): Unit
     func on(cb: (Int64, Int64) -> Unit): Unit

@@ -69,8 +69,6 @@ public class ScrollHitchInfo {
     }
 }
 
-var _displySyncInterface: Option<DisplaySyncInterface> = None
-
 public open class FpsEvent {
     // 当前帧信息
     protected var timestamp: Int64 = 0
@@ -83,6 +81,12 @@ public open class FpsEvent {
     protected var isFirstFrame: Bool = true
     // 当前页面名
     protected var currentPageName: String = ""
+
+    protected let displySync: DisplaySync
+
+    public init(d: DisplaySync) {
+        this.displySync = d
+    }
     // 重置当前Frame
     public func updateFrameInfo(timestamp: Int64, targetTimestamp: Int64): Unit {
         this.timestamp = timestamp
@@ -90,15 +94,15 @@ public open class FpsEvent {
     }
     // 开始检测frame事件
     public func startDisplaySync() {
-        if (let Some(inter) <- _displySyncInterface) {
-        	inter.start()
-        }
+        this
+            .displySync
+            .start()
     }
     // 停止检测frame事件
     public func stopDisplaySync() {
-        if (let Some(inter) <- _displySyncInterface) {
-        	inter.stop()
-        }
+        this
+            .displySync
+            .stop()
     }
     // 重置监听事件
     public open func reset() {
@@ -112,15 +116,21 @@ public open class FpsEvent {
 }
 
 public class PageFpsEvent <: FpsEvent {
-    // 单例模式
-    private static var instance = PageFpsEvent()
-    public static func GetInstance() {
-        instance
+    private static var instance: Option<PageFpsEvent> = None
+    public static func GetInstance(d: DisplaySync) {
+        if (instance.isNone()) {
+            instance = PageFpsEvent(d)
+        }
+        instance.getOrThrow()
     }
-    // 监控指标
     private var minFps: Int64 = Int64.Max
     private var framesInOnePer = ArrayDeque<Int64>()
     private var fpsEventInfo: ?FpsEventInfo = None
+
+    public init(d: DisplaySync) {
+        super(d)
+    }
+
     public func reset() {
         super.reset()
         this.minFps = Int64.Max
@@ -131,27 +141,29 @@ public class PageFpsEvent <: FpsEvent {
     public func frameEventListener() {
         let callback = {
             frameTime: Int64, frameTargetTime: Int64 =>
-            if (isFirstFrame) {
-                isFirstFrame = false
-            } else {
-                totalFrameCount += 1
-                let realTimeInterval = frameTime - timestamp
-                // avgFps
-                totalStatisticsTime += realTimeInterval
-                // minFps
-                while (!framesInOnePer.isEmpty() && framesInOnePer.first.getOrThrow() < frameTime - NANOS_IN_SECOND) {
-                    framesInOnePer.removeFirst()
+                if (isFirstFrame) {
+                    isFirstFrame = false
+                } else {
+                    totalFrameCount += 1
+                    let realTimeInterval = frameTime - timestamp
+                    // avgFps
+                    totalStatisticsTime += realTimeInterval
+                    // minFps
+                    while (!framesInOnePer.isEmpty() && framesInOnePer
+                            .first
+                            .getOrThrow() < frameTime - NANOS_IN_SECOND) {
+                        framesInOnePer.removeFirst()
+                    }
+                    framesInOnePer.addLast(frameTime)
+                    if (totalStatisticsTime >= NANOS_IN_SECOND) {
+                        minFps = min(minFps, framesInOnePer.size)
+                    }
                 }
-                framesInOnePer.addLast(frameTime)
-                if (totalStatisticsTime >= NANOS_IN_SECOND) {
-                    minFps = min(minFps, framesInOnePer.size)
-                }
-            }
-            updateFrameInfo(frameTime, frameTargetTime)
+                updateFrameInfo(frameTime, frameTargetTime)
         }
-        if (let Some(inter) <- _displySyncInterface) {
-        	inter.on(callback)
-        }
+        this
+            .displySync
+            .on(callback)
     }
     // 统计minFps和avgFps
     public func report(): Option<FpsEventInfo> {
@@ -247,17 +259,23 @@ class PageScrollFps {
         let targetFPS = Float64(NANOS_IN_SECOND) / Float64(targetDuration)
         ScrollHitchInfo(minFps, avgFps, frameDropRatio, jankRate, bigJankRate, htLessThan0, ht0To00001, ht00001To0001,
             ht0001To001, ht001To005, ht005To01, ht01To1, htBiggerThan1, targetFPS, longestLostFrame, frameCount,
-            ScrollFpsEvent.GetInstance().currentPageName)
+            ScrollFpsEvent
+                .GetInstance()
+                .currentPageName)
     }
 }
 
 public class ScrollFpsEvent <: FpsEvent {
-    // 单例模式
-    private static var instance = ScrollFpsEvent()
-    public static func GetInstance() {
-        instance
+    private static var instance: Option<ScrollFpsEvent> = None
+    public static func GetInstance(d: DisplaySync) {
+        if (instance.isNone()) {
+            instance = ScrollFpsEvent(d)
+        }
+        instance.getOrThrow()
     }
-    // 监控指标
+    public static func GetInstance() {
+        instance.getOrThrow()
+    }
     private var minFps: Int64 = Int64.Max
     private var totalFrameDropTime: Int64 = 0
     private var framesInOnePer = ArrayDeque<Int64>()
@@ -276,12 +294,18 @@ public class ScrollFpsEvent <: FpsEvent {
     private var longestLostFrame = 0.0
     private var targetDuration = 0
 
+    public init(d: DisplaySync) {
+        super(d)
+    }
+
     public func reset() {
         super.reset()
         this.minFps = Int64.Max
         this.totalFrameDropTime = 0
         this.scrollHitchInfo = None
-        this.framesInOnePer.clear()
+        this
+            .framesInOnePer
+            .clear()
         htLessThan0 = 0
         ht0To00001 = 0
         ht00001To0001 = 0
@@ -299,34 +323,36 @@ public class ScrollFpsEvent <: FpsEvent {
     public func frameEventListener() {
         let callback = {
             frameTime: Int64, frameTargetTime: Int64 =>
-            if (isFirstFrame) {
-                isFirstFrame = false
-                firstTargetDuration = frameTargetTime - frameTime
-            } else {
-                totalFrameCount += 1
-                let realTimeInterval = frameTime - timestamp
-                // avgFps
-                totalStatisticsTime += realTimeInterval
-                // minFps
-                while (!framesInOnePer.isEmpty() && framesInOnePer.first.getOrThrow() < frameTime - NANOS_IN_SECOND) {
-                    framesInOnePer.removeFirst()
+                if (isFirstFrame) {
+                    isFirstFrame = false
+                    firstTargetDuration = frameTargetTime - frameTime
+                } else {
+                    totalFrameCount += 1
+                    let realTimeInterval = frameTime - timestamp
+                    // avgFps
+                    totalStatisticsTime += realTimeInterval
+                    // minFps
+                    while (!framesInOnePer.isEmpty() && framesInOnePer
+                            .first
+                            .getOrThrow() < frameTime - NANOS_IN_SECOND) {
+                        framesInOnePer.removeFirst()
+                    }
+                    framesInOnePer.addLast(frameTime)
+                    if (totalStatisticsTime >= NANOS_IN_SECOND) {
+                        minFps = min(minFps, framesInOnePer.size)
+                    }
+                    // 滑动掉帧率, 值为负时不纳入统计
+                    let delta = frameTime - targetTimestamp
+                    totalFrameDropTime += max(0, delta)
+                    longestLostFrame = max(longestLostFrame, Float64(delta) / Float64(targetDuration) - 1.0)
+                    updateHt(delta)
                 }
-                framesInOnePer.addLast(frameTime)
-                if (totalStatisticsTime >= NANOS_IN_SECOND) {
-                    minFps = min(minFps, framesInOnePer.size)
-                }
-                // 滑动掉帧率, 值为负时不纳入统计
-                let delta = frameTime - targetTimestamp
-                totalFrameDropTime += max(0, delta)
-                longestLostFrame = max(longestLostFrame, Float64(delta) / Float64(targetDuration) - 1.0)
-                updateHt(delta)
-            }
-            targetDuration = frameTargetTime - frameTime
-            updateFrameInfo(frameTime, frameTargetTime)
+                targetDuration = frameTargetTime - frameTime
+                updateFrameInfo(frameTime, frameTargetTime)
         }
-        if (let Some(inter) <- _displySyncInterface) {
-        	inter.on(callback)
-        }
+        this
+            .displySync
+            .on(callback)
     }
 
     func report(pageScrollFps: PageScrollFps): Unit {
@@ -371,90 +397,91 @@ public class ScrollFpsEvent <: FpsEvent {
 
 // 滑动时间监听
 public func initScrollEventHandler(
-    onDisplay: DisplaySyncInterface,
+    onDisplay: DisplaySync,
     onScrollEvent: (scrolllStart: () -> Unit, onScrllStop: () -> Unit) -> Unit,
     onNavDestinationSwitch: (cb: (targetPageName: String) -> Unit) -> Unit,
     reportPageScrollInfo: (scrollInfo: ScrollHitchInfo) -> Unit
 ) {
-    _displySyncInterface = onDisplay
-    let instance = ScrollFpsEvent.GetInstance()
+    let instance = ScrollFpsEvent.GetInstance(onDisplay)
     let pageScrollFps = PageScrollFps()
     instance.currentPageName = defaultPageName
     let scrollStartCallback = {
         =>
-        instance.startDisplaySync()
-        instance.frameEventListener()
+            instance.startDisplaySync()
+            instance.frameEventListener()
     }
     let scrollStopCallback = {
         =>
-        instance.stopDisplaySync()
-        instance.report(pageScrollFps)
-        instance.reset()
+            instance.stopDisplaySync()
+            instance.report(pageScrollFps)
+            instance.reset()
     }
     onScrollEvent(scrollStartCallback, scrollStopCallback)
     onNavDestinationSwitch(
         {
             targetPageName: String =>
-            let pageScrollInfo = pageScrollFps.report()
-            if (let Some(info) <- pageScrollInfo) {
-                reportPageScrollInfo(info)
-            }
-            pageScrollFps.clear()
-            instance.currentPageName = targetPageName
+                let pageScrollInfo = pageScrollFps.report()
+                if (let Some(info) <- pageScrollInfo) {
+                    reportPageScrollInfo(info)
+                }
+                pageScrollFps.clear()
+                instance.currentPageName = targetPageName
         }
     )
 }
 
 // 页面停留监听
 public func initPageEventHandler(
+    onDisplay: DisplaySync,
     onNavDestinationSwitch: (cb: (targetPageName: String) -> Unit) -> Unit,
     reportFpsInfo: (fpsInfo: FpsEventInfo) -> Unit
 ) {
-    let instance = PageFpsEvent.GetInstance()
+    let instance = PageFpsEvent.GetInstance(onDisplay)
     let pageCallback1 = {
         currentPageName: String =>
-        instance.currentPageName = currentPageName
-        instance.startDisplaySync()
-        instance.frameEventListener()
+            instance.currentPageName = currentPageName
+            instance.startDisplaySync()
+            instance.frameEventListener()
     }
     let pageCallback2 = {
         =>
-        instance.stopDisplaySync()
-        let fpsInfo = instance.report()
-        if (fpsInfo.isSome()) {
-            reportFpsInfo(fpsInfo.getOrThrow())
-        }
-        instance.reset()
+            instance.stopDisplaySync()
+            let fpsInfo = instance.report()
+            if (fpsInfo.isSome()) {
+                reportFpsInfo(fpsInfo.getOrThrow())
+            }
+            instance.reset()
     }
     pageCallback1(defaultPageName)
     onNavDestinationSwitch(
         {
             targetPageName: String =>
-            pageCallback2()
-            pageCallback1(targetPageName)
+                pageCallback2()
+                pageCallback1(targetPageName)
         }
     )
 }
 
 // 应用状态监控
 public func initPageEventHandler(
+    onDisplay: DisplaySync,
     onWindowEvent: (windwoActive: () -> Unit, windowInactive: () -> Unit) -> Unit,
     reportFpsInfo: (fpsInfo: FpsEventInfo) -> Unit
 ): Unit {
-    let instance = PageFpsEvent.GetInstance()
+    let instance = PageFpsEvent.GetInstance(onDisplay)
     let pageCallback1 = {
         =>
-        instance.startDisplaySync()
-        instance.frameEventListener()
+            instance.startDisplaySync()
+            instance.frameEventListener()
     }
     let pageCallback2 = {
         =>
-        instance.stopDisplaySync()
-        let fpsInfo = instance.report()
-        if (fpsInfo.isSome()) {
-            reportFpsInfo(fpsInfo.getOrThrow())
-        }
-        instance.reset()
+            instance.stopDisplaySync()
+            let fpsInfo = instance.report()
+            if (fpsInfo.isSome()) {
+                reportFpsInfo(fpsInfo.getOrThrow())
+            }
+            instance.reset()
     }
     onWindowEvent(pageCallback1, pageCallback2)
 }

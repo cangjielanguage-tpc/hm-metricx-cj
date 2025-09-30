@@ -21,7 +21,7 @@ import {
   ClickInfo,
   ResponseEvent,
   InteropPageResponseLaggyModel as PageResponseLaggyModel,
-  DisplaySyncInterface,
+  DisplaySync,
   Logger,
   ExitInfo
 } from 'libark_interop_api.so';
@@ -540,25 +540,6 @@ export function initScrollEventHandler(
   context: common.UIAbilityContext,
   reportPageScrollInfo: (info: ScrollHitchInfo) => void
 ): void {
-
-  let scrokkDisplay = displaySync.create();
-  let scrollDisplaySyncInterface: DisplaySyncInterface = {
-    start: (): void => {
-      scrokkDisplay.start();
-    },
-    stop: (): void => {
-      scrokkDisplay.stop();
-    },
-    on: (cb: (time: number, targetTime: number) => void): void => {
-      scrokkDisplay.on('frame', (info: displaySync.IntervalInfo) => {
-        cb(info.timestamp, info.targetTimestamp);
-      });
-    },
-    off: (): void => {
-      scrokkDisplay.off('frame');
-    }
-  }
-
   let onScrollEvent = (onScrollStart: () => void, onScrollStop: () => void) => {
     uiObserver.on('scrollEvent', (info) => {
       if (info.scrollEvent === uiObserver.ScrollEventType.SCROLL_START) {
@@ -573,7 +554,7 @@ export function initScrollEventHandler(
     uiObserver.on('navDestinationSwitch', context, callback);
     offBatteryHandlerCallback = () => uiObserver.off('navDestinationSwitch', context, callback);
   };
-  cjLib.initScrollEventHandler(scrollDisplaySyncInterface, onScrollEvent, onNavDestinationSwitch, reportPageScrollInfo);
+  cjLib.initScrollEventHandler(getDisplaySync(), onScrollEvent, onNavDestinationSwitch, reportPageScrollInfo);
 }
 
 export function initPageEventHandler(
@@ -584,7 +565,6 @@ export function initPageEventHandler(
   let onNavDestinationSwitch = (cb: (targetPageName: string) => void) => {
     let callback = (info: uiObserver.NavDestinationSwitchInfo) => cb(getTargetPageName(info));
     uiObserver.on('navDestinationSwitch', context, callback);
-    offBatteryHandlerCallback = () => uiObserver.off('navDestinationSwitch', context, callback);
   };
   let onWindowEvent = (windowActive: () => void, windowInActive: () => void) => {
     windowStage.getMainWindowSync().on('windowEvent', (data: window.WindowEventType) => {
@@ -595,7 +575,7 @@ export function initPageEventHandler(
       }
     });
   };
-  cjLib.initPageEventHandler(onNavDestinationSwitch, onWindowEvent, reportFpsInfo);
+  cjLib.initPageEventHandler(getDisplaySync(), onNavDestinationSwitch, onWindowEvent, reportFpsInfo);
 }
 
 export function initLaggyHanddler(
@@ -606,23 +586,6 @@ export function initLaggyHanddler(
   reportResponseEvent: (info: ResponseEvent) => void,
   reportPageResponseLaggyModel: (info: PageResponseLaggyModel) => void
 ): void {
-  let laggyDisplay = displaySync.create();
-  let laggyDisplaySyncInterface: DisplaySyncInterface = {
-    start: (): void => {
-      laggyDisplay.start();
-    },
-    stop: (): void => {
-      laggyDisplay.stop();
-    },
-    on: (cb: (time: number, targetTime: number) => void): void => {
-      laggyDisplay.on('frame', (info: displaySync.IntervalInfo) => {
-        cb(info.timestamp, info.targetTimestamp);
-      });
-    },
-    off: (): void => {
-      laggyDisplay.off('frame');
-    }
-  }
   let onAbilityBackGround = (cb: () => void) => {
     context.getApplicationContext().on('abilityLifecycle', {
       onAbilityCreate() {
@@ -656,19 +619,35 @@ export function initLaggyHanddler(
   let onDidClick = (cb: (info: ClickInfo) => void) => {
     windowStage.getMainWindow().then(win => {
       win.getUIContext().getUIObserver().on('didClick', (event: ClickEvent, frameNode?: FrameNode) => {
-        let info = new ClickInfo();
-        info.timestamp = event.timestamp;
-        info.windowX = event.windowX;
-        info.windowY = event.windowY;
-        info.id = frameNode?.getId() ?? '';
-        info.nodeType = frameNode?.getNodeType() ?? '';
-        info.hitX = frameNode?.getPositionToWindow().x ?? 0;
-        info.hitY = frameNode?.getPositionToWindow().y ?? 0;
-        info.hitHeight = frameNode?.getMeasuredSize().height ?? 0;
-        info.hitWidth = frameNode?.getMeasuredSize().width ?? 0;
+        let info = new cjLib.ClickInfo(event.timestamp, event.windowX, event.windowY, frameNode?.getId() ?? '',
+          frameNode?.getNodeType() ?? '', frameNode?.getPositionToWindow().x ?? 0,
+          frameNode?.getPositionToWindow().y ?? 0, frameNode?.getMeasuredSize().height ?? 0,
+          frameNode?.getMeasuredSize().width ?? 0);
+        cb(info);
       });
     });
   };
-  cjLib.initLaggyHandler(laggyDisplaySyncInterface, onAbilityBackGround, onNavDestinationSwitch,
+  cjLib.initLaggyHandler(getDisplaySync(), onAbilityBackGround, onNavDestinationSwitch,
     onDidClick, maxTime, maxArraySize, reportResponseEvent, reportPageResponseLaggyModel);
+}
+
+function getDisplaySync() {
+  let d = displaySync.create();
+  let dSync: DisplaySync = {
+    start: (): void => {
+      d.start();
+    },
+    stop: (): void => {
+      d.stop();
+    },
+    on: (cb: (time: number, targetTime: number) => void): void => {
+      d.on('frame', (info: displaySync.IntervalInfo) => {
+        cb(info.timestamp, info.targetTimestamp);
+      });
+    },
+    off: (): void => {
+      d.off('frame');
+    }
+  }
+  return dSync;
 }
