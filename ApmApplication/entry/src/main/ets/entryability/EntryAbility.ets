@@ -76,11 +76,17 @@ export default class EntryAbility extends UIAbility {
 
     windowStage.getMainWindow().then(() => {
       initPageEventHandler(this.context, windowStage, data => {
+        hilog.info(DOMAIN, 'testTag', 'pageFps %{public}d', data.avgFps);
+      }, data => {
+        hilog.info(DOMAIN, 'testTag', 'windowsFps %{public}d', data.avgFps);
       });
       initScrollEventHandler(this.context, data => {
+        hilog.info(DOMAIN, 'testTag', 'scrollFps %{public}d', data.avgFps);
       });
       initLaggyHanddler(this.context, windowStage, 100, 100, data => {
+        hilog.info(DOMAIN, 'testTag', 'laggy %{public}s', data.pageName);
       }, data => {
+        hilog.info(DOMAIN, 'testTag', 'laggy_page %{public}s', data.pageName);
       })
     })
   }

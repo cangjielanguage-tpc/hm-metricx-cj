@@ -69,7 +69,8 @@ public class ScrollHitchInfo {
     }
 }
 
-var _displySyncInterface: Option<DisplaySyncInterface> = None
+var _scrollSyncInterface: Option<DisplaySyncInterface> = None
+var _pageSyncInterface: Option<DisplaySyncInterface> = None
 
 public open class FpsEvent {
     // 当前帧信息
@@ -89,16 +90,10 @@ public open class FpsEvent {
         this.targetTimestamp = targetTimestamp
     }
     // 开始检测frame事件
-    public func startDisplaySync() {
-        if (let Some(inter) <- _displySyncInterface) {
-        	inter.start()
-        }
+    public open func startDisplaySync() {
     }
     // 停止检测frame事件
-    public func stopDisplaySync() {
-        if (let Some(inter) <- _displySyncInterface) {
-        	inter.stop()
-        }
+    public open func stopDisplaySync() {
     }
     // 重置监听事件
     public open func reset() {
@@ -127,6 +122,18 @@ public class PageFpsEvent <: FpsEvent {
         this.framesInOnePer = ArrayDeque<Int64>()
         this.fpsEventInfo = None
     }
+
+    public override func startDisplaySync() {
+        if (let Some(inter) <- _pageSyncInterface) {
+        	inter.start()
+        }
+    }
+
+    public override func stopDisplaySync() {
+        if (let Some(inter) <- _pageSyncInterface) {
+        	inter.stop()
+        }
+    }
     // 监控每一帧，计算Fps
     public func frameEventListener() {
         let callback = {
@@ -149,7 +156,7 @@ public class PageFpsEvent <: FpsEvent {
             }
             updateFrameInfo(frameTime, frameTargetTime)
         }
-        if (let Some(inter) <- _displySyncInterface) {
+        if (let Some(inter) <- _pageSyncInterface) {
         	inter.on(callback)
         }
     }
@@ -295,6 +302,19 @@ public class ScrollFpsEvent <: FpsEvent {
         firstTargetDuration = 0
         longestLostFrame = 0.0
     }
+
+    public override func startDisplaySync() {
+        if (let Some(inter) <- _scrollSyncInterface) {
+        	inter.start()
+        }
+    }
+
+    public override func stopDisplaySync() {
+        if (let Some(inter) <- _scrollSyncInterface) {
+        	inter.stop()
+        }
+    }
+
     // 监控每一帧，计算Fps和滑动掉帧时间
     public func frameEventListener() {
         let callback = {
@@ -324,7 +344,7 @@ public class ScrollFpsEvent <: FpsEvent {
             targetDuration = frameTargetTime - frameTime
             updateFrameInfo(frameTime, frameTargetTime)
         }
-        if (let Some(inter) <- _displySyncInterface) {
+        if (let Some(inter) <- _scrollSyncInterface) {
         	inter.on(callback)
         }
     }
@@ -371,12 +391,12 @@ public class ScrollFpsEvent <: FpsEvent {
 
 // 滑动时间监听
 public func initScrollEventHandler(
-    onDisplay: DisplaySyncInterface,
+    onDisplaySync: DisplaySyncInterface,
     onScrollEvent: (scrolllStart: () -> Unit, onScrllStop: () -> Unit) -> Unit,
     onNavDestinationSwitch: (cb: (targetPageName: String) -> Unit) -> Unit,
     reportPageScrollInfo: (scrollInfo: ScrollHitchInfo) -> Unit
 ) {
-    _displySyncInterface = onDisplay
+    _scrollSyncInterface = onDisplaySync
     let instance = ScrollFpsEvent.GetInstance()
     let pageScrollFps = PageScrollFps()
     instance.currentPageName = defaultPageName
@@ -407,9 +427,11 @@ public func initScrollEventHandler(
 
 // 页面停留监听
 public func initPageEventHandler(
+    onDisplaySync: DisplaySyncInterface,
     onNavDestinationSwitch: (cb: (targetPageName: String) -> Unit) -> Unit,
     reportFpsInfo: (fpsInfo: FpsEventInfo) -> Unit
 ) {
+    _pageSyncInterface = onDisplaySync
     let instance = PageFpsEvent.GetInstance()
     let pageCallback1 = {
         currentPageName: String =>

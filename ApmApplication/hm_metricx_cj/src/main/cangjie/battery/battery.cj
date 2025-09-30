@@ -15,6 +15,7 @@ import ohos.common_event_manager.*
 import ohos.system_date_time.*
 import ohos.ark_interop.*
 import ohos.ark_interop_macro.*
+import ohos.base.Main
 
 @Interop[ArkTS]
 public class InteropBatteryUsageInfo {
@@ -224,7 +225,10 @@ var _getRunningProcessInfo: ((status: Bool) -> Unit) -> Unit = {_ =>}
 
 private func isPluggedStatus(): Bool {
     if (let Some(inter) <- _batterInterface) {
-        return inter.getPluggedType() != 0
+        let fut: Future<Int32> = spawn (Main) {
+            inter.getPluggedType()
+        }
+        return fut.get() != 0
     }
     false
 }
@@ -259,7 +263,10 @@ let commonEventCallback = {
         } else {
             var nowLevel: Int32 = 0
             if (let Some(inter) <- _batterInterface) {
-                nowLevel = inter.getBatterySOC()
+                let fut: Future<Int32> = spawn (Main) {
+                    inter.getBatterySOC()
+                }
+                nowLevel = fut.get()
             }
             if (lastLevel < 0) {
                 lastLevel = nowLevel
@@ -282,10 +289,6 @@ let commonEventCallback = {
                 screenOnTotalSecond = 0
                 lastScreenOnTimeStamp = nowTime
 
-                let info: BatteryUsageInfo = BatteryUsageInfo(batteryLimit)
-                info.currentPageName = currentPageName
-                info.level = nowLevel
-                info.scale = 100
                 var temperature: Int32 = 0
                 var chargingStatus: Int32 = 0
                 var health: Int32 = 0
@@ -294,16 +297,42 @@ let commonEventCallback = {
                 var plugged: Int32 = 0
                 var brightness: Int32 = 0
                 if (let Some(inter) <- _batterInterface) {
-                    temperature = inter.getBatteryTemperature()
-                    chargingStatus = inter.getChargingStatus()
-                    health = inter.getHealthStatus()
-                    voltage = inter.getVoltage()
-                    technology = inter.getTechnology()
-                    plugged = inter.getPluggedType()
+                    let futTemperature: Future<Int32> = spawn (Main) {
+                        inter.getBatteryTemperature()
+                    }
+                    let futCharging: Future<Int32> = spawn (Main) {
+                        inter.getChargingStatus()
+                    }
+                    let futHealth: Future<Int32> = spawn (Main) {
+                        inter.getHealthStatus()
+                    }
+                    let futVoltage: Future<Int32> = spawn (Main) {
+                        inter.getVoltage()
+                    }
+                    let futTechnology: Future<String> = spawn (Main) {
+                        inter.getTechnology()
+                    }
+                    let futPlugged: Future<Int32> = spawn (Main) {
+                        inter.getPluggedType()
+                    }
+                    temperature = futTemperature.get()
+                    chargingStatus = futCharging.get()
+                    health = futHealth.get()
+                    voltage = futVoltage.get()
+                    technology = futTechnology.get()
+                    plugged = futPlugged.get()
                 }
-                brightness = _getBrightness()
+                let futBrightness: Future<Int32> = spawn(Main) {
+                	_getBrightness()
+                }
+                brightness = futBrightness.get()
+                let info: BatteryUsageInfo = BatteryUsageInfo(batteryLimit)
+                info.currentPageName = currentPageName
+                info.level = nowLevel
                 info.temperature = Float64(temperature) / Float64(10.0)
+                info.scale = 100
                 info.health = health
+                info.status = chargingStatus
                 info.voltage = voltage / 1000
                 info.technology = technology
                 info.plugged = plugged
@@ -311,7 +340,11 @@ let commonEventCallback = {
                 info.brightness = brightness
                 info.useTime = screenOnSecond
                 info.time = elapsedSecond
-                _reportBatteryCallback(info.toInteropBatteryUsageInfo())
+
+                let ctx = InteropClass.context
+                ctx.postJSTask {
+                    _reportBatteryCallback(info.toInteropBatteryUsageInfo())
+                }
             }
         }
     } else if (eventData.event == Support.COMMON_EVENT_POWER_DISCONNECTED || eventData.event == Support
@@ -386,13 +419,14 @@ public class InteropAllThreadCpuUsageInfo {
 public class AllThreadCpuUsageInfo {
     public var threadCpuUsageInfoList = ArrayList<ThreadCpuUsageInfo>()
     func toInteropAllThreadCpuUsageInfo(): InteropAllThreadCpuUsageInfo {
-        let t = JSArrayEx<InteropThreadCpuUsageInfo>()
-        var i = 0
-        for (info in threadCpuUsageInfoList) {
-            t.set(i, info.toInteropThreadCpuUsageInfo())
-            i++
-        }
-        InteropAllThreadCpuUsageInfo(t)
+        InteropAllThreadCpuUsageInfo(
+            JSArrayEx<InteropThreadCpuUsageInfo>(
+                this
+                    .threadCpuUsageInfoList
+                    .toArray()
+                    .map<InteropThreadCpuUsageInfo>({
+                        x => x.toInteropThreadCpuUsageInfo()
+                    })))
     }
 }
 
@@ -638,6 +672,9 @@ public func initBatteryHandler(
             frontStatus = false
         }
     )
+    onAbilityForeground({
+        => needUpdateStartBgTime = true
+    })
     onNavDestinationSwitch(
         {
             targetPagaName: String => if (!targetPagaName.isEmpty()) {

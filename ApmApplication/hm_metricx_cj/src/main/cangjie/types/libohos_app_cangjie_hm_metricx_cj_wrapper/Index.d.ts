@@ -40,3 +40,7 @@ export declare function getExitInfo(lastExitMessage: string, lastExitReason: num
 export declare function initTrafficHandler(preference: TrafficPreference, onNavDestinationSwitch: (funcArg0: (funcArgfuncArg0: string) => void) => void, repeatSampleTraffic: (funcArg0: () => void) => void, getUidRxAndTxBytes: (funcArg0: (funcArgfuncArg0: number, funcArgfuncArg1: number) => void) => void, getPageUidRxAndTxBytes: (funcArg0: (funcArgfuncArg0: number, funcArgfuncArg1: number, funcArgfuncArg2: string) => void, funcArg1: string) => void, reportTraffic: (funcArg0: InteropSampleTrafficInfo) => void, sampleThreshold: number): void
 
 export declare function getYesterdayTraffic(): InteropDayTrafficInfo | undefined
+
+export declare function initPageEventHandler(onDisplay: DisplaySyncInterface, onNavDestinationSwitch: (funcArg0: (funcArgfuncArg0: string) => void) => void, onWindowEvent: (funcArg0: () => void, funcArg1: () => void) => void, reportFpsInfo: (funcArg0: FpsEventInfo) => void): void
+
+export declare function initPageEventHandler(onDisplay: DisplaySyncInterface, onNavDestinationSwitch: (funcArg0: (funcArgfuncArg0: string) => void) => void, onWindowEvent: (funcArg0: () => void, funcArg1: () => void) => void, reportPageFpsInfo: (funcArg0: FpsEventInfo) => void, reportWindowFpsInfo: (funcArg0: FpsEventInfo) => void): void

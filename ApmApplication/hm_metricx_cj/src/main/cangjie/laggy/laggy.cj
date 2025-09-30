@@ -65,11 +65,7 @@ public class PageResponseLaggyModel {
         res.pageName = this.pageName
         res.touchTimes = this.touchTimes
         res.laggyTimes = this.laggyTimes
-        var i = 0
-        for (time in laggyTimeList) {
-            res.laggyTimeList.set(i, time)
-            i++
-        }
+        res.laggyTimeList = JSArrayEx<Float64>(this.laggyTimeList.toArray())
         res
     }
 }
