@@ -413,20 +413,20 @@ export function initScrollEventHandler(
   reportPageScrollInfo: (info: ScrollHitchInfo) => void
 ): void {
 
-  let scrokkDisplay = displaySync.create();
+  let scrollDisplay = displaySync.create();
   let scrollDisplaySyncInterface: DisplaySyncInterface = {
     start: (): void => {
-      scrokkDisplay.start();
+      scrollDisplay.start();
     },
     stop: (): void => {
-      scrokkDisplay.stop();
+      scrollDisplay.stop();
     },
     on: (cb: (time: number, targetTime: number) => void): void => {
-      scrokkDisplay.on('frame', (info: displaySync.IntervalInfo) => {
+      scrollDisplay.on('frame', (info: displaySync.IntervalInfo) => {
         cb(info.timestamp, info.targetTimestamp);
       });    },
     off: (): void => {
-      scrokkDisplay.off('frame');
+      scrollDisplay.off('frame');
     }
   }
 
@@ -450,12 +450,29 @@ export function initScrollEventHandler(
 export function initPageEventHandler(
   context: common.UIAbilityContext,
   windowStage: window.WindowStage,
-  reportFpsInfo: (info: FpsEventInfo) => void
+  reportPageFpsInfo: (info: FpsEventInfo) => void,
+  reportWindowFpsInfo: (info: FpsEventInfo) => void
 ): void {
+  let pageDisplay = displaySync.create();
+  let pageDisplaySyncInterface: DisplaySyncInterface = {
+    start: (): void => {
+      pageDisplay.start();
+    },
+    stop: (): void => {
+      pageDisplay.stop();
+    },
+    on: (cb: (time: number, targetTime: number) => void): void => {
+      pageDisplay.on('frame', (info: displaySync.IntervalInfo) => {
+        cb(info.timestamp, info.targetTimestamp);
+      });    },
+    off: (): void => {
+      pageDisplay.off('frame');
+    }
+  }
+
   let onNavDestinationSwitch = (cb: (targetPageName: string) => void) => {
     let callback = (info: uiObserver.NavDestinationSwitchInfo) => cb(getTargetPageName(info));
     uiObserver.on('navDestinationSwitch', context, callback);
-    offBatteryHandlerCallback = () => uiObserver.off('navDestinationSwitch', context, callback);
   };
   let onWindowEvent = (windowActive: () => void, windowInActive: () => void) => {
     windowStage.getMainWindowSync().on('windowEvent', (data: window.WindowEventType) => {
@@ -466,7 +483,7 @@ export function initPageEventHandler(
       }
     });
   };
-  cjLib.initPageEventHandler(onNavDestinationSwitch, onWindowEvent, reportFpsInfo);
+  cjLib.initPageEventHandler(pageDisplaySyncInterface, onNavDestinationSwitch, onWindowEvent, reportPageFpsInfo, reportWindowFpsInfo);
 }
 
 export function initLaggyHanddler(
@@ -520,22 +537,16 @@ export function initLaggyHanddler(
   let onNavDestinationSwitch = (cb: (targetPageName: string) => void) => {
     let callback = (info: uiObserver.NavDestinationSwitchInfo) => cb(getTargetPageName(info));
     uiObserver.on('navDestinationSwitch', context, callback);
-    offBatteryHandlerCallback = () => uiObserver.off('navDestinationSwitch', context, callback);
   };
 
   let onDidClick = (cb: (info: ClickInfo) => void) => {
     windowStage.getMainWindow().then(win => {
       win.getUIContext().getUIObserver().on('didClick', (event: ClickEvent, frameNode?: FrameNode) => {
-        let info = new ClickInfo();
-        info.timestamp = event.timestamp;
-        info.windowX = event.windowX;
-        info.windowY = event.windowY;
-        info.id = frameNode?.getId() ?? '';
-        info.nodeType = frameNode?.getNodeType() ?? '';
-        info.hitX = frameNode?.getPositionToWindow().x ?? 0;
-        info.hitY = frameNode?.getPositionToWindow().y ?? 0;
-        info.hitHeight = frameNode?.getMeasuredSize().height ?? 0;
-        info.hitWidth = frameNode?.getMeasuredSize().width ?? 0;
+        let info = new cjLib.ClickInfo(event.timestamp, event.windowX, event.windowY, frameNode?.getId() ?? '',
+          frameNode?.getNodeType() ?? '', frameNode?.getPositionToWindow().x ?? 0,
+          frameNode?.getPositionToWindow().y ?? 0, frameNode?.getMeasuredSize().height ?? 0,
+          frameNode?.getMeasuredSize().width ?? 0);
+        cb(info);
       });
     });
   };

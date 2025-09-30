@@ -211,12 +211,14 @@ public func initScrollEventHandler(
 
 @Interop[ArkTS]
 public func initPageEventHandler(
+    onDisplay: DisplaySyncInterface,
     onNavDestinationSwitch: ((String) -> Unit) -> Unit,
     onWindowEvent: (() -> Unit, () -> Unit) -> Unit,
-    reportFpsInfo: (FpsEventInfo) -> Unit
+    reportPageFpsInfo: (FpsEventInfo) -> Unit,
+    reportWindowFpsInfo: (FpsEventInfo) -> Unit
 ): Unit {
-    _initPageEventHandler(onNavDestinationSwitch, reportFpsInfo)
-    _initPageEventHandler(onWindowEvent, reportFpsInfo)
+    _initPageEventHandler(onDisplay, onNavDestinationSwitch, reportPageFpsInfo)
+    _initPageEventHandler(onWindowEvent, reportWindowFpsInfo)
 }
 
 @Interop[ArkTS]
