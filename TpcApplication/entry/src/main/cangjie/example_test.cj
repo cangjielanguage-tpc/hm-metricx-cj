@@ -1,3 +1,6 @@
+/*
+ * Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
+ */
 package ohos_app_cangjie_entry
 
 import std.unittest.{Configuration, TestSuite, TestClass, UnitTestCase, expectEqual, TestPackage, Measurement, TimeNow}

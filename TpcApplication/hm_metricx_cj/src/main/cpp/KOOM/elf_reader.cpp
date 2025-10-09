@@ -1,9 +1,6 @@
 /*
+ * Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
  * Copyright (c) 2021. Kwai, Inc. All rights reserved.
- *
- * Modifications:
- * Replaced log/log.h with hilog/log.h.
- * Remove lookup from compressed gnu_debugdata.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.

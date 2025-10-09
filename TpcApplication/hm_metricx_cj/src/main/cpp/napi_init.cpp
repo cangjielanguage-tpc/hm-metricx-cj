@@ -1,3 +1,7 @@
+/*
+ * Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
+ */
+
 #include "napi/native_api.h"
 
 static napi_value Add(napi_env env, napi_callback_info info)

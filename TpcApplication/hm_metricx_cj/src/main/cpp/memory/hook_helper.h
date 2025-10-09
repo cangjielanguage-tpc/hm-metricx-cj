@@ -1,4 +1,5 @@
 /*
+ * Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
  * Copyright (c) 2021. Kwai, Inc. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
