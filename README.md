@@ -39,6 +39,8 @@
 
 ## 软件架构
 
+![](./docs/assets/img.png)
+
 ### 源码目录
 
 ```shell
