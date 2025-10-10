@@ -3,7 +3,7 @@
  */
 package ohos_app_cangjie_hm_metricx_cj.crash
 
-import ohos_app_cangjie_hm_metricx_cj.apm.*
+import ohos_app_cangjie_hm_metricx_cj.util.*
 import tpc.PerformanceAnalysisKit.hiAppEvent.*
 import tpc.AbilityKit.ApplicationContext
 import std.fs.*

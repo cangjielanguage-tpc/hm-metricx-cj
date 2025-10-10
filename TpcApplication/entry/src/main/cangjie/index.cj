@@ -18,7 +18,7 @@ import ohos.state_manage.ViewStackProcessor
 import ohos.state_macro_manage.{HybridComponentEntry, Component}
 import ohos.hybrid_base.CJPageEntry
 import ohos.hybrid_base.HybridComponentBase
-import ohos_app_cangjie_hm_metricx_cj.apm.*
+import ohos_app_cangjie_hm_metricx_cj.util.*
 import ohos_app_cangjie_hm_metricx_cj.freeze.*
 import ohos_app_cangjie_hm_metricx_cj.storage.*
 import ohos.base.nativeLog

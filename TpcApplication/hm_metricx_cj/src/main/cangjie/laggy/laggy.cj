@@ -19,7 +19,7 @@ import std.time.*
 import stdx.encoding.json.*
 import ohos.ark_interop.JSObject
 import ohos.ark_interop.JSString
-import ohos_app_cangjie_hm_metricx_cj.apm.*
+import ohos_app_cangjie_hm_metricx_cj.util.*
 import ohos.window.WindowStage
 import ohos.ability.Ability
 import ohos.base.Callback1Argument

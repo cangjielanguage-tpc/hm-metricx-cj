@@ -3,7 +3,7 @@
  */
 package ohos_app_cangjie_hm_metricx_cj.battery
 
-import ohos_app_cangjie_hm_metricx_cj.apm.*
+import ohos_app_cangjie_hm_metricx_cj.util.*
 import tpc.AbilityKit.UIAbility
 import tpc.BasicServicesKit.*
 import tpc.BasicServicesKit.batteryInfo.*

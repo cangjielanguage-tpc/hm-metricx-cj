@@ -16,7 +16,7 @@ import std.collection.*
 import std.convert.*
 import ohos.base.AppLog
 import tpc.UIKit.Observer.{NavDestinationSwitchInfo, on, ObserverListenerType}
-import ohos_app_cangjie_hm_metricx_cj.apm.*
+import ohos_app_cangjie_hm_metricx_cj.util.*
 
 let pageTrafficMap: HashMap<String, PageTrafficInfo> = HashMap<String, PageTrafficInfo>()
 let uid: UInt32 = GetAppUid()
