@@ -90,20 +90,17 @@
 
 ### 集成方式
 
-i.
-获取 `hm-metricx-cj` 源码。
+1. 下载安装
+   通过中心仓下载安装
 
-ii.
-在 `DevEco Studio` 中点击 `Build -> Make module 'hm-metricx-cj'` 编译生成har包 `hm_metricx_cj.har` 。har包产物路径在 `hm_metricx_cj/build/default/outputs/default` 目录下。
+      ```sh
+      ohpm install @cangjie-tpc/hm_metricx_cj_hybrid
+      ```
 
-iii.
-将 `hm_metricx_cj.har` 放到工程模块的har目录下。在工程模块的 `oh-package.json5` 中配置依赖 `"hm_metricx_cj": "file:./har/hm_mtricx_cj.har"` 。
-并且在工程模块的 `src/main/cangjie/cjpm.toml` 中配置依赖：
-```text
-[dependencies]
-  [dependencies.ohos_app_cangjie_hm_metricx_cj]
-    path = "../../../oh_modules/hm_metricx_cj/src/main/cangjie"
-```
+2. 在项目中使用 `hm_metricx_cj` 项目
+   ```arkts
+   import { initCrashHandler } from '@cangjie-tpc/hm_metricx_cj_hybrid'
+   ```
 
 ### 功能示例
 
