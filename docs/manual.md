@@ -35,8 +35,22 @@ public func initCrashHandler(
     collectNativeCrashInfo: CFunc<() -> CString>,
     reportCrashInfo: (crashInfo: CrashInfo) -> Unit,
     persistentDir: Path,
-    enableDumpOnOOM: Bool
+    enableDumpOnOOM: Option<OOMHandlerMode>,
+    lastNHilogNumber: Int64,
+    systemLogNumber: Int64,
+    enableMemMonitor: Option<CMemMonitorConfig>
 ): Unit
+
+public enum OOMHandlerMode {
+    | Async | Sync
+}
+
+public class CMemMonitorConfig {
+    let shouldBeClusteredToThisSo: (soName: String) -> Bool
+    public init(shouldBeClusteredToThisSo: (soName: String) -> Bool){
+        this.shouldBeClusteredToThisSo = shouldBeClusteredToThisSo
+    }
+}
 ```
 接口对ArkTS/仓颉/Native层引发的崩溃进行监控。
 
@@ -47,7 +61,13 @@ public func initCrashHandler(
 - `collectNativeCrashInfo: CFunc<() -> CString` 用于在发生Native层引发的crash时，收集若干自定义的业务/系统信息(比如页面浏览路径等)，以json字符串形式返回。
 - `reportCrashInfo: (crashInfo: CrashInfo) -> Unit` 用于在发生ArkTS/仓颉层引发的crash时，将收集完毕的崩溃信息进行上报，入参为 `CrashInfo` 类型对象。 
 - `persistentDir: Path` 指定中间日志文件和内存快照的持久化目录。
-- `enableDumpOnOOM: Bool` 指定是否在发生OOM时导出仓颉内存快照。
+- `enableDumpOnOOM: Option<OOMHandlerMode>` 指定是否在发生OOM时导出仓颉内存快照, Option.None表示不导出仓颉内存快照，`OOMHandlerMode`枚举类型可选`Async`异步导出或`Sync`同步导出。
+- `lastNHilogNumber: Int64` 指定lastNHilog的条数。
+- `systemLogNumber: Int64` 指定系统级日志systemLog的条数。
+- `enableMemMonitor: Option<CMemMonitorConfig>` 指定是否开启C内存详情监控，Option.None表示不开启，传入`CMemMonitorConfig`对象表示开启，`CMemMonitorConfig`类表示C内存详情监控的配置项。
+
+`CMemMonitorConfig` 参数说明：
+- `shouldBeClusteredToThisSo` 用于在按照so聚合类别中，指定内存分配数据是否被聚合到该so。
 
 `CrashInfo` 包含以下信息：
 
@@ -68,6 +88,12 @@ public func initCrashHandler(
 - `dumpOnOOMPath` 导出的仓颉内存快照地址
 - `appVersion` 应用版本
 - `rawFile` 系统生成的faultlog文件的原始内容
+- `systemLog` 系统级日志
+- `lastNHilog` 最新的N条hilog日志
+- `dumpTime` 导出仓颉内存快照的时间
+- `historyRawFiles` 所有历史系统生成的crash日志文件的内容
+- `nativeMemDetail` C层内存详情
+- `memPersistTime` C层内存详情持久化时间
 
 使用示例：
 
@@ -82,12 +108,15 @@ class EntryAbility <: UIAbility {
             case _ => ()
         }
         initCrashHandler(
-            this.context.getApplicationContext(),
-            { => JsonValue.fromStr("{}") },
-            { => unsafe { LibC.mallocCString("{}") } },
-            { crashInfo => },
-            Path(this.context.cacheDir),
-            true)
+            this.context.getApplicationContext(), 
+            {=> JsonValue.fromStr("{}")}, 
+            {=> unsafe { LibC.mallocCString("{}") }}, 
+            {data => AppLog.error("testTag: " + data.rawFile.toString())},
+            Path(this.context.cacheDir), 
+            OOMHandlerMode.Async, 
+            1000, 
+            1000, 
+            CMemMonitorConfig({soName:String =>false}))
     }
 }
 ```
@@ -158,6 +187,8 @@ public func initFreezeHandler(
 - `cpuThread` 线程CPU使用率
 - `cpu` 进程CPU使用率
 - `stacktrace` freeze调用栈
+- `rawFile` 系统生成的faultlog文件的原始内容
+- `historyRawFiles` 所有历史系统生成的freeze日志文件的内容
 
 使用示例：
 
@@ -252,6 +283,7 @@ public func initPageEventHandler(
 ): Unit
 
 public func initScrollEventHandler(
+    uiContext: UIAbilityContext,
     reportScrollInfo: (scrollInfo: ScrollHitchInfo) -> Unit
 ): Unit
 ```
@@ -266,6 +298,7 @@ public func initScrollEventHandler(
 
 - `minFps` 一段时间内，每隔一秒采样，测量到的最低帧率值
 - `avgFps` 一段时间内，测量到的平均帧率值
+- `pageName` 所在页面名称
 
 `initPageEventHandler` 需要的入参说明如下：
 
@@ -274,11 +307,27 @@ public func initScrollEventHandler(
 
 `initScrollEventHandler` 需要的入参说明如下：
 
+- `uiContext: UIAbilityContext` 指定UIAbility上下文
 - `reportScrollInfo: (scrollInfo: ScrollHitchInfo) -> Unit` 用于每次滑动事件停止时，将统计到的滑动掉帧率信息，以及FPS信息进行上报，入参为 `ScrollHitchInfo` 类型对象。 
 
 `ScrollHitchInfo` 继承 `FpsEventInfo` 的所有信息，并包含以下信息：
 
 - `frameDropRatio` 滑动掉帧率
+- `jankRate` 卡顿率
+- `bigJankRate` 严重卡顿率
+- `htLessThan0` 延迟小于0的帧数比例
+- `ht0To00001` 延迟在0到0.0001秒之间的帧数比例
+- `ht00001To0001` 延迟在0.0001到0.001秒之间的帧数比例
+- `ht0001To001` 延迟在0.001到0.01秒之间的帧数比例
+- `ht001To005` 延迟在0.01到0.05秒之间的帧数比例
+- `ht005To01` 延迟在0.05到0.1秒之间的帧数比例
+- `ht01To1` 延迟在0.1到1秒之间的帧数比例
+- `htBiggerThan1` 延迟大于1秒的帧数比例
+- `targetFPS` 目标帧率
+- `longestLostFrame` 最长丢失的帧时间
+- `totalFrameCount` 总帧数
+
+
 
 使用示例：
 
@@ -321,7 +370,7 @@ class EntryAbility <: UIAbility {
 `hm_metricx_cj` 提供
 ```text
 public func initLaggyHandle(applicationcontext: ApplicationContext, uiContext: UIContext,
-                            maxTime: Float64, maxArraySize: Int64,
+                            maxTime: Int64, maxArraySize: Int64,
                             reportLaggyInfo: (data: JsonObject) -> Unit)
 ```
 接口对交互式响应延迟提供监控能力。
@@ -345,9 +394,9 @@ public func initLaggyHandle(applicationcontext: ApplicationContext, uiContext: U
 ```text
 // 注册内存监控
 public func initMemoryHandler(
-    ability: UIAbility,
+    context: UIAbilityContext,
     reportMemoryInfo: (info: MemoryInfo) -> Unit,
-    memoryThreshold!: Int64
+    memoryThreshold!: Int64 = 100*1024
 ): Unit
 // 取消内存监控
 public func destroyMemoryHandler(): Unit
@@ -361,7 +410,7 @@ public func getProcessMemoryInfo(): ProcessMemoryInfo
 
 `initMemoryHandler` 需要的入参说明如下：
 
-- `ability: UIAbility` 指定应用组件。
+- `context: UIAbilityContext` 指定UIAbility上下文。
 - `reportMemoryInfo: (info: MemoryInfo) -> Unit` 将内存的使用情况进行上报，入参为 `MemoryInfo` 类型对象。
 - `memoryThreshold!: Int64` 内存使用阈值，默认为100 * 1024 KB。当使用内存超过该阈值时，将内存使用情况上报。
 
@@ -397,7 +446,7 @@ class EntryAbility <: UIAbility {
             case AbilityConstant.LaunchReason.START_ABILITY => AppLog.info("START_ABILITY")
             case _ => ()
         }
-        initMemoryHandler(this, {data =>})
+        initMemoryHandler(this.context, {data =>})
     }
     public override func onDestroy(): Unit {
         destroyMemoryHandler()
@@ -428,7 +477,7 @@ public func getProcessCpuInfo(): ProcessCpuInfo
 
 `initCpuHandler` 需要的入参说明如下：
 
-- `ability: UIAbility` 指定应用组件。
+- `context: UIAbilityContext` 指定UIAbility上下文。
 - `reportCpuInfo: (info: CpuInfo) -> Unit` 将CPU的使用情况进行上报，入参为 `CpuInfo` 类型对象。
 
 `CpuInfo` 包含以下信息：
@@ -463,7 +512,7 @@ class EntryAbility <: UIAbility {
             case AbilityConstant.LaunchReason.START_ABILITY => AppLog.info("START_ABILITY")
             case _ => ()
         }
-        initCpuHandler(this, {data =>})
+        initCpuHandler(this.context, {data =>})
     }
     public override func onDestroy(): Unit {
         destroyCpuHandler()
@@ -481,7 +530,8 @@ class EntryAbility <: UIAbility {
 public func initBatteryHandler(
     ability: UIAbility,
     reportBatteryInfo: (batteryInfo: BatteryUsageInfo) -> Unit,
-    limit!: Int32
+    reportThreadCpuUsageInfo: (allThreadCpuUsageInfo: AllThreadCpuUsageInfo) -> Unit,
+    limit!: Int32 = 1
 ): Unit
 // 取消电量监控
 public func destroyBatteryHandler(): Unit
@@ -493,6 +543,7 @@ public func destroyBatteryHandler(): Unit
 
 - `ability: UIAbility` 指定应用组件。
 - `reportBatteryInfo: (batteryInfo: BatteryUsageInfo) -> Unit` 用于在发生掉电时，将相应的信息进行上报，入参为 `BatteryUsageInfo` 类型对象。
+- `reportThreadCpuUsageInfo: (allThreadCpuUsageInfo: AllThreadCpuUsageInfo) -> Unit` 用于上报所有线程的CPU使用情况，当检测到CPU使用异常时，该回调函数会被触发，函数入参为`AllThreadCpuUsageInfo` 类型对象。
 - `limit!: Int32` 掉电x格上报，默认为1。
 
 `BatteryUsageInfo` 包含以下信息：
@@ -513,6 +564,20 @@ public func destroyBatteryHandler(): Unit
 - `useTime` APP前台使用时间，单位为s
 - `time` 距离上次掉电的时间间隔，单位为s
 
+`AllThreadCpuUsageInfo` 包含以下信息：
+
+- `threadCpuUsageInfoList` 所有线程的CPU使用信息，类型为`ArrayList<ThreadCpuUsageInfo>`
+
+`ThreadCpuUsageInfo` 包含以下信息：
+- `threadId` 线程id
+- `threadName` 线程名
+- `threadState` 线程状态
+- `threadJiffiesPercent` 线程的CPU使用率百分比
+- `threadJiffies` 线程的CPU使用时间
+- `totalJiffies` 总的CPU时间
+- `startBgTime` 线程进入后台的时间
+- `exceptionTime` 线程出现异常的时间
+
 使用示例：
 
 i.
@@ -531,7 +596,7 @@ class EntryAbility <: UIAbility {
             case AbilityConstant.LaunchReason.START_ABILITY => AppLog.info("START_ABILITY")
             case _ => ()
         }
-        initBatteryHandler(this, {data =>})
+        initBatteryHandler(this, {data =>}, {data =>})
     }
     
     public override func onDestroy(): Unit {
@@ -558,20 +623,33 @@ class EntryAbility <: UIAbility {
 ```text
 // 注册占用存储空间上报函数
 public func initTrafficHandler(
-    ability: UIAbility,
-    reportTrafficInfo: (trafficInfo: TrafficInfo) -> Unit,
-    limits: ?Int32
+    context: UIAbilityContext,
+    reportTraffic: (sampleTraffixInfo: SampleTrafficInfo) -> Unit,
+    sampleTime!: Int64 = 10 * 60 * 1000,
+    sampleThreshold!: Int64 = 50 * 1024 * 1024
 ): Unit
-// 上报占用存储空间
-public func reportTrafficInfo(): Unit
+
+// 获取前一天的总流量使用情况
+public func getYesterdayTraffic(): Option<DayTrafficInfo>
+
+// 取消流量监控
+public func destroyTrafficHandler()
+
 ```
 
 接口对app占用存储空间获取并进行上报。
 
 `initTrafficHandler` 需要的入参说明如下：
-- `ability`: `UIAbility`指定应用组件。
+- `context`: `UIAbilityContext` 指定UIAbility上下文。
+- `reportTraffic: (sampleTraffixInfo: SampleTrafficInfo) -> Unit` 回调函数，用于上报流量使用情况。当流量数据达到上报阈值`sampleThreshold`时，回调被触发。
+- `sampleTime` 用于设置流量数据的采样时间间隔，单位为毫秒。
+- `sampleThreshold` 用于设置流量数据的上报阈值，单位为字节。
 
-- `reportTrafficInfo: (trafficInfo: TrafficInfo) -> Unit` 用于获取app流量时，将app流量信息进行上报，入参为 `TrafficInfo` 类型对象。
+`SampleTrafficInfo` 包含以下信息：
+
+- `systemInfo: SystemTrafficInfo` 系统级别流量信息
+- `pageInfoMap: HashMap<String, PageTrafficInfo>` 页面级别的流量信息，键为页面名称，值为对应的流量信息
+- `urlInfoArray: ArrayList<UrlTrafficInfo>` URL级别的流量信息
 
 `TrafficInfo` 包含以下信息
 
@@ -579,11 +657,31 @@ public func reportTrafficInfo(): Unit
 - `totalTraffic` 单次进程总流量
 - `limit` 触发告警的流量阈值
 
+`SystemTrafficInfo` 继承 `TrafficInfo` ，在 `TrafficInfo` 基础上，添加如下信息：
+
+- `timeStamp: String` 时间戳，表示流量数据的采集时间
+
+`PageTrafficInfo` 继承 `TrafficInfo` ，在 `TrafficInfo` 基础上，添加如下信息：
+
+- `pageName: String` 页面名称
+
+`UrlTrafficInfo` 继承 `TrafficInfo` ，在 `TrafficInfo` 基础上，添加如下信息：
+
+- `url: String` url地址
+
+`DayTrafficInfo` 继承 `TrafficInfo` ，在 `TrafficInfo` 基础上，添加如下信息：
+
+- `date: String` 日期
+
 使用示例：
 
 i.
 
 在主模块的 `main_ability.cj` 的 `onCreate` 回调中调用 `initTrafficHandler` ：
+
+ii.
+
+在主模块的 `main_ability.cj` 的 `onDestroy` 回调中调用 `destroyTrafficHandler` ：
 
 ```text
 class EntryAbility <: UIAbility {
@@ -593,18 +691,16 @@ class EntryAbility <: UIAbility {
             case AbilityConstant.LaunchReason.START_ABILITY => AppLog.info("START_ABILITY")
             case _ => ()
         }
-        initBatteryHandler(this, {data =>}， 500 * 1024 * 1024)
+        initTrafficHandler(this, {data =>})
+    }
+    public override func onDestroy(): Unit {
+        destroyTrafficHandler()
+        AppLog.info("myAbility onDestroy.")
     }
 }
 ```
 
-ii.
 
-需要上报app占用存储空间时，调用 `reportTrafficInfo` 函数 ：
-
-```text
-reportTrafficInfo()
-```
 
 ### 监控存储
 
@@ -613,7 +709,10 @@ reportTrafficInfo()
 ```text
 // 注册占用存储空间上报函数
 public func initStorageHandler(
-    reportStorageInfo: (storageInfo: StorageInfo) -> Unit
+    reportStorageInfo: (storageInfo: StorageInfo) -> Unit,
+    sizeLimit!: Int64,
+    dirSizeLimit!: Int64,
+    reportTopNum!: Int64 = 5
 ): Unit
 // 上报占用存储空间
 public func reportAppStorageInfo(): Unit
@@ -624,12 +723,18 @@ public func reportAppStorageInfo(): Unit
 `initStorageHandler` 需要的入参说明如下：
 
 - `reportStorageInfo: (storageInfo: StorageInfo) -> Unit` 用于获取app占用存储空间时，将app占用存储空间进行上报，入参为 `StorageInfo` 类型对象。
+- `sizeLimit`   存储大小阈值。超过该阈值会上报top N个异常文件和异常文件夹。
+- `dirSizeLimit`  文件夹大小阈值。超过该阈值的文件夹被标记为异常文件夹。
+- `reportTopNum` 用于设置上报的前N个文件/夹数量。
 
 `StorageInfo` 包含以下信息
 
 - `appSize` 应用安装文件大小，单位为Byte
 - `cacheSize` 应用缓存文件大小，单位为Byte
 - `dataSize` 应用文件存储大小（除应用安装文件和缓存文件），单位为Byte
+- `totalSize` 数据的大小，单位为Byte
+- `topStorageFileList` 文件列表，包含size最大的N个文件
+- `exceptionDirList` 异常文件夹列表，包含超过dirSizeLimit大小限制的文件夹
 
 使用示例：
 
