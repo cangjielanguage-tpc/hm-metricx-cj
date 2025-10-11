@@ -1,0 +1,11 @@
+[
+    {
+        "Name": "hm-metricx-cj",
+        "License": "Apache License 2.0",
+        "License File": "LICENSE",
+        "Owner": ""
+        "Upstream URL": "",
+        "Version Number": "1.0.0",
+        "Description": "A cangjie apm sdk for harmony projects."
+    }
+]

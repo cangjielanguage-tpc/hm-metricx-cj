@@ -6,7 +6,7 @@
   "author": "",
   "license": "",
   "dependencies": {
-    "hm_metricx_cj": "file:../hm_metricx_cj"
+    "@cangjie-tpc/hm_metricx_cj_hybrid": "file:./libs/hm_metricx_cj.har"
   }
 }
 

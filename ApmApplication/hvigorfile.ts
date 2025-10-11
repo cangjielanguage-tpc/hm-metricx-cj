@@ -9,14 +9,16 @@ hvigor.nodesEvaluated(() => {
       const task = node.getTaskByName('default@CacheNativeLibs');
       task.afterRun(() => {
         const libsDir = node.getNodePath() + '/build/default/intermediates/stripped_native_libs/default/arm64-v8a';
-        if (fs.existsSync(libsDir + '/libc++_shared.so')) {
-          fs.rmSync(libsDir + '/libc++_shared.so');
-        }
+        // if (fs.existsSync(libsDir + '/libc++_shared.so')) {
+        //   fs.rmSync(libsDir + '/libc++_shared.so');
+        // }
         const cjbins = libsDir + '/cjbins/ohos_app_cangjie_hm_metricx_cj';
-        for (const entry of fs.readdirSync(cjbins)) {
-          const fullpath = cjbins + '/' + entry;
-          if (entry.endsWith('.cjo')) {
-            fs.rmSync(fullpath);
+        if (fs.existsSync(cjbins)) {
+          for (const entry of fs.readdirSync(cjbins)) {
+            const fullpath = cjbins + '/' + entry;
+            if (entry.endsWith('.cjo')) {
+              fs.rmSync(fullpath);
+            }
           }
         }
         const ohosDir = libsDir + '/ohos';

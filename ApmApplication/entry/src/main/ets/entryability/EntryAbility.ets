@@ -18,14 +18,14 @@ import {
   initScrollEventHandler,
   initPageEventHandler,
   initLaggyHanddler
-} from 'hm_metricx_cj';
+} from '@cangjie-tpc/hm_metricx_cj_hybrid';
 
 const DOMAIN = 0x0000;
 
 export default class EntryAbility extends UIAbility {
   onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): void {
     this.context.getApplicationContext().setColorMode(ConfigurationConstant.ColorMode.COLOR_MODE_NOT_SET);
-    hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onCreate');
+    hilog.error(DOMAIN, 'testTag', '%{public}s', 'Ability onCreate');
     // getExitInfo(launchParam);
     initCrashHandler(this.context.getApplicationContext(), () => "{}", data => {
       hilog.error(DOMAIN, 'hm_metricx_cj', 'xxx crash info: ' + data.crashLogPath);
@@ -34,6 +34,7 @@ export default class EntryAbility extends UIAbility {
       hilog.error(DOMAIN, 'hm_metricx_cj', 'xxx freeze info %{public}s',
         data.timestamp + '\n' + data.pid + '\n' + data.exception + '\n' + data.freezeLogPath);
     }, this.context.cacheDir);
+    hilog.error(DOMAIN, 'hm_metricx_cj', 'init done');
     // initTrafficHandler(this.context, data => {
     // });
     // initStorageHandler(data => {
