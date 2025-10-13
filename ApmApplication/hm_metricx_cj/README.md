@@ -3,7 +3,7 @@
 </div>
 
 <p align="center">
-<img alt="" src="https://img.shields.io/badge/release-v1.0.0-brightgreen" style="display: inline-block;" />
+<img alt="" src="https://img.shields.io/badge/release-v1.0.1-brightgreen" style="display: inline-block;" />
 <img alt="" src="https://img.shields.io/badge/build-pass-brightgreen" style="display: inline-block;" />
 <img alt="" src="https://img.shields.io/badge/cjc-v1.0.1-brightgreen" style="display: inline-block;" />
 <img alt="" src="https://img.shields.io/badge/cjcov-NA-red" style="display: inline-block;" />
@@ -58,7 +58,9 @@
           │  ├─memory
           │  ├─storage
           │  ├─traffic
-          │  └─util
+          │  ├─types
+          │  ├─util
+          │  └─wrapper
           ├─cpp
           └─resources
 
@@ -80,11 +82,13 @@
 - `hm_metricx_cj src main cangjie src memory` hm_metricx_cj 内存监控目录
 - `hm_metricx_cj src main cangjie src storage` hm_metricx_cj 存储使用统计目录
 - `hm_metricx_cj src main cangjie src traffic` hm_metricx_cj 流量统计目录
+- `hm_metricx_cj src main cangjie src types` hm_metricx_cj 暴露给 ArkTS 层的类型声明目录
 - `hm_metricx_cj src main cangjie src util` hm_metricx_cj 工具目录
+- `hm_metricx_cj src main cangjie src wrapper` hm_metricx_cj 与 ArkTS 互操作接口目录
 
 ### 接口说明
 
-主要类和函数接口说明详见 [manual](https://gitcode.com/Cangjie-TPC/hm-metricx-cj/blob/main/docs/manual.md)
+主要类和函数接口说明详见 [manual](https://gitcode.com/Cangjie-TPC/hm-metricx-cj/blob/noohos_publish/docs/manual.md)
 
 ## 使用说明
 
@@ -140,19 +144,27 @@ class EntryAbility <: UIAbility {
    1. 暂不支持收集全量仓颉线程调用栈及状态
 3. 内存监控限制：
    1. 暂不支持组件级内存泄漏监控
-3. 掉电率统计限制：
+4. 掉电率统计限制：
    1. 暂不支持收集每秒 APP 耗电毫安时
    2. 暂不支持定时统计线程耗电毫安时
 
 ## 包体积
 
 har 包体积：3.3 MB
+
 纯 ArkTS 工程集成后，包体积额外增加 3.3 MB
+
 ArkTS/Native 混合工程集成后，包体积额外增加 2.8 MB
+
+## 和 ArkTS 版本的区别
+
+- Cangjie 执行性能更高
+- 覆盖的指标更全面
+- 支持自定义收集信息
 
 ## 开源协议
 
-本项目基于 [Apache License 2.0](https://gitcode.com/Cangjie-TPC/hm-metricx-cj/blob/main/LICENSE) ，请自由的享受和参与开源。
+本项目基于 [Apache License 2.0](https://gitcode.com/Cangjie-TPC/hm-metricx-cj/blob/noohos_publish/LICENSE) ，请自由的享受和参与开源。
 
 ## 参与贡献
 
