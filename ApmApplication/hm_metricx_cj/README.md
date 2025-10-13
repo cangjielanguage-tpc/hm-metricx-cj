@@ -112,7 +112,7 @@
 
 i.
 在主模块的 `EntryAbility.ets` 的 `onCreate` 回调中调用 `initCrashHandler` ：
-```text
+```arkts
 export default class EntryAbility extends UIAbility {
   onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): void {
     initCrashHandler(
