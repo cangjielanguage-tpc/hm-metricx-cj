@@ -144,6 +144,12 @@ class EntryAbility <: UIAbility {
    1. 暂不支持收集每秒 APP 耗电毫安时
    2. 暂不支持定时统计线程耗电毫安时
 
+## 包体积
+
+har 包体积：3.3 MB
+纯 ArkTS 工程集成后，包体积额外增加 3.3 MB
+ArkTS/Native 混合工程集成后，包体积额外增加 2.8 MB
+
 ## 开源协议
 
 本项目基于 [Apache License 2.0](https://gitcode.com/Cangjie-TPC/hm-metricx-cj/blob/main/LICENSE) ，请自由的享受和参与开源。
