@@ -111,28 +111,25 @@
 以 crash 监控为例：
 
 i.
-在主模块的 `main_ability.cj` 的 `onCreate` 回调中调用 `initCrashHandler` ：
+在主模块的 `EntryAbility.ets` 的 `onCreate` 回调中调用 `initCrashHandler` ：
 ```text
-class EntryAbility <: UIAbility {
-    public override func onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): Unit {
-        AppLog.info("Ability OnCreated.${want.abilityName}")
-        match (launchParam.launchReason) {
-            case AbilityConstant.LaunchReason.START_ABILITY => AppLog.info("START_ABILITY")
-            case _ => ()
-        }
-        initCrashHandler(
-            this.context.getApplicationContext(),
-            {=> JsonValue.fromStr("{}")},
-            {=> unsafe { LibC.mallocCString("{}") }},
-            {data => AppLog.error(data.language)},
-            Path(this.context.cacheDir),
-            OOMHandlerMode.Async,
-            1000,
-            1000,
-            CMemMonitorConfig({soName: String => false}))
-    }
+export default class EntryAbility extends UIAbility {
+  onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): void {
+    initCrashHandler(
+      this.context.getApplicationContext(),
+      () => "{}",
+      data => hilog.error(DOMAIN, 'hm_metricx_cj', 'crash log path: ' + data.crashLogPath),
+      this.context.cacheDir,
+      OOMHandlerMode.ASYNC,
+      1000,
+      1000,
+      new CMemMonitorConfig(data => false)
+    );
+  }
 }
 ```
+
+完整的示例详见 详见 [manual](https://gitcode.com/Cangjie-TPC/hm-metricx-cj/blob/noohos_publish/docs/manual.md)
 
 ## 约束与限制
 

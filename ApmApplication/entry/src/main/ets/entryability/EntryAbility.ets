@@ -24,12 +24,18 @@ const DOMAIN = 0x0000;
 
 export default class EntryAbility extends UIAbility {
   onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): void {
-    this.context.getApplicationContext().setColorMode(ConfigurationConstant.ColorMode.COLOR_MODE_NOT_SET);
     hilog.error(DOMAIN, 'testTag', '%{public}s', 'Ability onCreate');
     // getExitInfo(launchParam);
-    initCrashHandler(this.context.getApplicationContext(), () => "{}", data => {
-      hilog.error(DOMAIN, 'hm_metricx_cj', 'xxx crash info: ' + data.crashLogPath);
-    }, this.context.cacheDir, OOMHandlerMode.ASYNC, 1000, 1000, new CMemMonitorConfig(data => false));
+    initCrashHandler(
+      this.context.getApplicationContext(),
+      () => "{}",
+      data => hilog.error(DOMAIN, 'hm_metricx_cj', 'crash log path: ' + data.crashLogPath),
+      this.context.cacheDir,
+      OOMHandlerMode.ASYNC,
+      1000,
+      1000,
+      new CMemMonitorConfig(data => false)
+    );
     initFreezeHandler(() => "{}", data => {
       hilog.error(DOMAIN, 'hm_metricx_cj', 'xxx freeze info %{public}s',
         data.timestamp + '\n' + data.pid + '\n' + data.exception + '\n' + data.freezeLogPath);
