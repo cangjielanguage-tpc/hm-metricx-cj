@@ -28,6 +28,13 @@ hvigor.nodesEvaluated(() => {
             fs.rmSync(fullpath);
           }
         }
+        const typesDir = node.getNodePath() + '/src/main/cangjie/types';
+        for (const entry of fs.readdirSync(typesDir)) {
+          const fullpath = typesDir + '/' + entry;
+          if (entry.startsWith('libohos_app_cangjie_hm_metricx_cj_')) {
+            fs.rmSync(fullpath, {recursive: true});
+          }
+        }
       });
     }
   });
