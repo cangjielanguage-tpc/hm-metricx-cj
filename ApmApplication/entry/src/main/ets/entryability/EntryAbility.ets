@@ -17,7 +17,9 @@ import {
   destroyBatteryHandler,
   initScrollEventHandler,
   initPageEventHandler,
-  initLaggyHanddler
+  initLaggyHandler,
+  destroyCpuHandler,
+  destroyTrafficHandler
 } from '@cangjie-tpc/hm_metricx_cj_hybrid';
 
 const DOMAIN = 0x0000;
@@ -25,7 +27,7 @@ const DOMAIN = 0x0000;
 export default class EntryAbility extends UIAbility {
   onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): void {
     hilog.error(DOMAIN, 'testTag', '%{public}s', 'Ability onCreate');
-    // getExitInfo(launchParam);
+    getExitInfo(launchParam);
     initCrashHandler(
       this.context.getApplicationContext(),
       () => "{}",
@@ -36,30 +38,45 @@ export default class EntryAbility extends UIAbility {
       1000,
       new CMemMonitorConfig(data => false)
     );
-    initFreezeHandler(() => "{}", data => {
-      hilog.error(DOMAIN, 'hm_metricx_cj', 'xxx freeze info %{public}s',
-        data.timestamp + '\n' + data.pid + '\n' + data.exception + '\n' + data.freezeLogPath);
-    }, this.context.cacheDir);
-    hilog.error(DOMAIN, 'hm_metricx_cj', 'init done');
-    // initTrafficHandler(this.context, data => {
-    // });
-    // initStorageHandler(data => {
-    // }, 1, 1);
-    // initCpuHandler(this.context, data => {
-    // }, data => {
-    // });
-    // initMemoryHandler(this.context, data => {
-    // }, data => {
-    // }, 100 * 1024);
-    // initBatteryHandler(this.context, data => {
-    // }, data => {
-    // });
+    initFreezeHandler(
+      () => "{}",
+      data => hilog.error(DOMAIN, 'hm_metricx_cj', 'freeze info %{public}s', data.freezeLogPath),
+      this.context.cacheDir
+    );
+    initTrafficHandler(
+      this.context,
+      data => {
+      });
+    initStorageHandler(
+      data => {},
+      1,
+      1);
+    initCpuHandler(
+      this.context, data => {
+    },
+      data => {
+      });
+    initMemoryHandler(
+      this.context,
+      data => {
+      },
+      data => {
+      },
+      100 * 1024);
+    initBatteryHandler(
+      this.context,
+      data => {
+      },
+      data => {
+      });
   }
 
   onDestroy(): void {
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onDestroy');
-    // destroyMemoryHandler();
-    // destroyBatteryHandler();
+    destroyMemoryHandler();
+    destroyCpuHandler();
+    destroyBatteryHandler();
+    destroyTrafficHandler();
   }
 
   onWindowStageCreate(windowStage: window.WindowStage): void {
@@ -74,15 +91,15 @@ export default class EntryAbility extends UIAbility {
       hilog.info(DOMAIN, 'testTag', 'Succeeded in loading the content.');
     });
 
-    // windowStage.getMainWindow().then(() => {
-    //   initPageEventHandler(this.context, windowStage, data => {
-    //   });
-    //   initScrollEventHandler(this.context, data => {
-    //   });
-    //   initLaggyHanddler(this.context, windowStage, 100, 100, data => {
-    //   }, data => {
-    //   })
-    // });
+    windowStage.getMainWindow().then(() => {
+      initPageEventHandler(this.context, windowStage, data => {
+      });
+      initScrollEventHandler(this.context, data => {
+      });
+      initLaggyHandler(this.context, windowStage, 100, 100, data => {
+      }, data => {
+      });
+    });
   }
 
   onWindowStageDestroy(): void {

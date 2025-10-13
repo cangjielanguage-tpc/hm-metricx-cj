@@ -6,7 +6,7 @@ import {
   InteropCrashInfo as CrashInfo,
   InteropFreezeInfo as FreezeInfo,
   InteropSampleTrafficInfo as SampleTrafficInfo,
-  InteropStorageInfo,
+  InteropStorageInfo as StorageInfo,
   TrafficPreference,
   InteropProcessCpuInfo as ProcessCpuInfo,
   InteropPageCpuInfo as PageCpuInfo,
@@ -23,7 +23,8 @@ import {
   InteropPageResponseLaggyModel as PageResponseLaggyModel,
   DisplaySync,
   Logger,
-  ExitInfo
+  ExitInfo,
+  InteropDayTrafficInfo as DayTrafficInfo
 } from 'libark_interop_api.so';
 import { preferences } from '@kit.ArkData';
 import { uiObserver, window } from '@kit.ArkUI';
@@ -99,6 +100,10 @@ export function initTrafficHandler(
     sampleThreshold);
 }
 
+export function getYesterdayTraffic(): DayTrafficInfo | undefined {
+  return cjLib.getYesterdayTraffic();
+}
+
 export function destroyTrafficHandler(): void {
   clearSampleTraffic();
   offTraffic();
@@ -107,7 +112,9 @@ export function destroyTrafficHandler(): void {
   });
 }
 
-export function initStorageHandler(reportStorageInfo: (data: InteropStorageInfo) => void, sizeLimit: number,
+export function initStorageHandler(
+  reportStorageInfo: (data: StorageInfo) => void,
+  sizeLimit: number,
   dirSizeLimit: number,
   reportTopNum: number = 5): void {
   cjLib.initStorageHandler(reportStorageInfo, sizeLimit, dirSizeLimit, reportTopNum);
@@ -187,7 +194,8 @@ export enum OOMHandlerMode {
   ASYNC
 }
 
-export function initCrashHandler(applicationContext: common.ApplicationContext,
+export function initCrashHandler(
+  applicationContext: common.ApplicationContext,
   collectCrashInfo: () => string,
   reportCrashInfo: (CrashInfo: CrashInfo) => void,
   persistentDir: string,
@@ -357,6 +365,14 @@ export function destroyMemoryHandler(): void {
   offMemory();
   clearSampleMemory();
   cjLib.destroyMemoryHandler();
+}
+
+export function getPageMemoryInfo(): PageMemoryInfo {
+  return cjLib.getPageMemoryInfo();
+}
+
+export function getProcessMemoryInfo(): ProcessMemoryInfo {
+  return cjLib.getProcessMemoryInfo();
 }
 
 let offBatteryHandlerCallback = () => {
@@ -578,7 +594,7 @@ export function initPageEventHandler(
   cjLib.initPageEventHandler(getDisplaySync(), onNavDestinationSwitch, onWindowEvent, reportFpsInfo);
 }
 
-export function initLaggyHanddler(
+export function initLaggyHandler(
   context: common.UIAbilityContext,
   windowStage: window.WindowStage,
   maxTime: number,

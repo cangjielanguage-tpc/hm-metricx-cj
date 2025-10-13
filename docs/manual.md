@@ -10,61 +10,59 @@
 
 ### 集成方式
 
-i.
-获取 `hm-metricx-cj` 源码。
+1. 下载安装
+   通过中心仓下载安装
 
-ii.
-在 `DevEco Studio` 中点击 `Build -> Make module 'hm-metricx-cj'` 编译生成har包 `hm_metricx_cj.har` 。har包产物路径在 `hm_metricx_cj/build/default/outputs/default` 目录下。
+      ```sh
+      ohpm install @cangjie-tpc/hm_metricx_cj_hybrid
+      ```
 
-iii.
-将 `hm_metricx_cj.har` 放到工程模块的har目录下。在工程模块的 `oh-package.json5` 中配置依赖 `"hm_metricx_cj": "file:./har/hm_mtricx_cj.har"` 。
-并且在工程模块的 `src/main/cangjie/cjpm.toml` 中配置依赖：
-```text
-[dependencies]
-  [dependencies.ohos_app_cangjie_hm_metricx_cj]
-    path = "../../../oh_modules/hm_metricx_cj/src/main/cangjie"
-```
+2. 在项目中使用 `hm_metricx_cj` 项目
+   ```arkts
+   import { initCrashHandler } from '@cangjie-tpc/hm_metricx_cj_hybrid'
+   ```
 
 ### 监控Crash
 
 `hm_metricx_cj` 提供
-```text
-public func initCrashHandler(
-    applicationContext: ApplicationContext,
-    collectCrashInfo: () -> JsonValue,
-    collectNativeCrashInfo: CFunc<() -> CString>,
-    reportCrashInfo: (crashInfo: CrashInfo) -> Unit,
-    persistentDir: Path,
-    enableDumpOnOOM: Option<OOMHandlerMode>,
-    lastNHilogNumber: Int64,
-    systemLogNumber: Int64,
-    enableMemMonitor: Option<CMemMonitorConfig>
-): Unit
+```arkts
+export function initCrashHandler(
+  applicationContext: common.ApplicationContext,
+  collectCrashInfo: () => string,
+  reportCrashInfo: (CrashInfo: CrashInfo) => void,
+  persistentDir: string,
+  enableDumpOnOOM: OOMHandlerMode,
+  lastNHilogNumber: number,
+  systemLogNumber: number,
+  enableMemMonitor?: CMemMonitorConfig
+): void
 
-public enum OOMHandlerMode {
-    | Async | Sync
+export enum OOMHandlerMode {
+  NONE,
+  SYMC,
+  ASYNC
 }
 
-public class CMemMonitorConfig {
-    let shouldBeClusteredToThisSo: (soName: String) -> Bool
-    public init(shouldBeClusteredToThisSo: (soName: String) -> Bool){
-        this.shouldBeClusteredToThisSo = shouldBeClusteredToThisSo
-    }
+export class CMemMonitorConfig {
+  shouldBeClusteredToThisSo: (so: string) => boolean
+
+  constructor(shouldBeClusteredToThisSo: (so: string) => boolean) {
+    this.shouldBeClusteredToThisSo = shouldBeClusteredToThisSo
+  }
 }
 ```
 接口对ArkTS/仓颉/Native层引发的崩溃进行监控。
 
 `initCrashHandler` 需要的入参说明如下：
 
-- `applicationContext: ApplicationContext` 指定应用上下文。
-- `collectCrashInfo: () -> JsonValue` 用于在发生ArkTS/仓颉层引发的crash时，收集若干自定义的业务/系统信息(比如页面浏览路径等)，以json形式返回。
-- `collectNativeCrashInfo: CFunc<() -> CString` 用于在发生Native层引发的crash时，收集若干自定义的业务/系统信息(比如页面浏览路径等)，以json字符串形式返回。
-- `reportCrashInfo: (crashInfo: CrashInfo) -> Unit` 用于在发生ArkTS/仓颉层引发的crash时，将收集完毕的崩溃信息进行上报，入参为 `CrashInfo` 类型对象。 
-- `persistentDir: Path` 指定中间日志文件和内存快照的持久化目录。
-- `enableDumpOnOOM: Option<OOMHandlerMode>` 指定是否在发生OOM时导出仓颉内存快照, Option.None表示不导出仓颉内存快照，`OOMHandlerMode`枚举类型可选`Async`异步导出或`Sync`同步导出。
-- `lastNHilogNumber: Int64` 指定lastNHilog的条数。
-- `systemLogNumber: Int64` 指定系统级日志systemLog的条数。
-- `enableMemMonitor: Option<CMemMonitorConfig>` 指定是否开启C内存详情监控，Option.None表示不开启，传入`CMemMonitorConfig`对象表示开启，`CMemMonitorConfig`类表示C内存详情监控的配置项。
+- `applicationContext: common.ApplicationContext` 指定应用上下文。
+- `collectCrashInfo: () => string` 用于在发生ArkTS/仓颉层/Native层引发的crash时，收集若干自定义的业务/系统信息(比如页面浏览路径等)，以json字符串形式返回。
+- `reportCrashInfo: (CrashInfo: CrashInfo) => void` 用于在发生ArkTS/仓颉层/Native层引发的crash时，将收集完毕的崩溃信息进行上报，入参为 `CrashInfo` 类型对象。 
+- `persistentDir: string` 指定中间日志文件和内存快照的持久化目录。
+- `enableDumpOnOOM: OOMHandlerMode` 指定是否在发生OOM时导出仓颉内存快照, `OOMHandlerMode.None`表示不导出仓颉内存快照，`OOMHandlerMode`枚举类型可选`Async`异步导出或`Sync`同步导出。
+- `lastNHilogNumber: number` 指定lastNHilog的条数。
+- `systemLogNumber: number` 指定系统级日志systemLog的条数。
+- `enableMemMonitor?: CMemMonitorConfig` 指定是否开启C内存详情监控，`CMemMonitorConfig`类表示C内存详情监控的配置项。
 
 `CMemMonitorConfig` 参数说明：
 - `shouldBeClusteredToThisSo` 用于在按照so聚合类别中，指定内存分配数据是否被聚合到该so。
@@ -83,7 +81,7 @@ public class CMemMonitorConfig {
 - `fds` FD及其对应路径
 - `limits` 进程资源限制
 - `threads` OS线程ID与线程名
-- `extraInfo` `collectCrashInfo/reportNativeCrashInfo` 收集的自定义的业务/系统信息
+- `extraInfo` `collectCrashInfo` 收集的自定义的业务/系统信息
 - `crashLogPath` 系统生成的faultlog文件路径
 - `dumpOnOOMPath` 导出的仓颉内存快照地址
 - `appVersion` 应用版本
@@ -98,26 +96,21 @@ public class CMemMonitorConfig {
 使用示例：
 
 i.
-在主模块的 `main_ability.cj` 的 `onCreate` 回调中调用 `initCrashHandler` ：
-```text
-class EntryAbility <: UIAbility {
-    public override func onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): Unit {
-        AppLog.info("Ability OnCreated.${want.abilityName}")
-        match (launchParam.launchReason) {
-            case AbilityConstant.LaunchReason.START_ABILITY => AppLog.info("START_ABILITY")
-            case _ => ()
-        }
-        initCrashHandler(
-            this.context.getApplicationContext(), 
-            {=> JsonValue.fromStr("{}")}, 
-            {=> unsafe { LibC.mallocCString("{}") }}, 
-            {data => AppLog.error("testTag: " + data.rawFile.toString())},
-            Path(this.context.cacheDir), 
-            OOMHandlerMode.Async, 
-            1000, 
-            1000, 
-            CMemMonitorConfig({soName:String =>false}))
-    }
+在主模块的 `EntryAbility.ets` 的 `onCreate` 回调中调用 `initCrashHandler` ：
+```arkts
+export default class EntryAbility extends UIAbility {
+  onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): void {
+    initCrashHandler(
+      this.context.getApplicationContext(),
+      () => "{}",
+      data => hilog.error(DOMAIN, 'hm_metricx_cj', 'crash log path: ' + data.crashLogPath),
+      this.context.cacheDir,
+      OOMHandlerMode.ASYNC,
+      1000,
+      1000,
+      new CMemMonitorConfig(data => false)
+    );
+  }
 }
 ```
 
@@ -156,23 +149,21 @@ class EntryAbility <: UIAbility {
 
 `hm_metricx_cj` 提供
 
-```text
-public func initFreezeHandler(
-    applicationContext: ApplicationContext,
-    collectFreezeInfo: () -> JsonValue,
-    reportFreezeInfo: (freezeInfo: FreezeInfo) -> Unit,
-    persistentDir: Path
-): Unit
+```arkts
+export function initFreezeHandler(
+  collectFreezeInfo: () => string,
+  reportFreezeInfo: (freezeInfo: FreezeInfo) => void,
+  persistentDir: string
+): void
 ```
 
 接口对freeze事件进行监控。
 
 `initFreezeHandler` 需要的入参说明如下：
 
-- `applicationContext: ApplicationContext` 指定应用上下文。
-- `collectFreezeInfo: () -> JsonValue` 用于在APP发生freeze事件时，收集若干自定义的业务/系统信息(比如页面操作栈等)，以 `JsonValue` 形式返回。
-- `reportFreezeInfo: (freezeInfo: FreezeInfo) -> Unit` 用于在APP发生freeze事件时，将收集完成的freeze信息进行上报，入参为 `FreezeInfo` 类型对象。
-- `persistentDir: Path` 指定中间日志文件的持久化目录。
+- `collectFreezeInfo: () -> string` 用于在APP发生freeze事件时，收集若干自定义的业务/系统信息(比如页面操作栈等)，以json字符串形式返回。
+- `reportFreezeInfo: (freezeInfo: FreezeInfo) => void` 用于在APP发生freeze事件时，将收集完成的freeze信息进行上报，入参为 `FreezeInfo` 类型对象。
+- `persistentDir: string` 指定中间日志文件的持久化目录。
 
 `FreezeInfo` 包含以下信息：
 
@@ -194,18 +185,17 @@ public func initFreezeHandler(
 
 i.
 
-在主模块的 `main_ability.cj` 的 `onCreate` 回调中调用 `initFreezeHandler` ：
+在主模块的 `EntryAbility.ets` 的 `onCreate` 回调中调用 `initFreezeHandler` ：
 
-```text
-class EntryAbility <: UIAbility {
-    public override func onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): Unit {
-        AppLog.info("Ability OnCreated.${want.abilityName}")
-        match (launchParam.launchReason) {
-            case AbilityConstant.LaunchReason.START_ABILITY => AppLog.info("START_ABILITY")
-            case _ => ()
-        }
-        initFreezeHandler(this.context.getApplicationContext(), {=> JsonValue.fromStr("{}")}, {data =>}, Path(this.context.cacheDir))
-    }
+```arkts
+export default class EntryAbility extends UIAbility {
+  onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): void {
+    initFreezeHandler(
+      () => "{}",
+      data => hilog.error(DOMAIN, 'hm_metricx_cj', 'freeze info %{public}s', data.freezeLogPath),
+      this.context.cacheDir
+    );
+  }
 }
 ```
 
@@ -216,14 +206,14 @@ class EntryAbility <: UIAbility {
 ### 监控异常退出原因
 
 `hm_metricx_cj` 提供
-```text
-getExitInfo(launchParam: LaunchParam): ExitInfo
+```arkts
+export function getExitInfo(launchParam: AbilityConstant.LaunchParam): ExitInfo
 ```
 接口获取应用异常退出原因。
 
 `getExitInfo` 需要的入参说明如下：
 
-- `launchParam: LaunchParam` 应用启动参数。
+- `launchParam: AbilityConstant.LaunchParam` 应用启动参数。
 
 `ExitInfo` 包含以下信息：
 
@@ -242,46 +232,37 @@ getExitInfo(launchParam: LaunchParam): ExitInfo
 使用示例：
 
 i.
-在主模块的 `main_ability.cj` 的 `onCreate` 回调中调用 `getExitInfo` ：
-```text
-class EntryAbility <: UIAbility {
-    public override func onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): Unit {
-        AppLog.info("Ability OnCreated.${want.abilityName}")
-        match (launchParam.launchReason) {
-            case AbilityConstant.LaunchReason.START_ABILITY => AppLog.info("START_ABILITY")
-            case _ => ()
-        }
-        let lastExitInfo = getExitInfo(launchParam)
-        // report lastExitInfo
-    }
+在主模块的 `EntryAbility.ets` 的 `onCreate` 回调中调用 `getExitInfo` ：
+```arkts
+export default class EntryAbility extends UIAbility {
+  onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): void {
+    getExitInfo(launchParam);
+  }
 }
 ```
 
 ### 监控FPS/滑动掉帧率
 
 `hm_metricx_cj` 提供
-```text
-public func initPageEventHandler(
-    uiContext: UIAbilityContext,
-    reportFpsInfo: (fpsInfo: FpsEventInfo) -> Unit
-): Unit
+```arkts
+export function initPageEventHandler(
+  context: common.UIAbilityContext,
+  windowStage: window.WindowStage,
+  reportFpsInfo: (info: FpsEventInfo) => void
+): void
 
-public func initPageEventHandler(
-    windowStage: WindowStage,
-    reportFpsInfo: (fpsInfo: FpsEventInfo) -> Unit
-): Unit
-
-public func initScrollEventHandler(
-    uiContext: UIAbilityContext,
-    reportScrollInfo: (scrollInfo: ScrollHitchInfo) -> Unit
-): Unit
+export function initScrollEventHandler(
+  context: common.UIAbilityContext,
+  reportPageScrollInfo: (info: ScrollHitchInfo) => void
+): void
 ```
 接口对FPS/滑动掉帧率进行监控。
 
 `initPageEventHandler` 需要的入参说明如下：
 
-- `uiContext: UIAbilityContext` 指定UIAbility上下文
-- `reportFpsInfo: (fpsInfo: FpsEventInfo) -> Unit` 用于每次页面退出时，将统计到的FPS信息进行上报，入参为 `FpsEventInfo` 类型对象
+- `context: common.UIAbilityContext` 指定UIAbility上下文。
+- `windowStage: window.WindowStage` 指定WindowStage。
+- `reportFpsInfo: (info: FpsEventInfo) => void` 用于每次页面退出时，将统计到的FPS信息进行上报，入参为 `FpsEventInfo` 类型对象。
 
 `FpsEventInfo` 包含以下信息：
 
@@ -289,15 +270,10 @@ public func initScrollEventHandler(
 - `avgFps` 一段时间内，测量到的平均帧率值
 - `pageName` 所在页面名称
 
-`initPageEventHandler` 需要的入参说明如下：
-
-- `windowStage: WindowStage` 指定WindowStage
-- `reportFpsInfo: (fpsInfo: FpsEventInfo) -> Unit` 用于每次进入后台时，将统计到的FPS信息进行上报，入参为 `FpsEventInfo` 类型对象
-
 `initScrollEventHandler` 需要的入参说明如下：
 
-- `uiContext: UIAbilityContext` 指定UIAbility上下文
-- `reportScrollInfo: (scrollInfo: ScrollHitchInfo) -> Unit` 用于每次滑动事件停止时，将统计到的滑动掉帧率信息，以及FPS信息进行上报，入参为 `ScrollHitchInfo` 类型对象。 
+- `context: common.UIAbilityContext` 指定UIAbility上下文。
+- `reportPageScrollInfo: (info: ScrollHitchInfo) => void` 用于每次滑动事件停止时，将统计到的滑动掉帧率信息，以及FPS信息进行上报，入参为 `ScrollHitchInfo` 类型对象。 
 
 `ScrollHitchInfo` 继承 `FpsEventInfo` 的所有信息，并包含以下信息：
 
@@ -321,87 +297,128 @@ public func initScrollEventHandler(
 使用示例：
 
 i.
-在主模块的 `main_ability.cj` 的 `onCreate` 回调中调用 `initPageEventHandler` 和 `initScrollEventHandler` ：
-```text
-class EntryAbility <: UIAbility {
-    public override func onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): Unit {
-        AppLog.info("Ability OnCreated.${want.abilityName}")
-        match (launchParam.launchReason) {
-            case AbilityConstant.LaunchReason.START_ABILITY => AppLog.info("START_ABILITY")
-            case _ => ()
-        }
-        initScrollEventHandler({data =>})
-    }
-}
-```
+在主模块的 `EntryAbility.ets` 的 `onWindowStageCreate` 回调中调用 `initPageEventHandler` 和 `initScrollEventHandler` ：
+```arkts
+export default class EntryAbility extends UIAbility {
+  onWindowStageCreate(windowStage: window.WindowStage): void {
+    // Main window is created, set main page for this ability
+    hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onWindowStageCreate');
 
-ii.
-在主模块的 `main_ability.cj` 的 `onWindowStageCreate` 回调中调用 `initPageEventHandler` ：
-```text
-class EntryAbility <: UIAbility {
-    public override func onWindowStageCreate(windowStage: window.WindowStage): Unit {
-        windowStage.loadContent("pages/index", {err, data => ()})
-        initPageEventHandler(windowStage, {data =>})
-        windowStage.getMainWindow(
-            {
-                err, data => match(data) {
-                    case Some(x) => initPageEventHandler(this.context, {data =>})
-                    case None => AppLog.info("initPageEventHandler error)
-                }
-            }
-        )
-    }
+    windowStage.loadContent('pages/Index', (err) => {
+      if (err.code) {
+        hilog.error(DOMAIN, 'testTag', 'Failed to load the content. Cause: %{public}s', JSON.stringify(err));
+        return;
+      }
+      hilog.info(DOMAIN, 'testTag', 'Succeeded in loading the content.');
+    });
+
+    windowStage.getMainWindow().then(() => {
+      initPageEventHandler(this.context, windowStage, data => {});
+      initScrollEventHandler(this.context, data => {});
+    });
+  }
 }
 ```
 
 ### 监控交互响应延迟
 
 `hm_metricx_cj` 提供
-```text
-public func initLaggyHandle(applicationcontext: ApplicationContext, uiContext: UIContext,
-                            maxTime: Int64, maxArraySize: Int64,
-                            reportLaggyInfo: (data: JsonObject) -> Unit)
+```arkts
+export function initLaggyHandler(
+  context: common.UIAbilityContext,
+  windowStage: window.WindowStage,
+  maxTime: number,
+  maxArraySize: number,
+  reportResponseEvent: (info: ResponseEvent) => void,
+  reportPageResponseLaggyModel: (info: PageResponseLaggyModel) => void
+): void
 ```
 接口对交互式响应延迟提供监控能力。
 
-`initLaggyHandle` 需要的入参说明如下：
+`initLaggyHandler` 需要的入参说明如下：
 
-- `applicationcontext` 指定应用上下文。
+- `context: common.UIAbilityContext` 指定UIAbility上下文。
+- `windowStage: window.WindowStage` 指定WindowStage。
+- `maxTime: number` 指定最大的响应时间，超过该时间视为一次卡顿事件。
+- `maxArraySize: number` 指定存储最大的卡顿时间集合，当卡顿次数超过该值时，会删除最早的一次卡顿数据。
+- `reportResponseEvent: (info: ResponseEvent) => void` 上报数据的回调函数，入参为 `ResponseEvent` 类型对象。
+- `reportPageResponseLaggyModel: (info: PageResponseLaggyModel) => void` 上报数据的回调函数，入参为 `PageResponseLaggyModel` 类型对象。
 
-- `uiContext` 指定 `uiContext`。
+`ResponseEvent` 包含以下信息：
 
-- `maxTime` 指定最大的响应时间，超过该时间视为一次卡顿事件。
+- `pageName` 所在页面名称
+- `technologyStack` 技术栈
+- `responseTime` 响应时间
+- `descriptionID` 无障碍模式的描述信息
+- `nodeType` 响应节点类型
+- `viewTouchID` 组件ID
+- `touchX` 触摸点在window中的位置，X轴坐标
+- `touchY` 触摸点在window中的位置，Y轴坐标
+- `hitX` 响应组件相对于window坐标系中，X轴坐标
+- `hitY` 响应组件相对于window坐标系中，Y轴坐标
+- `hitWidth` 响应组件的宽度
+- `hitHeight` 响应组件的高度
 
-- `maxArraySize` 指定存储最大的卡顿时间集合，当卡顿次数超过该值时，会删除最早的一次卡顿数据。
+`PageResponseLaggyModel` 包含以下信息：
 
-- `reportLaggyInfo` 上报数据的回调函数，接受一个输入型参数 `data`。
+- `pageName` 所在页面名称
+- `touchTimes` 触摸次数
+- `laggyTimes` 卡顿次数
+- `laggyTimeList` 卡顿时间记录集合
+
+使用示例：
+
+i.
+在主模块的 `EntryAbility.ets` 的 `onWindowStageCreate` 回调中调用 `initLaggyHandler`：
+```arkts
+export default class EntryAbility extends UIAbility {
+  onWindowStageCreate(windowStage: window.WindowStage): void {
+    // Main window is created, set main page for this ability
+    hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onWindowStageCreate');
+
+    windowStage.loadContent('pages/Index', (err) => {
+      if (err.code) {
+        hilog.error(DOMAIN, 'testTag', 'Failed to load the content. Cause: %{public}s', JSON.stringify(err));
+        return;
+      }
+      hilog.info(DOMAIN, 'testTag', 'Succeeded in loading the content.');
+    });
+
+    windowStage.getMainWindow().then(() => {
+      initLaggyHandler(this.context, windowStage, 100, 100, data => {}, data => {});
+    });
+  }
+}
+```
 
 ### 监控内存
 
 `hm_metricx_cj` 提供
 
-```text
+```arkts
 // 注册内存监控
-public func initMemoryHandler(
-    context: UIAbilityContext,
-    reportMemoryInfo: (info: MemoryInfo) -> Unit,
-    memoryThreshold!: Int64 = 100*1024
-): Unit
+export function initMemoryHandler(
+  context: common.UIAbilityContext,
+  reportPageMemoryInfo: (data: PageMemoryInfo) => void,
+  reportProcessMemoryInfo: (data: ProcessMemoryInfo) => void,
+  memoryThreshold: number
+): void
 // 取消内存监控
-public func destroyMemoryHandler(): Unit
+export function destroyMemoryHandler(): void
 // 获取页面内存信息
-public func getPageMemoryInfo(): PageMemoryInfo
+export function getPageMemoryInfo(): PageMemoryInfo
 // 获取进程内存信息
-public func getProcessMemoryInfo(): ProcessMemoryInfo
+export function getProcessMemoryInfo(): ProcessMemoryInfo
 ```
 
 接口对应用的内存使用情况进行监控。
 
 `initMemoryHandler` 需要的入参说明如下：
 
-- `context: UIAbilityContext` 指定UIAbility上下文。
-- `reportMemoryInfo: (info: MemoryInfo) -> Unit` 将内存的使用情况进行上报，入参为 `MemoryInfo` 类型对象。
-- `memoryThreshold!: Int64` 内存使用阈值，默认为100 * 1024 KB。当使用内存超过该阈值时，将内存使用情况上报。
+- `context: common.UIAbilityContext` 指定UIAbility上下文。
+- `reportPageMemoryInfo: (data: PageMemoryInfo) => void` 将内存的使用情况进行上报，入参为 `PageMemoryInfo` 类型对象。
+- `reportProcessMemoryInfo: (data: ProcessMemoryInfo) => void` 将内存的使用情况进行上报，入参为 `ProcessMemoryInfo` 类型对象。
+- `memoryThreshold!: number` 内存使用阈值，默认为100 * 1024 KB。当使用内存超过该阈值时，将内存使用情况上报。
 
 `MemoryInfo` 包含以下信息：
 
@@ -421,26 +438,26 @@ public func getProcessMemoryInfo(): ProcessMemoryInfo
 
 i.
 
-在主模块的 `main_ability.cj` 的 `onCreate` 回调中调用 `initMemoryHandler` 
+在主模块的 `EntryAbility.ets` 的 `onCreate` 回调中调用 `initMemoryHandler` ：
 
 ii.
 
-在主模块的 `main_ability.cj` 的 `onDestroy` 回调中调用 `destroyMemoryHandler` ：
+在主模块的 `EntryAbility.ets` 的 `onDestroy` 回调中调用 `destroyMemoryHandler` ：
 
-```text
-class EntryAbility <: UIAbility {
-    public override func onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): Unit {
-        AppLog.info("Ability OnCreated.${want.abilityName}")
-        match (launchParam.launchReason) {
-            case AbilityConstant.LaunchReason.START_ABILITY => AppLog.info("START_ABILITY")
-            case _ => ()
-        }
-        initMemoryHandler(this.context, {data =>})
-    }
-    public override func onDestroy(): Unit {
-        destroyMemoryHandler()
-        AppLog.info("myAbility onDestroy.")
-    }
+```arkts
+export default class EntryAbility extends UIAbility {
+  onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): void {
+    initMemoryHandler(
+      this.context, 
+      data => {}, 
+      data => {}, 
+      100 * 1024);
+  }
+
+  onDestroy(): void {
+    hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onDestroy');
+    destroyMemoryHandler();
+  }
 }
 ```
 
@@ -448,26 +465,28 @@ class EntryAbility <: UIAbility {
 
 `hm_metricx_cj` 提供
 
-```text
+```arkts
 // 注册CPU监控
-public func initCpuHandler(
-    ability: UIAbility,
-    reportCpuInfo: (info: CpuInfo) -> Unit
-): Unit
+export function initCpuHandler(
+  context: common.UIAbilityContext,
+  reportPageCpuInfo: (data: PageCpuInfo) => void,
+  reportProcessCpuInfo: (data: ProcessCpuInfo) => void
+): void
 // 取消CPU监控
-public func destroyCpuHandler(): Unit
+export function destroyCpuHandler(): void
 // 获取页面CPU信息
-public func getPageCpuInfo(): PageCpuInfo
+export function getPageCpuInfo(): PageCpuInfo
 // 获取进程CPU信息
-public func getProcessCpuInfo(): ProcessCpuInfo
+export function getProcessCpuInfo(): ProcessCpuInfo
 ```
 
 接口对应用的CPU使用情况进行监控。
 
 `initCpuHandler` 需要的入参说明如下：
 
-- `context: UIAbilityContext` 指定UIAbility上下文。
-- `reportCpuInfo: (info: CpuInfo) -> Unit` 将CPU的使用情况进行上报，入参为 `CpuInfo` 类型对象。
+- `context: common.UIAbilityContext` 指定UIAbility上下文。
+- `reportPageCpuInfo: (data: PageCpuInfo) => void` 将CPU的使用情况进行上报，入参为 `PageCpuInfo` 类型对象。
+- `reportProcessCpuInfo: (data: ProcessCpuInfo) => void` 将CPU的使用情况进行上报，入参为 `ProcessCpuInfo` 类型对象。
 
 `CpuInfo` 包含以下信息：
 
@@ -487,26 +506,24 @@ public func getProcessCpuInfo(): ProcessCpuInfo
 
 i.
 
-在主模块的 `main_ability.cj` 的 `onCreate` 回调中调用 `initCpuHandler`
+在主模块的 `EntryAbility.ets` 的 `onCreate` 回调中调用 `initCpuHandler` ：
 
 ii.
 
-在主模块的 `main_ability.cj` 的 `onDestroy` 回调中调用 `destroyCpuHandler` ：
+在主模块的 `EntryAbility.ets` 的 `onDestroy` 回调中调用 `destroyCpuHandler` ：
 
-```text
-class EntryAbility <: UIAbility {
-    public override func onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): Unit {
-        AppLog.info("Ability OnCreated.${want.abilityName}")
-        match (launchParam.launchReason) {
-            case AbilityConstant.LaunchReason.START_ABILITY => AppLog.info("START_ABILITY")
-            case _ => ()
-        }
-        initCpuHandler(this.context, {data =>})
-    }
-    public override func onDestroy(): Unit {
-        destroyCpuHandler()
-        AppLog.info("myAbility onDestroy.")
-    }
+```arkts
+export default class EntryAbility extends UIAbility {
+  onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): void {
+    initCpuHandler(
+      this.context, data => {}, 
+      data => {});
+  }
+
+  onDestroy(): void {
+    hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onDestroy');
+    destroyCpuHandler();
+  }
 }
 ```
 
@@ -514,26 +531,26 @@ class EntryAbility <: UIAbility {
 
 `hm_metricx_cj`提供
 
-```text
+```arkts
 // 注册电量监控
-public func initBatteryHandler(
-    ability: UIAbility,
-    reportBatteryInfo: (batteryInfo: BatteryUsageInfo) -> Unit,
-    reportThreadCpuUsageInfo: (allThreadCpuUsageInfo: AllThreadCpuUsageInfo) -> Unit,
-    limit!: Int32 = 1
-): Unit
+export function initBatteryHandler(
+  context: common.UIAbilityContext,
+  reportBatterInfo: (data: BatteryUsageInfo) => void,
+  reportThreadCpuUsageInfo: (data: AllThreadCpuUsageInfo) => void,
+  limit: number = 1
+): void
 // 取消电量监控
-public func destroyBatteryHandler(): Unit
+export function destroyBatteryHandler(): void
 ```
 
 接口对手机的掉电情况进行监控。
 
 `initBatteryHandler` 需要的入参说明如下：
 
-- `ability: UIAbility` 指定应用组件。
-- `reportBatteryInfo: (batteryInfo: BatteryUsageInfo) -> Unit` 用于在发生掉电时，将相应的信息进行上报，入参为 `BatteryUsageInfo` 类型对象。
-- `reportThreadCpuUsageInfo: (allThreadCpuUsageInfo: AllThreadCpuUsageInfo) -> Unit` 用于上报所有线程的CPU使用情况，当检测到CPU使用异常时，该回调函数会被触发，函数入参为`AllThreadCpuUsageInfo` 类型对象。
-- `limit!: Int32` 掉电x格上报，默认为1。
+- `context: common.UIAbilityContext` 指定UIAbility上下文。
+- `reportBatterInfo: (data: BatteryUsageInfo) => void` 用于在发生掉电时，将相应的信息进行上报，入参为 `BatteryUsageInfo` 类型对象。
+- `reportThreadCpuUsageInfo: (data: AllThreadCpuUsageInfo) => void` 用于上报所有线程的CPU使用情况，当检测到CPU使用异常时，该回调函数会被触发，函数入参为`AllThreadCpuUsageInfo` 类型对象。
+- `limit: number = 1` 掉电x格上报，默认为1。
 
 `BatteryUsageInfo` 包含以下信息：
 
@@ -571,27 +588,27 @@ public func destroyBatteryHandler(): Unit
 
 i.
 
-在主模块的 `main_ability.cj` 的 `onCreate` 回调中调用 `initBatteryHandler`
+在主模块的 `EntryAbility.ets` 的 `onCreate` 回调中调用 `initBatteryHandler` ：
 
 ii.
 
-在主模块的 `main_ability.cj` 的 `onDestroy` 回调中调用 `destroyBatteryHandler` ：
+在主模块的 `EntryAbility.ets` 的 `onDestroy` 回调中调用 `destroyBatteryHandler` ：
 
-```text
-class EntryAbility <: UIAbility {
-    public override func onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): Unit {
-        AppLog.info("Ability OnCreated.${want.abilityName}")
-        match (launchParam.launchReason) {
-            case AbilityConstant.LaunchReason.START_ABILITY => AppLog.info("START_ABILITY")
-            case _ => ()
-        }
-        initBatteryHandler(this, {data =>}, {data =>})
-    }
-    
-    public override func onDestroy(): Unit {
-        destroyBatteryHandler()
-        AppLog.info("myAbility onDestroy.")
-    }
+```arkts
+export default class EntryAbility extends UIAbility {
+  onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): void {
+    initBatteryHandler(
+      this.context,
+      data => {
+      },
+      data => {
+      });
+  }
+
+  onDestroy(): void {
+    hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onDestroy');
+    destroyBatteryHandler();
+  }
 }
 ```
 
@@ -599,7 +616,7 @@ class EntryAbility <: UIAbility {
 
 流量监控依赖正确配置对网络统计信息的访问权限，即需要在应用的 `module.json5` 中添加以下内容
 
-```text
+```arkts
 "requestPermissions": [
     {
         "name": "ohos.permission.GET_NETWORK_INFO"
@@ -609,36 +626,36 @@ class EntryAbility <: UIAbility {
 
 `hm_metricx_cj` 提供
 
-```text
+```arkts
 // 注册占用存储空间上报函数
-public func initTrafficHandler(
-    context: UIAbilityContext,
-    reportTraffic: (sampleTraffixInfo: SampleTrafficInfo) -> Unit,
-    sampleTime!: Int64 = 10 * 60 * 1000,
-    sampleThreshold!: Int64 = 50 * 1024 * 1024
-): Unit
+export function initTrafficHandler(
+  context: common.UIAbilityContext,
+  reportTraffic: (data: SampleTrafficInfo) => void,
+  sampleTime: number = 10 * 60 * 1000,
+  sampleThreshold: number = 50 * 1024 * 1024
+): void
 
 // 获取前一天的总流量使用情况
-public func getYesterdayTraffic(): Option<DayTrafficInfo>
+export function getYesterdayTraffic(): DayTrafficInfo | undefined
 
 // 取消流量监控
-public func destroyTrafficHandler()
+export function destroyTrafficHandler(): void
 
 ```
 
 接口对app占用存储空间获取并进行上报。
 
 `initTrafficHandler` 需要的入参说明如下：
-- `context`: `UIAbilityContext` 指定UIAbility上下文。
-- `reportTraffic: (sampleTraffixInfo: SampleTrafficInfo) -> Unit` 回调函数，用于上报流量使用情况。当流量数据达到上报阈值`sampleThreshold`时，回调被触发。
-- `sampleTime` 用于设置流量数据的采样时间间隔，单位为毫秒。
-- `sampleThreshold` 用于设置流量数据的上报阈值，单位为字节。
+- `context: common.UIAbilityContext` 指定UIAbility上下文。
+- `reportTraffic: (data: SampleTrafficInfo) => void` 回调函数，用于上报流量使用情况。当流量数据达到上报阈值`sampleThreshold`时，回调被触发。
+- `sampleTime: number = 10 * 60 * 1000` 用于设置流量数据的采样时间间隔，单位为毫秒。
+- `sampleThreshold: number = 50 * 1024 * 102` 用于设置流量数据的上报阈值，单位为字节。
 
 `SampleTrafficInfo` 包含以下信息：
 
-- `systemInfo: SystemTrafficInfo` 系统级别流量信息
-- `pageInfoMap: HashMap<String, PageTrafficInfo>` 页面级别的流量信息，键为页面名称，值为对应的流量信息
-- `urlInfoArray: ArrayList<UrlTrafficInfo>` URL级别的流量信息
+- `systemInfo` 系统级别流量信息
+- `pageInfoMap` 页面级别的流量信息，键为页面名称，值为对应的流量信息
+- `urlInfoArray` URL级别的流量信息
 
 `TrafficInfo` 包含以下信息
 
@@ -648,44 +665,42 @@ public func destroyTrafficHandler()
 
 `SystemTrafficInfo` 在 `TrafficInfo` 基础上，添加如下信息：
 
-- `timeStamp: String` 时间戳，表示流量数据的采集时间
+- `timeStamp` 时间戳，表示流量数据的采集时间
 
 `PageTrafficInfo` 在 `TrafficInfo` 基础上，添加如下信息：
 
-- `pageName: String` 页面名称
+- `pageName` 页面名称
 
 `UrlTrafficInfo` 在 `TrafficInfo` 基础上，添加如下信息：
 
-- `url: String` url地址
+- `url` url地址
 
 `DayTrafficInfo` 在 `TrafficInfo` 基础上，添加如下信息：
 
-- `date: String` 日期
+- `date` 日期
 
 使用示例：
 
 i.
 
-在主模块的 `main_ability.cj` 的 `onCreate` 回调中调用 `initTrafficHandler` ：
+在主模块的 `EntryAbility.ets` 的 `onCreate` 回调中调用 `initTrafficHandler` ：
 
 ii.
 
-在主模块的 `main_ability.cj` 的 `onDestroy` 回调中调用 `destroyTrafficHandler` ：
+在主模块的 `EntryAbility.ets` 的 `onDestroy` 回调中调用 `destroyTrafficHandler` ：
 
-```text
-class EntryAbility <: UIAbility {
-    public override func onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): Unit {
-        AppLog.info("Ability OnCreated.${want.abilityName}")
-        match (launchParam.launchReason) {
-            case AbilityConstant.LaunchReason.START_ABILITY => AppLog.info("START_ABILITY")
-            case _ => ()
-        }
-        initTrafficHandler(this, {data =>})
-    }
-    public override func onDestroy(): Unit {
-        destroyTrafficHandler()
-        AppLog.info("myAbility onDestroy.")
-    }
+```arkts
+export default class EntryAbility extends UIAbility {
+  onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): void {
+    initTrafficHandler(
+      this.context,
+      data => {});
+  }
+
+  onDestroy(): void {
+    hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onDestroy');
+    destroyTrafficHandler();
+  }
 }
 ```
 
@@ -695,26 +710,25 @@ class EntryAbility <: UIAbility {
 
 `hm_metricx_cj` 提供
 
-```text
+```arkts
 // 注册占用存储空间上报函数
-public func initStorageHandler(
-    reportStorageInfo: (storageInfo: StorageInfo) -> Unit,
-    sizeLimit!: Int64,
-    dirSizeLimit!: Int64,
-    reportTopNum!: Int64 = 5
-): Unit
+export function initStorageHandler(
+  reportStorageInfo: (data: StorageInfo) => void, 
+  sizeLimit: number,
+  dirSizeLimit: number,
+  reportTopNum: number = 5): void
 // 上报占用存储空间
-public func reportAppStorageInfo(): Unit
+export function reportAppStorageInfo(): void
 ```
 
 接口对app占用存储空间获取并进行上报。
 
 `initStorageHandler` 需要的入参说明如下：
 
-- `reportStorageInfo: (storageInfo: StorageInfo) -> Unit` 用于获取app占用存储空间时，将app占用存储空间进行上报，入参为 `StorageInfo` 类型对象。
-- `sizeLimit`   存储大小阈值。超过该阈值会上报top N个异常文件和异常文件夹。
-- `dirSizeLimit`  文件夹大小阈值。超过该阈值的文件夹被标记为异常文件夹。
-- `reportTopNum` 用于设置上报的前N个文件/夹数量。
+- `reportStorageInfo: (data: StorageInfo) => void` 用于获取app占用存储空间时，将app占用存储空间进行上报，入参为 `StorageInfo` 类型对象。
+- `sizeLimit: number`   存储大小阈值。超过该阈值会上报top N个异常文件和异常文件夹。
+- `dirSizeLimit: number`  文件夹大小阈值。超过该阈值的文件夹被标记为异常文件夹。
+- `reportTopNum: number = 5` 用于设置上报的前N个文件/夹数量。
 
 `StorageInfo` 包含以下信息
 
@@ -729,18 +743,16 @@ public func reportAppStorageInfo(): Unit
 
 i.
 
-在主模块的 `main_ability.cj` 的 `onCreate` 回调中调用 `initBatteryHandler` ：
+在主模块的 `EntryAbility.ets` 的 `onCreate` 回调中调用 `initStorageHandler` ：
 
-```text
-class EntryAbility <: UIAbility {
-    public override func onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): Unit {
-        AppLog.info("Ability OnCreated.${want.abilityName}")
-        match (launchParam.launchReason) {
-            case AbilityConstant.LaunchReason.START_ABILITY => AppLog.info("START_ABILITY")
-            case _ => ()
-        }
-        initStorageHandler({data: StorageInfo =>}, sizeLimit: 100000000, dirSizeLimit: 1000, reportTopNum: 5)
-    }
+```arkts
+export default class EntryAbility extends UIAbility {
+  onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): void {
+    initStorageHandler(
+      data => {},
+      1,
+      1);
+  }
 }
 ```
 
@@ -748,7 +760,7 @@ ii.
 
 需要上报app占用存储空间时，调用 `reportAppStorageInfo` 函数 ：
 
-```text
-reportAppStorageInfo()
+```arkts
+reportAppStorageInfo();
 ```
 
