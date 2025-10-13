@@ -193,17 +193,6 @@ public func initFreezeHandler(
 使用示例：
 
 i.
-在主模块的 `module.json5` 中添加权限配置：
-
-```text
-"requestPermissions":[
-    {
-        "name":"ohos.permission.ACCESS_ANALYTICS"
-    }
-]
-```
-
-ii.
 
 在主模块的 `main_ability.cj` 的 `onCreate` 回调中调用 `initFreezeHandler` ：
 
@@ -420,11 +409,11 @@ public func getProcessMemoryInfo(): ProcessMemoryInfo
 - `maxMemory` 内存使用最大值，单位为KB
 - `sampleCount` 内存采样次数
 
-`PageMemoryInfo` 继承 `MemoryInfo` ，在 `MemoryInfo` 基础上，添加：
+`PageMemoryInfo` 在 `MemoryInfo` 基础上，添加：
 
 - `pageName` 当前页面名称
 
-`ProcessMemoryInfo` 继承 `MemoryInfo` ，在 `MemoryInfo` 基础上，添加：
+`ProcessMemoryInfo` 在 `MemoryInfo` 基础上，添加：
 
 - `pid` 进程ID
 
@@ -486,11 +475,11 @@ public func getProcessCpuInfo(): ProcessCpuInfo
 - `maxCpu` CPU使用最大值，单位为KB
 - `sampleCount` CPU采样次数
 
-`PageCpuInfo` 继承 `CpuInfo` ，在 `CpuInfo` 基础上，添加如下信息：
+`PageCpuInfo` 在 `CpuInfo` 基础上，添加如下信息：
 
 - `pageName` 当前页面名称
 
-`ProcessCpuInfo` 继承 `CpuInfo` ，在 `CpuInfo` 基础上，添加如下信息：
+`ProcessCpuInfo` 在 `CpuInfo` 基础上，添加如下信息：
 
 - `pid` 进程ID
 
@@ -657,19 +646,19 @@ public func destroyTrafficHandler()
 - `totalTraffic` 单次进程总流量
 - `limit` 触发告警的流量阈值
 
-`SystemTrafficInfo` 继承 `TrafficInfo` ，在 `TrafficInfo` 基础上，添加如下信息：
+`SystemTrafficInfo` 在 `TrafficInfo` 基础上，添加如下信息：
 
 - `timeStamp: String` 时间戳，表示流量数据的采集时间
 
-`PageTrafficInfo` 继承 `TrafficInfo` ，在 `TrafficInfo` 基础上，添加如下信息：
+`PageTrafficInfo` 在 `TrafficInfo` 基础上，添加如下信息：
 
 - `pageName: String` 页面名称
 
-`UrlTrafficInfo` 继承 `TrafficInfo` ，在 `TrafficInfo` 基础上，添加如下信息：
+`UrlTrafficInfo` 在 `TrafficInfo` 基础上，添加如下信息：
 
 - `url: String` url地址
 
-`DayTrafficInfo` 继承 `TrafficInfo` ，在 `TrafficInfo` 基础上，添加如下信息：
+`DayTrafficInfo` 在 `TrafficInfo` 基础上，添加如下信息：
 
 - `date: String` 日期
 
@@ -750,7 +739,7 @@ class EntryAbility <: UIAbility {
             case AbilityConstant.LaunchReason.START_ABILITY => AppLog.info("START_ABILITY")
             case _ => ()
         }
-        initBatteryHandler(this, {data =>})
+        initStorageHandler({data: StorageInfo =>}, sizeLimit: 100000000, dirSizeLimit: 1000, reportTopNum: 5)
     }
 }
 ```
