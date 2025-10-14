@@ -1,13 +1,14 @@
 /*
  * Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
- * modification:
- * 1. change the class name from LeakMonitor to MemoryMonitor.
- * 2. delete the member variable thread_name of struct AllocRecord.
- * 3. delete the ThreadInfo struct.
- * 4. MemoryMonitor add member variable unique_backtrace and method SaveAllocRecordsToFile,ParseStackFrame,WriteAllocRecordToFile.
- * 5. MemoryMonitor delete member variable memory_analyzer and method GetLeakAllocs,CurrentAllocIndex.
- * 6. add hooking mmap,munmap.
- * 7. modify the implementation of the following methods: MemoryMonitor::Install,MemoryMonitor::RegisterAlloc.
+ * Modifications:
+ * 1. Change the class name from LeakMonitor to MemoryMonitor.
+ * 2. Delete the member variable thread_name of struct AllocRecord.
+ * 3. Delete the ThreadInfo struct.
+ * 4. MemoryMonitor adds member variable unique_backtrace and method SaveAllocRecordsToFile, ParseStackFrame, WriteAllocRecordToFile.
+ * 5. MemoryMonitor deletes member variable memory_analyzer and method GetLeakAllocs, CurrentAllocIndex.
+ * 6. Add hooking mmap, munmap.
+ * 7. Modify the implementation of the following methods: MemoryMonitor::Install, MemoryMonitor::RegisterAlloc.
+ * 
  * Copyright (c) 2021. Kwai, Inc. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
