@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
+ * modification:
+ * 1. change the function name unwind_backtrace to unwind_backtrace_64.
  * Copyright (C) 2021 ByteDance Inc
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
