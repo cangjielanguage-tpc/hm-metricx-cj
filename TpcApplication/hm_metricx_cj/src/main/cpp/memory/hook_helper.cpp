@@ -1,5 +1,11 @@
 /*
  * Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
+ * modification:
+ * 1. HookHelper adds public static method TryHook.
+ * 2. HookHelper removes method Callback.
+ * 3. add function dlopen_hook and struct dl_extinfo.
+ * 4. modify implementation of method HookHelper::HookImpl.
+ * 5. replace log with hilog.
  * Copyright (c) 2021. Kwai, Inc. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
