@@ -116,7 +116,6 @@ class Index {
                 }.scrollBar(BarState.Off).width(90)
             }.width(100).height(300.vp).padding(top: 5.px)
             .navDestination(bind<String>(PageMap, this))
-//            Web(src: "https://www.baidu.com/", controller: webviewController)
         }
     }
 }
