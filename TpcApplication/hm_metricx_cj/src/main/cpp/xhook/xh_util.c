@@ -121,3 +121,15 @@ void xh_util_flush_instruction_cache(uintptr_t addr)
 {
     __builtin___clear_cache((void *)PAGE_START(addr), (void *)PAGE_END(addr));
 }
+
+int sig_caught = 0;
+
+int xh_util_get_sig_caught()
+{
+    return sig_caught;
+}
+
+void xh_util_set_sig_caught(int v)
+{
+    sig_caught = v;
+}

@@ -821,7 +821,7 @@ private func initCrashWatcher(applicationContext: ApplicationContext, reportCras
                 deleteFile(persistentPaths.systemLogPath)
                 crashInfo.lastNHilog = readFile(persistentPaths.lastNHilogPath).replace("\n\n", "\n")
                 deleteFile(persistentPaths.lastNHilogPath)
-                crashInfo.memPersistTime= readFile(persistentPaths.memPersistTimePath)
+                crashInfo.memPersistTime = readFile(persistentPaths.memPersistTimePath)
                 deleteFile(persistentPaths.memPersistTimePath)
                 if (exists(persistentPaths.memMapPath) && exists(persistentPaths.memMallocPath)) {
                     var shouldBeClusteredToThisSo = {soName: String => false}
@@ -897,6 +897,13 @@ private func initCrashWatcher(applicationContext: ApplicationContext, reportCras
                     }
                 }
                 if (Process.current.pid.toString() == crashInfo.pid.getOrDefault({=> ""})) {
+                    let shouldIgnore = crashInfo.language == "cpp_crash" && unsafe { IsSigCaught() }
+                    if (shouldIgnore) {
+                        unsafe {
+                            ResetSigCaught()
+                        }
+                        return
+                    }
                     writeFile(persistentPaths.lastCrashFilePath, crashInfo.toString())
                 } else {
                     if (!reported) {
@@ -1506,3 +1513,7 @@ foreign func GetDumpTime(): DumpTime
 foreign func persistMemoryData(mapPath: CString, memMallocPath: CString, parsedAddrPath: CString, memPersistTimePath: CString): Int8
 
 foreign func installNativeMemoryMonitor(): Int8
+
+foreign func IsSigCaught(): Bool
+
+foreign func ResetSigCaught(): Unit

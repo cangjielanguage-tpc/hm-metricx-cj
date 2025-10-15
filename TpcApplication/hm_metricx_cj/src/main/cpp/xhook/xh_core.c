@@ -40,6 +40,8 @@
 #include "xh_core.h"
 #include <signal.h>
 #include <pthread.h>
+#include "bytehook/bytesig.h"
+#include "xhook/xh_util.h"
 
 #define XH_CORE_DEBUG 0
 
@@ -83,43 +85,6 @@ static __inline__ int xh_core_map_info_cmp(xh_core_map_info_t *a, xh_core_map_in
 }
 typedef RB_HEAD(xh_core_map_info_tree, xh_core_map_info) xh_core_map_info_tree_t;
 RB_GENERATE_STATIC(xh_core_map_info_tree, xh_core_map_info, link, xh_core_map_info_cmp)
-
-//signal handler for SIGSEGV
-//for xh_elf_init(), xh_elf_hook(), xh_elf_check_elfheader()
-static int              xh_core_sigsegv_enable = 1; //enable by default
-static struct sigaction xh_core_sigsegv_act_old;
-static volatile int     xh_core_sigsegv_flag = 0;
-static sigjmp_buf       xh_core_sigsegv_env;
-static void xh_core_sigsegv_handler(int sig)
-{
-    (void)sig;
-    
-    if(xh_core_sigsegv_flag)
-        siglongjmp(xh_core_sigsegv_env, 1);
-    else
-        sigaction(SIGSEGV, &xh_core_sigsegv_act_old, NULL);
-}
-static int xh_core_add_sigsegv_handler()
-{
-    struct sigaction act;
-
-    if(!xh_core_sigsegv_enable) return 0;
-    
-    if(0 != sigemptyset(&act.sa_mask)) return (0 == errno ? XH_ERRNO_UNKNOWN : errno);
-    act.sa_handler = xh_core_sigsegv_handler;
-    
-    if(0 != sigaction(SIGSEGV, &act, &xh_core_sigsegv_act_old))
-        return (0 == errno ? XH_ERRNO_UNKNOWN : errno);
-
-    return 0;
-}
-static void xh_core_del_sigsegv_handler()
-{
-    if(!xh_core_sigsegv_enable) return;
-    
-    sigaction(SIGSEGV, &xh_core_sigsegv_act_old, NULL);
-}
-
 
 static xh_core_hook_info_queue_t   xh_core_hook_info   = TAILQ_HEAD_INITIALIZER(xh_core_hook_info);
 static xh_core_ignore_info_queue_t xh_core_ignore_info = TAILQ_HEAD_INITIALIZER(xh_core_ignore_info);
@@ -224,27 +189,17 @@ int xh_core_ignore(const char *pathname_regex_str, const char *symbol)
 
 static int xh_core_check_elf_header(uintptr_t base_addr, const char *pathname)
 {
-    if(!xh_core_sigsegv_enable)
-    {
-        return xh_elf_check_elfheader(base_addr);
+    int ret = XH_ERRNO_UNKNOWN;
+    BYTESIG_TRY(SIGSEGV, SIGBUS) {
+        ret = xh_elf_check_elfheader(base_addr);
     }
-    else
-    {
-        int ret = XH_ERRNO_UNKNOWN;
-        
-        xh_core_sigsegv_flag = 1;
-        if(0 == sigsetjmp(xh_core_sigsegv_env, 1))
-        {
-            ret = xh_elf_check_elfheader(base_addr);
-        }
-        else
-        {
-            ret = XH_ERRNO_SEGVERR;
-            OH_LOG_Print(LOG_APP, LOG_WARN, 0x00008, "xhook", "catch SIGSEGV when check_elfheader: %{public}s", pathname);
-        }
-        xh_core_sigsegv_flag = 0;
-        return ret;
+    BYTESIG_CATCH(signum, code) {
+        xh_util_set_sig_caught(1);
+        ret = XH_ERRNO_SEGVERR;
+        OH_LOG_Print(LOG_APP, LOG_WARN, 0x00008, "xhook", "catch SIGSEGV/SIGBUS when check_elfheader: %{public}s", pathname);
     }
+    BYTESIG_EXIT;
+    return ret;
 }
 
 static void xh_core_hook_impl(xh_core_map_info_t *mi)
@@ -284,23 +239,7 @@ static void xh_core_hook_impl(xh_core_map_info_t *mi)
 
 static void xh_core_hook(xh_core_map_info_t *mi)
 {
-    if(!xh_core_sigsegv_enable)
-    {
-        xh_core_hook_impl(mi);
-    }
-    else
-    {    
-        xh_core_sigsegv_flag = 1;
-        if(0 == sigsetjmp(xh_core_sigsegv_env, 1))
-        {
-            xh_core_hook_impl(mi);
-        }
-        else
-        {
-            OH_LOG_Print(LOG_APP, LOG_WARN, 0x00008, "xhook", "catch SIGSEGV when init or hook: %{public}s", mi->pathname);
-        }
-        xh_core_sigsegv_flag = 0;
-    }
+    xh_core_hook_impl(mi);
 }
 
 static void xh_core_refresh_impl()
@@ -515,6 +454,15 @@ static void *xh_core_refresh_thread_func(void *arg)
     return NULL;
 }
 
+static int init_bytesig()
+{
+    int res = bytesig_init(SIGSEGV);
+    if (res != 0) {
+        return res;
+    }
+    return bytesig_init(SIGBUS);
+}
+
 static void xh_core_init_once()
 {
     if(xh_core_inited) return;
@@ -539,7 +487,7 @@ static void xh_core_init_once()
 #endif
     
     //register signal handler
-    if(0 != xh_core_add_sigsegv_handler()) goto end;
+    init_bytesig();
 
     //OK
     xh_core_init_ok = 1;
@@ -620,7 +568,6 @@ void xh_core_clear()
     //unregister the sig handler
     if(xh_core_init_ok)
     {
-        xh_core_del_sigsegv_handler();
         xh_core_init_ok = 0;
     }
     xh_core_inited = 0;
@@ -665,9 +612,4 @@ void xh_core_clear()
 
     pthread_mutex_unlock(&xh_core_refresh_mutex);
     pthread_mutex_unlock(&xh_core_mutex);
-}
-
-void xh_core_enable_sigsegv_protection(int flag)
-{
-    xh_core_sigsegv_enable = (flag ? 1 : 0);
 }

@@ -5,6 +5,7 @@
 #include "crash.h"
 #include "common.h"
 #include "memory/memory_monitor.h"
+#include "xhook/xh_util.h"
 #include <bundle/native_interface_bundle.h>
 #include <cstdint>
 #include <deque>
@@ -451,5 +452,13 @@ int8_t persistMemoryData(const char *mapPath, const char *memMallocPath, const c
         OH_LOG_Print(LOG_APP, LOG_WARN, 0x00008, "hm_metricx_cj", "persistMemoryData - exception: %s", e.what());
         return -1;
     }
+}
+
+bool IsSigCaught() {
+    return xh_util_get_sig_caught() != 0;
+}
+
+void ResetSigCaught() {
+    xh_util_set_sig_caught(0);
 }
 }

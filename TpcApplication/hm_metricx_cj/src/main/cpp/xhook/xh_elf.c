@@ -36,6 +36,7 @@
 #include "xh_errno.h"
 #include "xh_util.h"
 #include "xh_elf.h"
+#include "bytehook/bytesig.h"
 
 #define XH_ELF_DEBUG 0
 
@@ -476,9 +477,18 @@ static int xh_elf_replace_function(xh_elf_t *self, const char *symbol, ElfW(Addr
     //save old func
     old_addr = *(void **)addr;
     if(NULL != old_func) *old_func = old_addr;
-
-    //replace func
-    *(void **)addr = new_func; //segmentation fault sometimes
+    
+    int replace_res = 0;
+    BYTESIG_TRY(SIGSEGV, SIGBUS) {
+        //replace func
+        *(void **)addr = new_func; //segmentation fault sometimes
+    }
+    BYTESIG_CATCH(signum, code) {
+        xh_util_set_sig_caught(1);
+        replace_res = -1;
+        OH_LOG_Print(LOG_APP, LOG_WARN, 0x00008, "xhook", "catch SIGSEGV/SIGBUS when replace func: %{public}s", self->pathname);
+    }
+    BYTESIG_EXIT;
 
     if(old_prot != need_prot)
     {
@@ -487,6 +497,11 @@ static int xh_elf_replace_function(xh_elf_t *self, const char *symbol, ElfW(Addr
         {
             OH_LOG_Print(LOG_APP, LOG_WARN, 0x00008, "xhook", "restore addr prot failed. ret: %{public}d", r);
         }
+    }
+    
+    if(0 != replace_res)
+    {
+        return replace_res;
     }
     
     //clear cache
@@ -757,45 +772,8 @@ static void xh_elf_dump(xh_elf_t *self)
 
 #endif
 
-int xh_elf_init(xh_elf_t *self, uintptr_t base_addr, const char *pathname)
+int parse_dynamic_segment_unsafe(xh_elf_t *self, ElfW(Phdr) *dhdr)
 {
-    if(0 == base_addr || NULL == pathname) return XH_ERRNO_INVAL;
-
-    //always reset
-    memset(self, 0, sizeof(xh_elf_t));
-    
-    self->pathname = pathname;
-    self->base_addr = (ElfW(Addr))base_addr;
-    self->ehdr = (ElfW(Ehdr) *)base_addr;
-    self->phdr = (ElfW(Phdr) *)(base_addr + self->ehdr->e_phoff); //segmentation fault sometimes
-
-    //find the first load-segment with offset 0
-    ElfW(Phdr) *phdr0 = xh_elf_get_first_segment_by_type_offset(self, PT_LOAD, 0);
-    if(NULL == phdr0)
-    {
-        OH_LOG_Print(LOG_APP, LOG_ERROR, 0x00008, "xhook", "Can NOT found the first load segment. %{public}s", pathname);
-        return XH_ERRNO_FORMAT;
-    }
-
-#if XH_ELF_DEBUG
-    if(0 != phdr0->p_vaddr)
-        XH_LOG_DEBUG("first load-segment vaddr NOT 0 (vaddr: %p). %s",
-                     (void *)(phdr0->p_vaddr), pathname);
-#endif
-
-    //save load bias addr
-    if(self->base_addr < phdr0->p_vaddr) return XH_ERRNO_FORMAT;
-    self->bias_addr = self->base_addr - phdr0->p_vaddr;
-    
-    //find dynamic-segment
-    ElfW(Phdr) *dhdr = xh_elf_get_first_segment_by_type(self, PT_DYNAMIC);
-    if(NULL == dhdr)
-    {
-        OH_LOG_Print(LOG_APP, LOG_ERROR, 0x00008, "xhook", "Can NOT found dynamic segment. %{public}s", pathname);
-        return XH_ERRNO_FORMAT;
-    }
-
-    //parse dynamic-segment
     self->dyn          = (ElfW(Dyn) *)(self->bias_addr + dhdr->p_vaddr);
     self->dyn_sz       = dhdr->p_memsz;
     ElfW(Dyn) *dyn     = self->dyn;
@@ -845,17 +823,6 @@ int xh_elf_init(xh_elf_t *self, uintptr_t base_addr, const char *pathname)
         case DT_RELASZ:
             self->reldyn_sz = dyn->d_un.d_val;
             break;
-//        case DT_ANDROID_REL:
-//        case DT_ANDROID_RELA:
-//            {
-//                self->relandroid = (ElfW(Addr))(self->bias_addr + dyn->d_un.d_ptr);
-//                if((ElfW(Addr))(self->relandroid) < self->base_addr) return XH_ERRNO_FORMAT;
-//                break;
-//            }
-//        case DT_ANDROID_RELSZ:
-//        case DT_ANDROID_RELASZ:
-//            self->relandroid_sz = dyn->d_un.d_val;
-//            break;
         case DT_HASH:
             {
                 //ignore DT_HASH when ELF contains DT_GNU_HASH hash table
@@ -887,23 +854,76 @@ int xh_elf_init(xh_elf_t *self, uintptr_t base_addr, const char *pathname)
             break;
         }
     }
+    return 0;
+}
 
-    //check android rel/rela
-    if(0 != self->relandroid)
+int xh_elf_init(xh_elf_t *self, uintptr_t base_addr, const char *pathname)
+{
+    if(0 == base_addr || NULL == pathname) return XH_ERRNO_INVAL;
+
+    //always reset
+    memset(self, 0, sizeof(xh_elf_t));
+    
+    self->pathname = pathname;
+    self->base_addr = (ElfW(Addr))base_addr;
+    self->ehdr = (ElfW(Ehdr) *)base_addr;
+    
+    int assign_res = 0;
+    BYTESIG_TRY(SIGSEGV, SIGBUS) {
+        self->phdr = (ElfW(Phdr) *)(base_addr + self->ehdr->e_phoff); //segmentation fault sometimes
+    }
+    BYTESIG_CATCH(signum, code) {
+        xh_util_set_sig_caught(1);
+        assign_res = -1;
+        OH_LOG_Print(LOG_APP, LOG_WARN, 0x00008, "xhook", "catch SIGSEGV/SIGBUS when set phdr: %{public}s", self->pathname);
+    }
+    BYTESIG_EXIT;
+    
+    if(0 != assign_res)
     {
-        const char *rel = (const char *)self->relandroid;
-        if(self->relandroid_sz < 4 ||
-           rel[0] != 'A' ||
-           rel[1] != 'P' ||
-           rel[2] != 'S' ||
-           rel[3] != '2')
-        {
-            OH_LOG_Print(LOG_APP, LOG_ERROR, 0x00008, "xhook", "android rel/rela format error\n");
-            return XH_ERRNO_FORMAT;
-        }
-        
-        self->relandroid += 4;
-        self->relandroid_sz -= 4;
+        return XH_ERRNO_FORMAT;
+    }
+
+    //find the first load-segment with offset 0
+    ElfW(Phdr) *phdr0 = xh_elf_get_first_segment_by_type_offset(self, PT_LOAD, 0);
+    if(NULL == phdr0)
+    {
+        OH_LOG_Print(LOG_APP, LOG_ERROR, 0x00008, "xhook", "Can NOT found the first load segment. %{public}s", pathname);
+        return XH_ERRNO_FORMAT;
+    }
+
+#if XH_ELF_DEBUG
+    if(0 != phdr0->p_vaddr)
+        XH_LOG_DEBUG("first load-segment vaddr NOT 0 (vaddr: %p). %s",
+                     (void *)(phdr0->p_vaddr), pathname);
+#endif
+
+    //save load bias addr
+    if(self->base_addr < phdr0->p_vaddr) return XH_ERRNO_FORMAT;
+    self->bias_addr = self->base_addr - phdr0->p_vaddr;
+    
+    //find dynamic-segment
+    ElfW(Phdr) *dhdr = xh_elf_get_first_segment_by_type(self, PT_DYNAMIC);
+    if(NULL == dhdr)
+    {
+        OH_LOG_Print(LOG_APP, LOG_ERROR, 0x00008, "xhook", "Can NOT found dynamic segment. %{public}s", pathname);
+        return XH_ERRNO_FORMAT;
+    }
+    
+    int parse_res = 0;
+    BYTESIG_TRY(SIGSEGV, SIGBUS) {
+        //parse dynamic-segment
+        parse_res = parse_dynamic_segment_unsafe(self, dhdr);
+    }
+    BYTESIG_CATCH(signum, code) {
+        xh_util_set_sig_caught(1);
+        OH_LOG_Print(LOG_APP, LOG_WARN, 0x00008, "xhook", "catch SIGSEGV/SIGBUS when parse_dynamic_segment_unsafe: %{public}s", self->pathname);
+    }
+    BYTESIG_EXIT;
+
+    if(0 != parse_res)
+    {
+        return parse_res;
     }
 
     //check elf info

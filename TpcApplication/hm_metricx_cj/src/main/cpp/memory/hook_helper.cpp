@@ -116,6 +116,7 @@ bool HookHelper::HookImpl() {
     }
 
     if (xhook_refresh(0) != 0) {
+        OH_LOG_Print(LOG_APP, LOG_WARN, 0x00008, "hm_metricx_cj", "HookHelper::HookImpl - xhook_refresh failed");
         pthread_mutex_unlock(&hook_mutex);
         return false;
     }

@@ -41,8 +41,6 @@ void xhook_clear() XHOOK_EXPORT;
 
 void xhook_enable_debug(int flag) XHOOK_EXPORT;
 
-void xhook_enable_sigsegv_protection(int flag) XHOOK_EXPORT;
-
 #ifdef __cplusplus
 }
 #endif
