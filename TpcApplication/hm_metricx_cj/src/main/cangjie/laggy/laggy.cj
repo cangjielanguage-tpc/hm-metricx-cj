@@ -98,8 +98,9 @@ public func syncCallBack(info: IntervalInfo)
     }
     var timeEnd = Float64(info.timestamp)
     var event = eventMap[timeBegain]
-    var cost = ((timeEnd - timeBegain) * Duration.microsecond).toMicroseconds()
+    var cost = ((timeEnd - timeBegain) * Duration.nanosecond).toNanoseconds()
     if (cost > maxResponsesTime) {
+        event.responseTime = cost
         var jsObj = event.ToJsonValue()
         uploadLaggyinfo(jsObj)
         if (laggyMap.contains(currentPageName)) {
