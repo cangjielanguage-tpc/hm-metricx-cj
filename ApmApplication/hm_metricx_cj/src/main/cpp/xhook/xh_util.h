@@ -46,6 +46,8 @@ int xh_util_get_mem_protect(uintptr_t addr, size_t len, const char *pathname, un
 int xh_util_get_addr_protect(uintptr_t addr, const char *pathname, unsigned int *prot);
 int xh_util_set_addr_protect(uintptr_t addr, unsigned int prot);
 void xh_util_flush_instruction_cache(uintptr_t addr);
+int xh_util_get_sig_caught();
+void xh_util_set_sig_caught(int v);
 
 #ifdef __cplusplus
 }

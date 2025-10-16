@@ -44,8 +44,3 @@ void xhook_clear()
 {
     return xh_core_clear();
 }
-
-void xhook_enable_sigsegv_protection(int flag)
-{
-    return xh_core_enable_sigsegv_protection(flag);
-}

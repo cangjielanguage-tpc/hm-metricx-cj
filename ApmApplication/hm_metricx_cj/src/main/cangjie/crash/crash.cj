@@ -719,6 +719,13 @@ private func initCrashWatcher(
             crashInfo.tid = res[1]
             crashInfo.tname = res[2]
             if (PID.toString() == crashPid) {
+                let shouldIgnore = crashInfo.language == "cpp_crash" && unsafe { IsSigCaught() }
+                if (shouldIgnore) {
+                    unsafe {
+                        ResetSigCaught()
+                    }
+                    return
+                }
                 writeFile(persistentPaths.lastCrashFilePath, crashInfo.toString())
             } else {
                 if (!reported) {
@@ -1220,3 +1227,7 @@ foreign func persistMemoryData(mapPath: CString, memMallocPath: CString, parsedA
     memPersistTimePath: CString): Int8
 
 foreign func installNativeMemoryMonitor(): Int8
+
+foreign func IsSigCaught(): Bool
+
+foreign func ResetSigCaught(): Unit

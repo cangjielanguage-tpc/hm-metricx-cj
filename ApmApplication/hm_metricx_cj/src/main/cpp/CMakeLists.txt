@@ -12,6 +12,7 @@ include_directories(${NATIVERENDER_ROOT_PATH}
                     ${NATIVERENDER_ROOT_PATH}/include)
 
 add_library(hm_metricx_cj SHARED napi_init.cpp crash.cpp oom.cpp KOOM/elf_reader.cpp freeze.cpp common.cpp
+bytehook/bytesig.c
 xhook/xh_core.c xhook/xh_elf.c xhook/xh_util.c xhook/xh_version.c xhook/xhook.c
 xdl/xdl.c xdl/xdl_iterate.c xdl/xdl_lzma.c xdl/xdl_util.c
 memory/hook_helper.cpp memory/memory_monitor.cpp memory/backtrace_64.cpp
