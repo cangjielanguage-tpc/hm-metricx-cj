@@ -118,7 +118,7 @@ public func syncCallBack(info: IntervalInfo)
     isFirstCallBack = true
 }
 
-public func didClickCallBack(event: ClickEventEnhanced, node: ?FrameNode)
+public func didClickCallBack(event: ClickEventEnhanced, context: UIContext, node: ?FrameNode)
 {
     if (isComplite) {
         isComplite = false
@@ -127,8 +127,8 @@ public func didClickCallBack(event: ClickEventEnhanced, node: ?FrameNode)
     var t_begain = event.timestamp
     timeBegain = t_begain
     response.pageName = currentPageName
-    response.touchX = event.windowX ?? 0.0
-    response.touchY = event.windowY ?? 0.0
+    response.touchX = context.vp2px(event.windowX ?? 0.0)
+    response.touchY = context.vp2px(event.windowY ?? 0.0)
     try {
         let frameNode = node.getOrThrow()
         response.viewTouchID = frameNode.getId()
@@ -137,8 +137,8 @@ public func didClickCallBack(event: ClickEventEnhanced, node: ?FrameNode)
         var measureSize = frameNode.getMeasuredSize()
         // waiting bugfix
         //response.descriptionID = frameNode.getInspectorInfo()
-        response.hitX = pos.x
-        response.hitY = pos.y
+        response.hitX = context.vp2px(pos.x)
+        response.hitY = context.vp2px(pos.y)
         response.hitHeight = measureSize.height
         response.hitWidth = measureSize.width
     } catch (e: NoneValueException) {
@@ -198,19 +198,21 @@ public func initLaggyHandle(applicationcontext: ApplicationContext, uiContext: U
     maxResponsesTime = maxTime
     uiContext.getUIObserver().on(ObserverListenerType.navDestinationSwitch,
                                 NavDestinationSwitchCallBack(navDestinationSwitchCallBack))
-    uiContext.getUIObserver().on(ObserverListenerType.didClick, DidClickCallBack(didClickCallBack))
+    uiContext.getUIObserver().on(ObserverListenerType.didClick, DidClickCallBack(didClickCallBack, uiContext))
     applicationcontext.on(ApplicationContextType.ABILITY_LIFECYCLE, abilityLifecycleCallback)
     0
 }
 
 // 回调函数warper
 public class DidClickCallBack <: ClickEventListenerCallback<ClickEventEnhanced, ?FrameNode> {
-    let elementInfoCallBack: (event: ClickEventEnhanced, node: ?FrameNode) -> Unit
-    public init(elementInfoCallBack: (event: ClickEventEnhanced, node: ?FrameNode) -> Unit) {
+    let elementInfoCallBack: (event: ClickEventEnhanced, context: UIContext, node: ?FrameNode) -> Unit
+    let context: UIContext
+    public init(elementInfoCallBack: (event: ClickEventEnhanced, context: UIContext, node: ?FrameNode) -> Unit, context: UIContext) {
         this.elementInfoCallBack = elementInfoCallBack
+        this.context = context
     }
     public func invoke(event: ClickEventEnhanced, node: ?FrameNode): Unit {
-        this.elementInfoCallBack(event, node)
+        this.elementInfoCallBack(event, this.context, node)
     }
 }
 
