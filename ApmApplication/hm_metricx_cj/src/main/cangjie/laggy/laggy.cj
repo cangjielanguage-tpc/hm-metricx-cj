@@ -77,8 +77,9 @@ public func syncCallBack(frameTime: Int64, frameTargetTime: Int64) {
     }
     var timeEnd = Float64(frameTime)
     var event = eventMap[timeBegain]
-    var cost = ((timeEnd - timeBegain) * Duration.microsecond).toMicroseconds()
+    var cost = ((timeEnd - timeBegain) * Duration.nanosecond).toNanoseconds()
     if (cost > maxResponsesTime) {
+        event.responseTime = cost
         _reportResponseEvent(event)
         if (laggyMap.contains(currentPageName)) {
             var model = laggyMap[currentPageName]
