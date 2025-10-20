@@ -1,6 +1,6 @@
 {
   "name": "@cangjie-tpc/hm_metricx_cj_hybrid",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "hm-metricx-cj 是一款为鸿蒙系统上的仓颉应用提供的线上性能监控框架。",
   "main": "Index.ets",
   "author": "cangjie-tpc",
