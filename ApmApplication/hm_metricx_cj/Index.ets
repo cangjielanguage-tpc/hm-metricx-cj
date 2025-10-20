@@ -635,10 +635,12 @@ export function initLaggyHandler(
   let onDidClick = (cb: (info: ClickInfo) => void) => {
     windowStage.getMainWindow().then(win => {
       win.getUIContext().getUIObserver().on('didClick', (event: ClickEvent, frameNode?: FrameNode) => {
-        let info = new cjLib.ClickInfo(event.timestamp, event.windowX, event.windowY, frameNode?.getId() ?? '',
-          frameNode?.getNodeType() ?? '', frameNode?.getPositionToWindow().x ?? 0,
-          frameNode?.getPositionToWindow().y ?? 0, frameNode?.getMeasuredSize().height ?? 0,
-          frameNode?.getMeasuredSize().width ?? 0);
+        let info =
+          new cjLib.ClickInfo(event.timestamp, win.getUIContext().vp2px(event.windowX),
+            win.getUIContext().vp2px(event.windowY), frameNode?.getId() ?? '',
+            frameNode?.getNodeType() ?? '', win.getUIContext().vp2px(frameNode?.getPositionToWindow().x ?? 0),
+            win.getUIContext().vp2px(frameNode?.getPositionToWindow().y ?? 0), frameNode?.getMeasuredSize().height ?? 0,
+            frameNode?.getMeasuredSize().width ?? 0);
         cb(info);
       });
     });
