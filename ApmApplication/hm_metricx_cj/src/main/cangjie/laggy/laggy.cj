@@ -137,8 +137,8 @@ public func didClickCallBack(info: ClickInfo) {
     var t_begain = info.timestamp
     timeBegain = t_begain
     response.pageName = currentPageName
-    response.touchX = info.hitX
-    response.touchY = info.hitY
+    response.touchX = info.windowX
+    response.touchY = info.windowY
     try {
         response.viewTouchID = info.id
         response.nodeType = info.nodeType
