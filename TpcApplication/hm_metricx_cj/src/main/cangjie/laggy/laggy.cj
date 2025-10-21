@@ -98,7 +98,7 @@ public func syncCallBack(info: IntervalInfo)
     }
     var timeEnd = Float64(info.timestamp)
     var event = eventMap[timeBegain]
-    var cost = ((timeEnd - timeBegain) * Duration.nanosecond).toNanoseconds()
+    var cost = ((timeEnd - timeBegain) * Duration.nanosecond).toMilliseconds()
     if (cost > maxResponsesTime) {
         event.responseTime = cost
         var jsObj = event.ToJsonValue()
@@ -190,7 +190,7 @@ let abilityLifecycleCallback: AbilityLifecycleCallback = AbilityLifecycleCallbac
     onWindowStageRestore: { abilty: UIAbility, windowStage: window.WindowStage => () }
 )
 
-public func initLaggyHandle(applicationcontext: ApplicationContext, uiContext: UIContext,
+public func initLaggyHandler(applicationcontext: ApplicationContext, uiContext: UIContext,
                             maxTime: Int64, maxArraySize: Int64, reportLaggyInfo: (data: JsonObject) -> Unit)
 {
     uploadLaggyinfo = reportLaggyInfo

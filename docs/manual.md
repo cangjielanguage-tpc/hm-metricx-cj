@@ -374,7 +374,39 @@ public func initLaggyHandle(applicationcontext: ApplicationContext, uiContext: U
 
 - `maxArraySize` 指定存储最大的卡顿时间集合，当卡顿次数超过该值时，会删除最早的一次卡顿数据。
 
-- `reportLaggyInfo` 上报数据的回调函数，接受一个输入型参数 `data`。
+- `reportLaggyInfo` 上报数据的回调函数，入参为 `JsonObject` 类型对象，该对象包含以下字段：
+  - `pageName` 当前页面名称
+  - `technologyStack` 技术栈
+  - `responseTime` 响应时间，单位：ms
+  - `descriptionID` 响应组件的结构信息
+  - `nodeType` 响应组件类型
+  - `viewTouchID` 响应组件ID
+  - `touchX` 点击位置相对于应用窗口左上角的X坐标，单位：px
+  - `touchY` 点击位置相对于应用窗口左上角的Y坐标，单位：px
+  - `hitX` 响应组件相对于应用窗口的X轴偏移，单位: px
+  - `hitY` 响应组件相对于应用窗口的Y轴偏移，单位: px
+  - `hitWidth` 响应组件大小的宽度，单位: vp
+  - `hitHeight` 响应组件大小的高度，单位: vp
+
+使用示例：
+
+i.
+
+在主模块的 `main_ability.cj` 的 `onWindowStageCreate` 回调中调用 `initLaggyHandler` :
+
+```text
+public func onWindowStageCreate(windowStage: window.WindowStage): Unit {
+    windowStage.loadContent("pages/index", {err, data => ()})
+    windowStage.getMainWindow(
+        {
+            err: ?BusinessException, data: ?window.Window => match (data) {
+                case Some(x) => initLaggyHandler(this.context.getApplicationContext(),
+                    fromUIContextBase(x.getUIContext()), 10, 10, {data =>})
+                case None => AppLog.info("initLaggyHandler error")
+            }
+        })
+}
+```
 
 ### 监控内存
 
