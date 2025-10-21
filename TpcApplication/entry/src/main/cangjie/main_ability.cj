@@ -77,7 +77,7 @@ class EntryAbility <: UIAbility {
             {
                 err: ?BusinessException, data: ?window.Window => match (data) {
                     case Some(x) =>
-                        initLaggyHandle(this
+                        initLaggyHandler(this
                             .context
                             .getApplicationContext(), fromUIContextBase(x.getUIContext()), 10, 10, {data =>})
                         AppLog.info("initLaggyHandle")
