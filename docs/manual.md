@@ -348,16 +348,16 @@ export function initLaggyHandler(
 
 - `pageName` 所在页面名称
 - `technologyStack` 技术栈
-- `responseTime` 响应时间
+- `responseTime` 响应时间，单位：ms
 - `descriptionID` 无障碍模式的描述信息
 - `nodeType` 响应节点类型
 - `viewTouchID` 组件ID
-- `touchX` 触摸点在window中的位置，X轴坐标
-- `touchY` 触摸点在window中的位置，Y轴坐标
-- `hitX` 响应组件相对于window坐标系中，X轴坐标
-- `hitY` 响应组件相对于window坐标系中，Y轴坐标
-- `hitWidth` 响应组件的宽度
-- `hitHeight` 响应组件的高度
+- `touchX` 触摸点在window中的位置，X轴坐标，单位：px
+- `touchY` 触摸点在window中的位置，Y轴坐标，单位：px
+- `hitX` 响应组件相对于window坐标系中，X轴坐标，单位：px
+- `hitY` 响应组件相对于window坐标系中，Y轴坐标，单位：px
+- `hitWidth` 响应组件的宽度，单位: vp
+- `hitHeight` 响应组件的高度，单位: vp
 
 `PageResponseLaggyModel` 包含以下信息：
 
