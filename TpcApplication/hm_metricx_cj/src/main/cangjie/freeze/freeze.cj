@@ -221,7 +221,8 @@ public func initFreezeHandler(
     if (freezeInited) {
         return
     }
-    cleanHistoryLogFiles({name => name.startsWith("APP_FREEZE")})
+    let cleanFileRecordPath = persistentDir.join("cleanFileRecord.txt")
+    cleanHistoryLogFiles({name => name.startsWith("APP_FREEZE")}, cleanFileRecordPath, "initFreezeHandler")
     iCollectFreezeInfo = collectFreezeInfo
     let cpuUsageFilePath = persistentDir.join("cpuUsageFreeze.txt")
     let cpuUsageBakFilePath = persistentDir.join("cpuUsageFreeze-bak.txt")
@@ -229,7 +230,7 @@ public func initFreezeHandler(
     let extraInfoFilePath = persistentDir.join("extraInfoFreeze.json")
     let extraInfoBakFilePath = persistentDir.join("extraInfoFreeze-bak.json")
     renameFile(extraInfoFilePath, extraInfoBakFilePath)
-    initFreezeWatcher(applicationContext, reportFreezeInfo, cpuUsageBakFilePath, extraInfoBakFilePath)
+    initFreezeWatcher(applicationContext, reportFreezeInfo, cpuUsageBakFilePath, extraInfoBakFilePath, cleanFileRecordPath)
     if (DeviceInfo.sdkApiVersion >= 18) {
     	onFreeze({ => freezeCallback(cpuUsageFilePath, extraInfoFilePath)})
     } else {
@@ -262,7 +263,8 @@ private func initFreezeWatcher(
     applicationContext: ApplicationContext,
     reportFreezeInfo: (freeezeInfo: FreezeInfo) -> Unit,
     cpuUsageFilePath: Path,
-    extraInfoFilePath: Path
+    extraInfoFilePath: Path,
+    cleanFileRecordPath: Path
 ) {
     let watcher = Watcher(
         "freezeWatcher",
@@ -333,7 +335,8 @@ private func initFreezeWatcher(
                             .getOrThrow().toString().removePrefix("[").removeSuffix("]")
                         if (freezeLogPath.isEmpty() ) {
                             freezeInfo.rawFile = "hm-metricx-cj freeze error: freezeLogPath is empty"
-                            freezeInfo.historyRawFiles = collectAndCleanHistoryLogFiles({name => name.startsWith("APP_FREEZE")})
+                            freezeInfo.historyRawFiles = collectAndCleanHistoryLogFiles({name => name.startsWith("APP_FREEZE")},
+                                cleanFileRecordPath, "initFreezeWatcher")
                             continue
                         }
                         if (!exists(freezeLogPath)) {
