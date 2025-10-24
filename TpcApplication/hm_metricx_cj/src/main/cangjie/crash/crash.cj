@@ -442,6 +442,7 @@ class PersistentPaths {
     let lastNHilogPath: Path
     let dumpTimePath: Path
     let memPersistTimePath: Path
+    let cleanFileRecordPath: Path
 
     public init(persistentDir: Path) {
         this.dir = persistentDir
@@ -454,6 +455,7 @@ class PersistentPaths {
         this.lastNHilogPath = persistentDir.join("crashLastNHilog.txt")
         this.dumpTimePath = persistentDir.join("dumpTime.txt")
         this.memPersistTimePath = persistentDir.join("crashMemPersistTime.txt")
+        this.cleanFileRecordPath = persistentDir.join("cleanFileRecord.txt")
     }
 }
 
@@ -530,8 +532,8 @@ public func initCrashHandler(
     if (inited) {
         return
     }
-    cleanHistoryLogFiles({name => name.startsWith("APP_CRASH")})
     let persistentPaths = PersistentPaths(persistentDir)
+    cleanHistoryLogFiles({name => name.startsWith("APP_CRASH")}, persistentPaths.cleanFileRecordPath, "initCrashHandler")
     let hilogNumber = max(lastNHilogNumber, 0)
     let systemLogNum = max(systemLogNumber, 0)
     spawn { =>
@@ -565,15 +567,25 @@ public func initCrashHandler(
 private func reportLastCrash(persistentPaths: PersistentPaths, reportCrashInfo: (crashInfo: CrashInfo) -> Unit) {
     if (exists(persistentPaths.lastCrashFilePath)) {
         try {
-            let jsonObj = JsonValue.fromStr(readFile(persistentPaths.lastCrashFilePath)).asObject()
-            let crashInfo = CrashInfo.fromJson(jsonObj)
+            let content = readFile(persistentPaths.lastCrashFilePath)
             deleteFile(persistentPaths.lastCrashFilePath)
-            crashInfo.dumpTime = readFile(persistentPaths.dumpTimePath)
-            deleteFile(persistentPaths.dumpTimePath)
-            if (let Some(pid) <- crashInfo.pid) {
-                crashInfo.dumpOnOOMPath = compressOOMFile(pid, persistentPaths.dir)
+            let jsonArr = JsonArray.fromStr(content).asArray()
+            if (jsonArr.size() <= 0) {
+                return
             }
-            reportCrashInfo(crashInfo)
+            let dumpTime = readFile(persistentPaths.dumpTimePath)
+            deleteFile(persistentPaths.dumpTimePath)
+            for (i in 0..jsonArr.size()) {
+                let jsonValue = jsonArr.get(i)
+                if (let Some(v) <- jsonValue) {
+                    let crashInfo = CrashInfo.fromJson(v.asObject())
+                    crashInfo.dumpTime = dumpTime
+                    if (let Some(pid) <- crashInfo.pid) {
+                        crashInfo.dumpOnOOMPath = compressOOMFile(pid, persistentPaths.dir)
+                    }
+                    reportCrashInfo(crashInfo)
+                }
+            }
             reported = true
         } catch (e: JsonException) {
             AppLog.warn("hm-metricx-cj error: " + e.toString())
@@ -693,7 +705,8 @@ private func initErrorObserver(crashInfo: CrashInfo, applicationContext: Applica
         onException: {
             errObject =>
             try {
-                cleanHistoryLogFiles({name => name.startsWith("APP_CRASH")}, keepLatest: false)
+                cleanHistoryLogFiles({name => name.startsWith("APP_CRASH")}, persistentPaths.cleanFileRecordPath,
+                "initErrorObserver", keepLatest: false)
                 crashInfo.meminfo = collectMemInfo()
                 crashInfo.fds = collectFDInfo()
                 crashInfo.threads = collectThreads()
@@ -720,26 +733,6 @@ private func initErrorObserver(crashInfo: CrashInfo, applicationContext: Applica
         // TODO Once ErrorManager supports "freeze" handler, this condition may need to be tweaked.
         AppLog.warn(
             "There are other error observers registered before crash obsverver, which may interfere with its behavior.")
-    }
-}
-
-private func writeFile(path: String, data: String) {
-    try {
-        File.writeTo(path, data.toArray())
-    } catch (e: FSException) {
-        AppLog.warn("hm-metricx-cj error: " + e.toString())
-    } catch (e: IllegalArgumentException) {
-        AppLog.warn("hm-metricx-cj error: " + e.toString())
-    }
-}
-
-private func writeFile(path: Path, data: String) {
-    try {
-        File.writeTo(path, data.toArray())
-    } catch (e: FSException) {
-        AppLog.warn("hm-metricx-cj error: " + e.toString())
-    } catch (e: IllegalArgumentException) {
-        AppLog.warn("hm-metricx-cj error: " + e.toString())
     }
 }
 
@@ -803,11 +796,11 @@ private func initCrashWatcher(applicationContext: ApplicationContext, reportCras
                 if (domain != OS) {
                     return
                 }
-                var crashInfo = CrashInfo()
+                var curCrashInfo = CrashInfo()
                 if (exists(persistentPaths.filePath)) {
                     try {
                         let jsonObj = JsonValue.fromStr(String.fromUtf8(File.readFrom(persistentPaths.filePath))).asObject()
-                        crashInfo = CrashInfo.fromJson(jsonObj)
+                        curCrashInfo = CrashInfo.fromJson(jsonObj)
                     } catch (e: JsonException) {
                         AppLog.warn("hm-metricx-cj error: " + e.toString())
                     }
@@ -815,31 +808,35 @@ private func initCrashWatcher(applicationContext: ApplicationContext, reportCras
                 } else {
                     AppLog.warn("hm-metricx-cj error: No persistent crash file.")
                 }
-                crashInfo.dumpTime = readFile(persistentPaths.dumpTimePath)
+                curCrashInfo.dumpTime = readFile(persistentPaths.dumpTimePath)
                 deleteFile(persistentPaths.dumpTimePath)
-                crashInfo.systemLog = readFile(persistentPaths.systemLogPath).replace("\n\n", "\n")
+                curCrashInfo.systemLog = readFile(persistentPaths.systemLogPath).replace("\n\n", "\n")
                 deleteFile(persistentPaths.systemLogPath)
-                crashInfo.lastNHilog = readFile(persistentPaths.lastNHilogPath).replace("\n\n", "\n")
+                curCrashInfo.lastNHilog = readFile(persistentPaths.lastNHilogPath).replace("\n\n", "\n")
                 deleteFile(persistentPaths.lastNHilogPath)
-                crashInfo.memPersistTime = readFile(persistentPaths.memPersistTimePath)
+                curCrashInfo.memPersistTime = readFile(persistentPaths.memPersistTimePath)
                 deleteFile(persistentPaths.memPersistTimePath)
                 if (exists(persistentPaths.memMapPath) && exists(persistentPaths.memMallocPath)) {
                     var shouldBeClusteredToThisSo = {soName: String => false}
                     if(let Some(v) <- enableMemMonitor) {
                         shouldBeClusteredToThisSo=v.shouldBeClusteredToThisSo
                     }
-                    crashInfo.nativeMemDetail = parseStackFrame(persistentPaths, shouldBeClusteredToThisSo)
+                    curCrashInfo.nativeMemDetail = parseStackFrame(persistentPaths, shouldBeClusteredToThisSo)
                     deleteFile(persistentPaths.memMapPath)
                     deleteFile(persistentPaths.memMallocPath)
                     deleteFile(persistentPaths.parsedAddrPath)
                 } else {
                     AppLog.warn("No persistent crash memory file.")
                 }
+
+                let nextReportCrashInfos = ArrayList<CrashInfo>()
+                let reportCrashInfos = ArrayList<CrashInfo>()
                 for (eventGroup in appEventGroups) {
                     if (eventGroup.name != APP_CRASH) {
                         continue
                     }
                     for (eventInfo in eventGroup.appEventInfos) {
+                        let crashInfo = CrashInfo.fromJson(JsonValue.fromStr(curCrashInfo.toString()).asObject())
                         if (eventInfo.params.get("external_log").isNone()) {
                             crashInfo.rawFile = "hm-metricx-cj error: external_log is none"
                             continue
@@ -876,44 +873,60 @@ private func initCrashWatcher(applicationContext: ApplicationContext, reportCras
                         }
                         let crashLogPath: String = eventInfo.params.get("external_log")
                             .getOrThrow().toString().removePrefix("[").removeSuffix("]")
-                        if (crashLogPath.isEmpty()) {
-                            crashInfo.rawFile = "hm-metricx-cj error: crash log path is empty \n" + getLogFileInfo()
-                            crashInfo.historyRawFiles = collectAndCleanHistoryLogFiles({name => name.startsWith("APP_CRASH")})
-                            continue
-                        }
-                        if (!exists(crashLogPath)) {
-                            crashInfo.rawFile = "hm-metricx-cj error: crash log path ${crashLogPath} does not exist \n" + getLogFileInfo()
-                            continue
-                        }
                         crashInfo.crashLogPath = crashLogPath
-                        let content = readFile(Path(crashLogPath), isReturnException: true)
-                        crashInfo.rawFile = content
-                        deleteFile(crashLogPath)
-                        let res = extractFromCrashLog(content.split("\n", removeEmpty: true), crashInfo.pid,
-                            crashInfo.threads)
-                        crashInfo.pname = res[0]
-                        crashInfo.tid = res[1]
-                        crashInfo.tname = res[2]
+                        if (crashLogPath.isEmpty()) {
+                            let logFileInfo = getLogFileInfo()
+                            crashInfo.historyRawFiles = collectAndCleanHistoryLogFiles({name => name.startsWith("APP_CRASH")},
+                                persistentPaths.cleanFileRecordPath, "initCrashWatcher")
+                            crashInfo.rawFile = "hm-metricx-cj error: crash log path is empty \n" + logFileInfo + "\n" +
+                                readFile(persistentPaths.cleanFileRecordPath)
+                        } else {
+                            if (!exists(crashLogPath)) {
+                                crashInfo.rawFile = "hm-metricx-cj error: crash log path ${crashLogPath} does not exist \n" +
+                                    getLogFileInfo() + "\n" + readFile(persistentPaths.cleanFileRecordPath)
+                            } else {
+                                let content = readFile(Path(crashLogPath), isReturnException: true)
+                                crashInfo.rawFile = content
+                                deleteFile(crashLogPath)
+                                let res = extractFromCrashLog(content.split("\n", removeEmpty: true), crashInfo.pid,
+                                    crashInfo.threads)
+                                crashInfo.pname = res[0]
+                                crashInfo.tid = res[1]
+                                crashInfo.tname = res[2]
+                            }
+                        }
+
+                        if (Process.current.pid.toString() == crashInfo.pid.getOrDefault({=> ""})) {
+                            let shouldIgnore = crashInfo.language == "cpp_crash" && unsafe { IsSigCaught() }
+                            if (shouldIgnore) {
+                                unsafe {
+                                    ResetSigCaught()
+                                }
+                                continue
+                            }
+                            nextReportCrashInfos.add(crashInfo)
+                        } else {
+                            if (!reported) {
+                                reportCrashInfos.add(crashInfo)
+                            }
+                        }
                     }
                 }
-                if (Process.current.pid.toString() == crashInfo.pid.getOrDefault({=> ""})) {
-                    let shouldIgnore = crashInfo.language == "cpp_crash" && unsafe { IsSigCaught() }
-                    if (shouldIgnore) {
-                        unsafe {
-                            ResetSigCaught()
-                        }
-                        return
+                if(!nextReportCrashInfos.isEmpty()) {
+                    let jsonArray = JsonArray()
+                    for (info in nextReportCrashInfos) {
+                        jsonArray.add(JsonValue.fromStr(info.toString()))
                     }
-                    writeFile(persistentPaths.lastCrashFilePath, crashInfo.toString())
-                } else {
-                    if (!reported) {
-                        let crashInfoTemp = crashInfo
-                        spawn { =>
-                            if (let Some(pid) <- crashInfoTemp.pid) {
-                                crashInfoTemp.dumpOnOOMPath = compressOOMFile(pid, persistentPaths.dir)
+                    writeFile(persistentPaths.lastCrashFilePath, jsonArray.toString())
+                }
+                if(!reportCrashInfos.isEmpty()) {
+                    spawn { =>
+                        for (info in reportCrashInfos) {
+                            if (let Some(pid) <- info.pid) {
+                                info.dumpOnOOMPath = compressOOMFile(pid, persistentPaths.dir)
                             }
                             // onReceive callback sometimes will be invoked both before app crash and next launch on high-verion (API 18?) devcies
-                            reportCrashInfo(crashInfoTemp)
+                            reportCrashInfo(info)
                         }
                     }
                 }
