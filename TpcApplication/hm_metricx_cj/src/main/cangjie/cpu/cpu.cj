@@ -52,7 +52,7 @@ public open class CpuInfo {
         sampleCountValue = 0
     }
 
-    public func computeAvg(currrentCpuValue: Float64): Unit {
+    func computeAvg(currrentCpuValue: Float64): Unit {
         this.avgCpuValue = this.avgCpuValue + (currrentCpuValue - this.avgCpuValue) / Float64(sampleCountValue + 1)
         if (maxCpuValue < currrentCpuValue) {
             maxCpuValue = currrentCpuValue
@@ -67,16 +67,7 @@ public open class CpuInfo {
         this.maxCpuValue
     }
 
-    public func toString(): String {
-        let jsonObj = JsonObject()
-        jsonObj.put("avgCpu", JsonString(avgCpuValue.toString()))
-        jsonObj.put("maxCpu", JsonString(maxCpuValue.toString()))
-        jsonObj.put("sampleCount", JsonString(sampleCountValue.toString()))
-
-        jsonObj.toString()
-    }
-
-    public open func reset(): Unit {
+    protected open func reset(): Unit {
         this.avgCpuValue = 0.0
         this.maxCpuValue = 0.0
         this.sampleCount = 0
@@ -106,9 +97,18 @@ public class PageCpuInfo <: CpuInfo {
         pageNameValue
     }
 
-    public override func reset() {
+    protected override func reset() {
         super.reset()
         this.pageNameValue = ""
+    }
+
+    public func toString(): String {
+        let jsonObj = JsonObject()
+        jsonObj.put("avgCpu", JsonString(avgCpu.toString()))
+        jsonObj.put("maxCpu", JsonString(maxCpu.toString()))
+        jsonObj.put("sampleCount", JsonString(sampleCount.toString()))
+        jsonObj.put("pageName", JsonString(pageNameValue.toString()))
+        jsonObj.toString()
     }
 }
 
@@ -135,6 +135,15 @@ public class ProcessCpuInfo <: CpuInfo {
     public func getProcessName(): Int32 {
         this.pidValue
     }
+
+    public func toString(): String {
+        let jsonObj = JsonObject()
+        jsonObj.put("avgCpu", JsonString(avgCpu.toString()))
+        jsonObj.put("maxCpu", JsonString(maxCpu.toString()))
+        jsonObj.put("sampleCount", JsonString(sampleCount.toString()))
+        jsonObj.put("pid", JsonString(pidValue.toString()))
+        jsonObj.toString()
+    }
 }
 
 var pageCpuInfo = PageCpuInfo(defaultPageName)
@@ -147,19 +156,20 @@ let doCpuSample: (param: Array<String>) -> Unit = {
     pageCpuInfo.computeAvg(cpuUsage)
     processCpuInfo.computeAvg(cpuUsage)
 }
-var reportCpu: (infp: CpuInfo) -> Unit = {event: CpuInfo =>}
+var reportPageCpu: (infp: PageCpuInfo) -> Unit = {event: PageCpuInfo =>}
+var reportProcessCpu: (info: ProcessCpuInfo) -> Unit = {event: ProcessCpuInfo =>}
 let pageSwitchCallback: PageSwitchCallBack = PageSwitchCallBack(
     {
         info: NavDestinationSwitchInfo =>
         currentPageName = getTargetPageName(info, defaultName: currentPageName)
         doCpuSample()
-        reportCpu(pageCpuInfo)
+        reportPageCpu(pageCpuInfo)
         pageCpuInfo.reset()
         pageCpuInfo.pageName = currentPageName
     }
 )
 let handleCpuReport: (param: Array<String>) -> Unit = {
-    param: Array<String> => reportCpu(processCpuInfo)
+    param: Array<String> => reportProcessCpu(processCpuInfo)
 }
 
 private func handleCpu(param: Array<String>): Unit {
@@ -177,10 +187,12 @@ public func getProcessCpuInfo(): ProcessCpuInfo {
 
 public func initCpuHandler(
     context: UIAbilityContext,
-    reporCpuInfo: (info: CpuInfo) -> Unit
+    reportPageCpuInfo: (info: PageCpuInfo) -> Unit,
+    reportProcessCpuInfo: (info: ProcessCpuInfo) -> Unit
 ): Unit {
     uiContext = context
-    reportCpu = reporCpuInfo
+    reportPageCpu = reportPageCpuInfo
+    reportProcessCpu = reportProcessCpuInfo
     setTimeout(handleCpu, 2 * 1000, Array<String>())
     on(navDestinationSwitch, uiContext.getOrThrow(), pageSwitchCallback)
 }

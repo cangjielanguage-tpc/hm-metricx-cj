@@ -416,7 +416,8 @@ public func onWindowStageCreate(windowStage: window.WindowStage): Unit {
 // 注册内存监控
 public func initMemoryHandler(
     context: UIAbilityContext,
-    reportMemoryInfo: (info: MemoryInfo) -> Unit,
+    reportPageMemoryInfo: (info: PageMemoryInfo) -> Unit,
+    reportProcessMemoryInfo: (info: ProcessMemoryInfo) -> Unit,    
     memoryThreshold!: Int64 = 100*1024
 ): Unit
 // 取消内存监控
@@ -432,21 +433,20 @@ public func getProcessMemoryInfo(): ProcessMemoryInfo
 `initMemoryHandler` 需要的入参说明如下：
 
 - `context: UIAbilityContext` 指定UIAbility上下文。
-- `reportMemoryInfo: (info: MemoryInfo) -> Unit` 将内存的使用情况进行上报，入参为 `MemoryInfo` 类型对象。
+- `reportPageMemoryInfo: (info: PageMemoryInfo) -> Unit` 将当前页面内存的使用情况进行上报，入参为 `PageMemoryInfo` 类型对象。
+- `reportProcessMemoryInfo: (info: ProcessMemoryInfo) -> Unit` 将进程内存的使用情况进行上报，入参为 `ProcessMemoryInfo` 类型对象。
 - `memoryThreshold!: Int64` 内存使用阈值，默认为100 * 1024 KB。当使用内存超过该阈值时，将内存使用情况上报。
 
-`MemoryInfo` 包含以下信息：
-
+`PageMemoryInfo` 包含以下信息：
 - `avgMemory` 内存使用平均值，单位为KB
 - `maxMemory` 内存使用最大值，单位为KB
 - `sampleCount` 内存采样次数
-
-`PageMemoryInfo` 在 `MemoryInfo` 基础上，添加：
-
 - `pageName` 当前页面名称
 
-`ProcessMemoryInfo` 在 `MemoryInfo` 基础上，添加：
-
+`ProcessMemoryInfo` 包含以下信息：
+- `avgMemory` 内存使用平均值，单位为KB
+- `maxMemory` 内存使用最大值，单位为KB
+- `sampleCount` 内存采样次数
 - `pid` 进程ID
 
 使用示例：
@@ -467,7 +467,7 @@ class EntryAbility <: UIAbility {
             case AbilityConstant.LaunchReason.START_ABILITY => AppLog.info("START_ABILITY")
             case _ => ()
         }
-        initMemoryHandler(this.context, {data =>})
+        initMemoryHandler(this.context, {data =>}, {data =>})
     }
     public override func onDestroy(): Unit {
         destroyMemoryHandler()
@@ -484,7 +484,8 @@ class EntryAbility <: UIAbility {
 // 注册CPU监控
 public func initCpuHandler(
     ability: UIAbility,
-    reportCpuInfo: (info: CpuInfo) -> Unit
+    reportPageCpuInfo: (info: PageCpuInfo) -> Unit,
+    reportProcessCpuInfo: (info: ProcessCpuInfo) -> Unit
 ): Unit
 // 取消CPU监控
 public func destroyCpuHandler(): Unit
@@ -499,20 +500,19 @@ public func getProcessCpuInfo(): ProcessCpuInfo
 `initCpuHandler` 需要的入参说明如下：
 
 - `context: UIAbilityContext` 指定UIAbility上下文。
-- `reportCpuInfo: (info: CpuInfo) -> Unit` 将CPU的使用情况进行上报，入参为 `CpuInfo` 类型对象。
+- `reportPageCpuInfo: (info: PageCpuInfo) -> Unit` 将当前页面的CPU的使用情况进行上报，入参为 `PageCpuInfo` 类型对象。
+- `reportProcessCpuInfo: (info: ProcessCpuInfo) -> Unit` 将进程的CPU的使用情况进行上报，入参为 `ProcessCpuInfo` 类型对象。
 
-`CpuInfo` 包含以下信息：
-
-- `avgCpu` CPU使用平均值，单位为KB
-- `maxCpu` CPU使用最大值，单位为KB
+`PageCpuInfo` 包含以下信息：
+- `avgCpu` CPU使用率平均值，以比例值表示（如使用率50%，则返回0.5）
+- `maxCpu` CPU使用率最大值，以比例值表示
 - `sampleCount` CPU采样次数
-
-`PageCpuInfo` 在 `CpuInfo` 基础上，添加如下信息：
-
 - `pageName` 当前页面名称
 
-`ProcessCpuInfo` 在 `CpuInfo` 基础上，添加如下信息：
-
+`ProcessCpuInfo` 包含以下信息：
+- `avgCpu` CPU使用率平均值，以比例值表示（如使用率50%，则返回0.5）
+- `maxCpu` CPU使用率最大值，以比例值表示
+- `sampleCount` CPU采样次数
 - `pid` 进程ID
 
 使用示例：
@@ -533,7 +533,7 @@ class EntryAbility <: UIAbility {
             case AbilityConstant.LaunchReason.START_ABILITY => AppLog.info("START_ABILITY")
             case _ => ()
         }
-        initCpuHandler(this.context, {data =>})
+        initCpuHandler(this.context, {data =>}, {data =>})
     }
     public override func onDestroy(): Unit {
         destroyCpuHandler()
