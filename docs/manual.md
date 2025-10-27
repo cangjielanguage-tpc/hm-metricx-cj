@@ -490,8 +490,8 @@ export function getProcessCpuInfo(): ProcessCpuInfo
 
 `CpuInfo` 包含以下信息：
 
-- `avgCpu` CPU使用平均值，单位为KB
-- `maxCpu` CPU使用最大值，单位为KB
+- `avgCpu` CPU使用率平均值，以比例值表示（如使用率50%，则返回0.5）
+- `maxCpu` CPU使用率最大值，以比例值表示
 - `sampleCount` CPU采样次数
 
 `PageCpuInfo` 在 `CpuInfo` 基础上，添加如下信息：

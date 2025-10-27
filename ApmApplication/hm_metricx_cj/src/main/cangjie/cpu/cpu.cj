@@ -59,7 +59,7 @@ public open class CpuInfo {
         this.maxCpuValue
     }
 
-    public open func reset(): Unit {
+    protected open func reset(): Unit {
         this.avgCpuValue = 0.0
         this.maxCpuValue = 0.0
         this.sampleCount = 0
@@ -103,7 +103,7 @@ public class PageCpuInfo <: CpuInfo {
         pageNameValue
     }
 
-    public override func reset() {
+    protected override func reset() {
         super.reset()
         this.pageNameValue = ""
     }
@@ -140,7 +140,7 @@ public class ProcessCpuInfo <: CpuInfo {
     }
 
     public init() {
-        this.pidValue = pid
+        this.pidValue = PID
     }
 
     public init(pidValue: Int64) {
