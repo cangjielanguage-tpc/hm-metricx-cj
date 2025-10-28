@@ -347,13 +347,15 @@ export function initMemoryHandler(
     uiObserver.on('navDestinationSwitch', context, callback);
     offMemory = () => uiObserver.off('navDestinationSwitch', context, callback);
   };
-  let repeatSampleAndReportMemory = (sample: () => void, report: () => void) => {
+  let repeatSampleAndReportMemory = (sample: () => void, report: () => void, save: () => void) => {
     setTimeout(() => {
       let sampleId = setInterval(sample, 2 * 1000);
       let reportId = setInterval(report, 30 * 60 * 1000);
+      let saveId = setInterval(save, 60 * 1000);
       clearSampleMemory = () => {
         clearInterval(sampleId);
         clearInterval(reportId);
+        clearInterval(saveId);
       }
     }, 2 * 1000);
   };

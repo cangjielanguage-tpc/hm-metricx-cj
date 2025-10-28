@@ -43,7 +43,7 @@ public open class MemoryInfo {
         sampleCountValue = 0
     }
 
-    public func computeAvg(currrentMemoryValue: Int64): Unit {
+    func computeAvg(currrentMemoryValue: Int64): Unit {
         this.avgMemoryValue = this.avgMemoryValue + (currrentMemoryValue - this.avgMemoryValue) / (sampleCountValue + 1)
         if (maxMemoryValue < currrentMemoryValue) {
             maxMemoryValue = currrentMemoryValue
@@ -58,7 +58,7 @@ public open class MemoryInfo {
         this.maxMemoryValue
     }
 
-    public open func reset(): Unit {
+    protected open func reset(): Unit {
         this.avgMemoryValue = 0
         this.maxMemoryValue = 0
         this.sampleCountValue = 0
@@ -101,7 +101,7 @@ public class PageMemoryInfo <: MemoryInfo {
     public func getPageName(): String {
         pageNameValue
     }
-    public override func reset(): Unit {
+    protected override func reset(): Unit {
         super.reset()
         this.pageNameValue = ""
     }
@@ -138,7 +138,7 @@ public class ProcessMemoryInfo <: MemoryInfo {
     }
 
     public init() {
-        this.pidValue = pid
+        this.pidValue = PID
     }
 
     public init(pidValue: Int64) {
@@ -183,6 +183,20 @@ let handleMemoryReport: () -> Unit = {
     => _reportProcessMemoryInfo(processMemoryInfo.toInteropProcessMemotyInfo())
 }
 
+let saveProcessMemory: () -> Unit = {
+    =>
+    try {
+        if (let Some(preference) <- _memoryPreference) {
+            preference.put("processMemory_maxMemory", processMemoryInfo.maxMemory)
+            preference.put("processMemory_avgMemory", processMemoryInfo.avgMemory)
+            preference.put("processMemory_pid", processMemoryInfo.pid)
+            preference.put("processMemory_sampleCount", processMemoryInfo.sampleCount)
+        }
+    } catch (e:Exception) {
+        metricx_warn("hm-metricx-cj error: " + e.toString())
+    }
+}
+
 public func getPageMemoryInfo(): InteropPageMemoryInfo {
     pageMemoryInfo.toInteropPageMemoryInfo()
 }
@@ -191,36 +205,26 @@ public func getProcessMemoryInfo(): InteropProcessMemoryInfo {
     processMemoryInfo.toInteropProcessMemotyInfo()
 }
 
-private func setMaxMemory(memoryValue: Int64): Unit {
+private func getStoragedProcessMemory(): ProcessMemoryInfo {
+    let processMemoryInfo = ProcessMemoryInfo()
     try {
         if (let Some(preference) <- _memoryPreference) {
-            preference.put("max", memoryValue)
+            processMemoryInfo.maxMemory = preference.get("processMemory_maxMemory", 0)
+            processMemoryInfo.avgMemory = preference.get("processMemory_avgMemory", 0)
+            processMemoryInfo.pid = preference.get("processMemory_pid", 0)
+            processMemoryInfo.sampleCount = preference.get("processMemory_sampleCount", 0)
         }
     } catch (e: Exception) {
         metricx_warn(e.toString())
     }
-}
-
-private func getMaxMemory(): Int64 {
-    var maxMemory: Int64 = -1
-    try {
-        if (let Some(preference) <- _memoryPreference) {
-            let status: Bool = preference.has("max")
-            if (status) {
-                maxMemory = preference.get("max", 0)
-            }
-        }
-    } catch (e: Exception) {
-        metricx_warn(e.toString())
-    }
-    maxMemory
+    processMemoryInfo
 }
 
 public func initMemoryHandler(
     memoryPreference: MemoryPreference,
     getMemoryUsage: () -> Int64,
     onNavDestinationSwitch: (cb: (targetPageName: String) -> Unit) -> Unit,
-    repeatSampleAndReportMemory: (sample: () -> Unit, report: () -> Unit) -> Unit,
+    repeatSampleAndReportMemory: (sample: () -> Unit, report: () -> Unit, save: () -> Unit) -> Unit,
     reporPageMemoryInfo: (info: InteropPageMemoryInfo) -> Unit,
     reporProcessMemoryInfo: (info: InteropProcessMemoryInfo) -> Unit,
     memoryThreshold!: Int64 = 100 * 1024
@@ -231,14 +235,9 @@ public func initMemoryHandler(
     _reportProcessMemoryInfo = reporProcessMemoryInfo
     MEMOMRY_THRESHOLD = memoryThreshold
 
-    let maxMemory: Int64 = getMaxMemory()
-    if (maxMemory != -1) {
-        processMemoryInfo.reset()
-        processMemoryInfo.maxMemory = maxMemory
-        _reportProcessMemoryInfo(processMemoryInfo.toInteropProcessMemotyInfo())
-        processMemoryInfo.reset()
-    }
-    repeatSampleAndReportMemory(doMemorySample, handleMemoryReport)
+    let lastProcessMemory = getStoragedProcessMemory()
+    _reportProcessMemoryInfo(lastProcessMemory.toInteropProcessMemotyInfo())
+    repeatSampleAndReportMemory(doMemorySample, handleMemoryReport, saveProcessMemory)
     onNavDestinationSwitch(
         {
             targetPageName: String =>
@@ -254,5 +253,5 @@ public func initMemoryHandler(
 }
 
 public func destroyMemoryHandler(): Unit {
-    setMaxMemory(processMemoryInfo.maxMemory)
+    saveProcessMemory()
 }

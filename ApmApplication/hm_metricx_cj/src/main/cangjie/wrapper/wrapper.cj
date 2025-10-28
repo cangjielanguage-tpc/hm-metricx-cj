@@ -164,7 +164,7 @@ public func initMemoryHandler(
     memoryPreference: MemoryPreference,
     getMemoryUsage: () -> Int64,
     onNavDestinationSwitch: ((String) -> Unit) -> Unit,
-    repeatSampleAndReportMemory: (() -> Unit, () -> Unit) -> Unit,
+    repeatSampleAndReportMemory: (() -> Unit, () -> Unit, () -> Unit) -> Unit,
     reporPageMemoryInfo: (InteropPageMemoryInfo) -> Unit,
     reporProcessMemoryInfo: (InteropProcessMemoryInfo) -> Unit,
     memoryThreshold: Int64
