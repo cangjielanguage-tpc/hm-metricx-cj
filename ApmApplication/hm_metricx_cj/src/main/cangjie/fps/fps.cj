@@ -81,6 +81,9 @@ public open class FpsEvent {
     protected var isFirstFrame: Bool = true
     // 当前页面名
     protected var currentPageName: String = ""
+    // minfps
+    protected var minFps: Int64 = Int64.Max
+    private let framesInOnePer = ArrayDeque<Int64>()
 
     protected let displySync: DisplaySync
 
@@ -112,7 +115,28 @@ public open class FpsEvent {
         this.totalStatisticsTime = 0
         this.totalFrameCount = 0
         this.totalStatisticsTimePerSec = 0
+        this.minFps = Int64.Max
+        this.framesInOnePer.clear()
     }
+
+    protected func updateMinFps(timestamp: Int64, realTimeInterval: Int64) {
+        if (minFps == 0) {
+            return
+        }
+        totalStatisticsTimePerSec += realTimeInterval
+        while (!framesInOnePer.isEmpty() && framesInOnePer.first.getOrThrow() < timestamp - NANOS_IN_SECOND) {
+            framesInOnePer.removeFirst()
+        }
+        framesInOnePer.addLast(timestamp)
+        if (realTimeInterval >= NANOS_IN_SECOND) {
+            minFps = 0
+            totalStatisticsTimePerSec = 0
+        }
+        else if (totalStatisticsTimePerSec >= NANOS_IN_SECOND) {
+            minFps = min(minFps, framesInOnePer.size)
+            totalStatisticsTimePerSec = 0
+        }
+     }
 }
 
 public class PageFpsEvent <: FpsEvent {
@@ -123,8 +147,6 @@ public class PageFpsEvent <: FpsEvent {
         }
         instance.getOrThrow()
     }
-    private var minFps: Int64 = Int64.Max
-    private var framesInOnePer = ArrayDeque<Int64>()
     private var fpsEventInfo: ?FpsEventInfo = None
 
     public init(d: DisplaySync) {
@@ -133,8 +155,6 @@ public class PageFpsEvent <: FpsEvent {
 
     public func reset() {
         super.reset()
-        this.minFps = Int64.Max
-        this.framesInOnePer = ArrayDeque<Int64>()
         this.fpsEventInfo = None
     }
     // 监控每一帧，计算Fps
@@ -149,15 +169,7 @@ public class PageFpsEvent <: FpsEvent {
                     // avgFps
                     totalStatisticsTime += realTimeInterval
                     // minFps
-                    while (!framesInOnePer.isEmpty() && framesInOnePer
-                            .first
-                            .getOrThrow() < frameTime - NANOS_IN_SECOND) {
-                        framesInOnePer.removeFirst()
-                    }
-                    framesInOnePer.addLast(frameTime)
-                    if (totalStatisticsTime >= NANOS_IN_SECOND) {
-                        minFps = min(minFps, framesInOnePer.size)
-                    }
+                    updateMinFps(frameTime, realTimeInterval)
                 }
                 updateFrameInfo(frameTime, frameTargetTime)
         }
@@ -276,9 +288,7 @@ public class ScrollFpsEvent <: FpsEvent {
     public static func GetInstance() {
         instance.getOrThrow()
     }
-    private var minFps: Int64 = Int64.Max
     private var totalFrameDropTime: Int64 = 0
-    private var framesInOnePer = ArrayDeque<Int64>()
     private var scrollHitchInfo: ?ScrollHitchInfo = None
     private var htLessThan0 = 0
     private var ht0To00001 = 0
@@ -300,12 +310,8 @@ public class ScrollFpsEvent <: FpsEvent {
 
     public func reset() {
         super.reset()
-        this.minFps = Int64.Max
         this.totalFrameDropTime = 0
         this.scrollHitchInfo = None
-        this
-            .framesInOnePer
-            .clear()
         htLessThan0 = 0
         ht0To00001 = 0
         ht00001To0001 = 0
@@ -332,15 +338,7 @@ public class ScrollFpsEvent <: FpsEvent {
                     // avgFps
                     totalStatisticsTime += realTimeInterval
                     // minFps
-                    while (!framesInOnePer.isEmpty() && framesInOnePer
-                            .first
-                            .getOrThrow() < frameTime - NANOS_IN_SECOND) {
-                        framesInOnePer.removeFirst()
-                    }
-                    framesInOnePer.addLast(frameTime)
-                    if (totalStatisticsTime >= NANOS_IN_SECOND) {
-                        minFps = min(minFps, framesInOnePer.size)
-                    }
+                    updateMinFps(frameTime, realTimeInterval)
                     // 滑动掉帧率, 值为负时不纳入统计
                     let delta = frameTime - targetTimestamp
                     totalFrameDropTime += max(0, delta)
