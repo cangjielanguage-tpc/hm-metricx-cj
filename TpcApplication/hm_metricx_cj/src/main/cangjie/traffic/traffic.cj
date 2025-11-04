@@ -288,10 +288,10 @@ public func initTrafficHandler(
 ) {
     uiContext = context
     reportTrafficCallback = reportTraffic
-    on(navDestinationSwitch, uiContext.getOrThrow(), PageSwitchCallBack(navDestinationSwitchCallBack))
     SAMPLE_TIME = sampleTime
     SAMPLE_THRESHOLD = sampleThreshold
     doTrafficSample()
+    on(navDestinationSwitch, uiContext.getOrThrow(), PageSwitchCallBack(navDestinationSwitchCallBack))
     sampleId = setInterval(doTrafficSample, SAMPLE_TIME, Array<String>())
     spawn {
         unsafe {
@@ -303,7 +303,7 @@ public func initTrafficHandler(
     }
 }
 
-private func processUidTrafficBytes(callback: (upload: Int64, download: Int64) -> Unit) {
+private func processUidTrafficBytes(callback: (upload: Int64, download: Int64, pageName: String) -> Unit, pageName: String) {
     statistics.getUidRxBytes(
         uid,
         {
@@ -328,18 +328,18 @@ private func processUidTrafficBytes(callback: (upload: Int64, download: Int64) -
                         AppLog.warn("Tx data is none")
                     }
                     let curUpload = data ?? 0
-                    callback(curUpload, curDownload)
+                    callback(curUpload, curDownload, pageName)
                 }
             )
         }
     )
 }
 
-let updataPageMapCallback: (upload: Int64, download: Int64) -> Unit = {
-    upload: Int64, download: Int64 =>
+let updataPageMapCallback: (upload: Int64, download: Int64, pageName: String) -> Unit = {
+    upload: Int64, download: Int64, pageName: String =>
     let curTx = upload - pageTxStart
     let curRx = download - pageRxStart
-    updatePageMap(currentPageName, curTx, curRx)
+    updatePageMap(pageName, curTx, curRx)
     pageTxStart = upload
     pageRxStart = download
 }
@@ -374,8 +374,8 @@ let updateDayTrafficCallback: (upload: Int64, download: Int64) -> Unit = {
     setStoredData(KEY_CURRENT_DOWNLOAD, upload.toString())
     setStoredData(KEY_CURRENT_DOWNLOAD, download.toString())
 }
-let sampleCallback: (upload: Int64, download: Int64) -> Unit = {
-    upload: Int64, download: Int64 =>
+let sampleCallback: (upload: Int64, download: Int64, pageName: String) -> Unit = {
+    upload: Int64, download: Int64, pageName: String =>
     if (!inited) {
         inited = true
     } else {
@@ -383,6 +383,11 @@ let sampleCallback: (upload: Int64, download: Int64) -> Unit = {
         let deltaDownload: Int64 = download - prevDownload
         let delta: Int64 = deltaUpload + deltaDownload
         if (delta >= SAMPLE_THRESHOLD) {
+            // update page traffic
+            let curTx = upload - pageTxStart
+            let curRx = download - pageRxStart
+            updatePageMap(pageName, curTx, curRx)
+
             let curTimeStamp = getCurTimeStamp()
             let systemTrafficInfo: SystemTrafficInfo = SystemTrafficInfo(curTimeStamp, deltaUpload, deltaDownload)
             let urlInfoArray: ArrayList<UrlTrafficInfo> = getUrlTrafficInfo()
@@ -400,11 +405,11 @@ let sampleCallback: (upload: Int64, download: Int64) -> Unit = {
 }
 
 private func doTrafficSample(array: Array<String>) {
-    processUidTrafficBytes(sampleCallback)
+    processUidTrafficBytes(sampleCallback, currentPageName)
 }
 
 private func navDestinationSwitchCallBack(info: NavDestinationSwitchInfo) {
-    processUidTrafficBytes(updataPageMapCallback)
+    processUidTrafficBytes(updataPageMapCallback, currentPageName)
     currentPageName = getTargetPageName(info)
 }
 
@@ -437,7 +442,7 @@ public func destroyTrafficHandler() {
     if (sampleId != -1) {
         clearInterval(sampleId)
     }
-    processUidTrafficBytes(updateDayTrafficCallback)
+    processUidTrafficBytes({upload, download, _ => updateDayTrafficCallback(upload, download)}, "")
 }
 
 private func getUrlTraficNativeInfo(): ArrayList<UrlTrafficInfo> {
