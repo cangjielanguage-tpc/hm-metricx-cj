@@ -298,8 +298,8 @@ let updateDayTrafficCallback: (upload: Int64, download: Int64) -> Unit = {
         setStoredData(KEY_CURRENT_DOWNLOAD, upload.toString())
         setStoredData(KEY_CURRENT_DOWNLOAD, download.toString())
 }
-let sampleCallback: (upload: Int64, download: Int64) -> Unit = {
-    upload: Int64, download: Int64 =>
+let sampleCallback: (upload: Int64, download: Int64, pageName: String) -> Unit = {
+    upload: Int64, download: Int64, pageName: String =>
         if (!inited) {
             inited = true
         } else {
@@ -307,6 +307,11 @@ let sampleCallback: (upload: Int64, download: Int64) -> Unit = {
             let deltaDownload: Int64 = download - prevDownload
             let delta: Int64 = deltaUpload + deltaDownload
             if (delta >= SAMPLE_THRESHOLD) {
+                // update page traffic
+                let curTx = upload - pageTxStart
+                let curRx = download - pageRxStart
+                updatePageMap(pageName, curTx, curRx)
+
                 let curTimeStamp = getCurTimeStamp()
                 let systemTrafficInfo = SystemTrafficInfo(curTimeStamp, deltaUpload, deltaDownload)
                 reportTrafficCallback(SampleTrafficInfo(systemTrafficInfo, pageTrafficMap).toInteropSampleTrafficInfo())
@@ -331,6 +336,11 @@ public func initTrafficHandler(
     tPreference = preference
     reportTrafficCallback = reportTraffic
     SAMPLE_THRESHOLD = sampleThreshold
+
+    let doTrafficSample = {
+        => getUidRxAndTxBytes({rxBytes, txBytes, pageName => sampleCallback(rxBytes, txBytes, pageName)}, currentPageName)
+    }
+    doTrafficSample()
     onNavDestinationSwitch(
         {
             targetPageName: String =>
@@ -338,12 +348,6 @@ public func initTrafficHandler(
                 currentPageName = targetPageName
         }
     )
-
-    let doTrafficSample = {
-        => getUidRxAndTxBytes({rxBytes, txBytes, _ => sampleCallback(rxBytes, txBytes)}, "")
-    }
-
-    doTrafficSample()
     repeatSampleTraffic(doTrafficSample)
 }
 
