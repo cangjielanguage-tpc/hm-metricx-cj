@@ -331,12 +331,16 @@ public func initTrafficHandler(
     repeatSampleTraffic: (sample: () -> Unit) -> Unit,
     getUidRxAndTxBytes: (cb: (rxBytes: Int64, txBytes: Int64, pageName: String) -> Unit, pageName: String) -> Unit,
     reportTraffic: (sampleTraffixInfo: InteropSampleTrafficInfo) -> Unit,
+    reportYesterdayTraffic: (yesterdayTraffic: InteropDayTrafficInfo) -> Unit,
     sampleThreshold!: Int64 = 50 * 1024 * 1024
 ) {
     tPreference = preference
     reportTrafficCallback = reportTraffic
     SAMPLE_THRESHOLD = sampleThreshold
-
+    let yesterdayTraffic = getYesterdayTraffic()
+    if (let Some(v) <- yesterdayTraffic) {
+        reportYesterdayTraffic(v)
+    }
     let doTrafficSample = {
         => getUidRxAndTxBytes({rxBytes, txBytes, pageName => sampleCallback(rxBytes, txBytes, pageName)}, currentPageName)
     }
@@ -364,7 +368,7 @@ private func updatePageMap(pageName: String, curTx: Int64, curRx: Int64) {
     pageTrafficInfo.downTotal += curRx
 }
 
-public func getYesterdayTraffic(): Option<InteropDayTrafficInfo> {
+private func getYesterdayTraffic(): Option<InteropDayTrafficInfo> {
     var res: Option<DayTrafficInfo> = None
     let reported: String = getStoredData(KEY_YESTERDAY_REPORTED)
     let yesterdayStored: String = getStoredData(KEY_YESTERDAY_DATE)

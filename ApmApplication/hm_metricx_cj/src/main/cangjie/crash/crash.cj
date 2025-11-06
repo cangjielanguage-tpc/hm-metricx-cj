@@ -743,7 +743,7 @@ private func initCrashWatcher(
         } catch (e: Exception) {
             metricx_warn("hm-metricx-cj error: initCrashWatcher error: " + e.toString())
         } catch (e: OutOfMemoryError) {
-            AppLog.warn("hm-metricx-cj error: initCrashWatcher error, " + e.toString())
+            metricx_warn("hm-metricx-cj error: initCrashWatcher error, " + e.toString())
         }
     }
     addCrashWatcher(cb)

@@ -75,6 +75,7 @@ let clearSampleTraffic = () => {
 export function initTrafficHandler(
   context: common.UIAbilityContext,
   reportTraffic: (data: SampleTrafficInfo) => void,
+  reportYesterdayTraffic: (data: DayTrafficInfo) => void,
   sampleTime: number = 10 * 60 * 1000,
   sampleThreshold: number = 50 * 1024 * 1024
 ): void {
@@ -97,11 +98,7 @@ export function initTrafficHandler(
     clearSampleTraffic = () => clearInterval(id);
   };
   cjLib.initTrafficHandler(p, onNavDestinationSwitch, repeatSampleTraffic, getUidRxAndTxBytes, reportTraffic,
-    sampleThreshold);
-}
-
-export function getYesterdayTraffic(): DayTrafficInfo | undefined {
-  return cjLib.getYesterdayTraffic();
+    reportYesterdayTraffic, sampleThreshold);
 }
 
 export function destroyTrafficHandler(): void {
