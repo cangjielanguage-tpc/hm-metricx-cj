@@ -283,6 +283,7 @@ private func getStoredData(key: String): String {
 public func initTrafficHandler(
     context: UIAbilityContext,
     reportTraffic: (sampleTraffixInfo: SampleTrafficInfo) -> Unit,
+    reportYesterdayTraffic: (yesterdayTraffic: DayTrafficInfo) -> Unit,
     sampleTime!: Int64 = 10 * 60 * 1000,
     sampleThreshold!: Int64 = 50 * 1024 * 1024
 ) {
@@ -290,6 +291,10 @@ public func initTrafficHandler(
     reportTrafficCallback = reportTraffic
     SAMPLE_TIME = sampleTime
     SAMPLE_THRESHOLD = sampleThreshold
+    let yesterdayTraffic = getYesterdayTraffic()
+    if (let Some(v) <- yesterdayTraffic) {
+        reportYesterdayTraffic(v)
+    }
     doTrafficSample()
     on(navDestinationSwitch, uiContext.getOrThrow(), PageSwitchCallBack(navDestinationSwitchCallBack))
     sampleId = setInterval(doTrafficSample, SAMPLE_TIME, Array<String>())
@@ -424,7 +429,7 @@ private func updatePageMap(pageName: String, curTx: Int64, curRx: Int64) {
     pageTrafficInfo.downTotal += curRx
 }
 
-public func getYesterdayTraffic(): Option<DayTrafficInfo> {
+private func getYesterdayTraffic(): Option<DayTrafficInfo> {
     var res: Option<DayTrafficInfo> = None
     let reported: String = getStoredData(KEY_YESTERDAY_REPORTED)
     let yesterdayStored: String = getStoredData(KEY_YESTERDAY_DATE)

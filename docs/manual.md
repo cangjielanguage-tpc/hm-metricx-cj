@@ -646,12 +646,11 @@ class EntryAbility <: UIAbility {
 public func initTrafficHandler(
     context: UIAbilityContext,
     reportTraffic: (sampleTraffixInfo: SampleTrafficInfo) -> Unit,
+    reportYesterdayTraffic: (yesterdayTraffic: DayTrafficInfo) -> Unit,
     sampleTime!: Int64 = 10 * 60 * 1000,
     sampleThreshold!: Int64 = 50 * 1024 * 1024
 ): Unit
 
-// 获取前一天的总流量使用情况
-public func getYesterdayTraffic(): Option<DayTrafficInfo>
 
 // 取消流量监控
 public func destroyTrafficHandler()
@@ -663,6 +662,7 @@ public func destroyTrafficHandler()
 `initTrafficHandler` 需要的入参说明如下：
 - `context`: `UIAbilityContext` 指定UIAbility上下文。
 - `reportTraffic: (sampleTraffixInfo: SampleTrafficInfo) -> Unit` 回调函数，用于上报流量使用情况。当流量数据达到上报阈值`sampleThreshold`时，回调被触发。
+- `reportYesterdayTraffic: (yesterdayTraffic: DayTrafficInfo) -> Unit` 回调函数，用于在应用启动时上报前一天的流量使用情况, 仅上报一次。
 - `sampleTime` 用于设置流量数据的采样时间间隔，单位为毫秒。
 - `sampleThreshold` 用于设置流量数据的上报阈值，单位为字节。
 

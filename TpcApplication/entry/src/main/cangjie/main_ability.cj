@@ -56,7 +56,7 @@ class EntryAbility <: UIAbility {
                 .context
                 .cacheDir)
         )
-        initTrafficHandler(this.context, {data =>})
+        initTrafficHandler(this.context, {data =>}, {data =>})
         initStorageHandler({data: StorageInfo =>}, sizeLimit: 100000000, dirSizeLimit: 1000, reportTopNum: 5)
         initBatteryHandler(this, {data =>}, {data =>})
         initCpuHandler(this.context, {data =>}, {data =>})
