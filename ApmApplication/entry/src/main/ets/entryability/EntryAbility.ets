@@ -46,6 +46,8 @@ export default class EntryAbility extends UIAbility {
     initTrafficHandler(
       this.context,
       data => {
+      },
+      data => {
       });
     initStorageHandler(
       data => {},

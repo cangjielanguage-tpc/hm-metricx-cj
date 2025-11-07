@@ -631,12 +631,10 @@ export default class EntryAbility extends UIAbility {
 export function initTrafficHandler(
   context: common.UIAbilityContext,
   reportTraffic: (data: SampleTrafficInfo) => void,
+  reportYesterdayTraffic: (data: DayTrafficInfo) => void,
   sampleTime: number = 10 * 60 * 1000,
   sampleThreshold: number = 50 * 1024 * 1024
 ): void
-
-// 获取前一天的总流量使用情况
-export function getYesterdayTraffic(): DayTrafficInfo | undefined
 
 // 取消流量监控
 export function destroyTrafficHandler(): void
@@ -648,6 +646,7 @@ export function destroyTrafficHandler(): void
 `initTrafficHandler` 需要的入参说明如下：
 - `context: common.UIAbilityContext` 指定UIAbility上下文。
 - `reportTraffic: (data: SampleTrafficInfo) => void` 回调函数，用于上报流量使用情况。当流量数据达到上报阈值`sampleThreshold`时，回调被触发。
+- `reportYesterdayTraffic: (data: DayTrafficInfo) => void` 回调函数，用于在应用启动时上报前一天的流量使用情况, 仅上报一次。
 - `sampleTime: number = 10 * 60 * 1000` 用于设置流量数据的采样时间间隔，单位为毫秒。
 - `sampleThreshold: number = 50 * 1024 * 102` 用于设置流量数据的上报阈值，单位为字节。
 
