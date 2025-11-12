@@ -176,7 +176,7 @@ public class CrashInfo {
         let info = ArrayList<String>()
         let collect = {
             =>
-                let res = reduce({acc, cur => "${cur}\n${acc}"})(info)
+                let res = reduce({acc, cur => "${acc}\n${cur}"})(info)
                 info.clear()
                 res
         }
@@ -391,9 +391,7 @@ public func initCrashHandler(
     let persistentPaths = PersistentPaths(persistentDir)
     let hilogNumber = max(lastNHilogNumber, 0)
     let systemLogNum = max(systemLogNumber, 0)
-    spawn {
-        => reportLastCrash(persistentPaths, reportCrashInfo)
-    }
+    reportLastCrash(persistentPaths, reportCrashInfo)
     let crashInfo = CrashInfo()
     crashInfo.limits = collectLimits()
     initErrorObserver(onCrash, crashInfo, exit, collectCrashInfo, enableDumpOnOOM, persistentPaths)
