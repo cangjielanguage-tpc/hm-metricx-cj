@@ -40,7 +40,7 @@ export default class EntryAbility extends UIAbility {
     );
     initFreezeHandler(
       () => "{}",
-      data => hilog.error(DOMAIN, 'hm_metricx_cj', 'freeze info %{public}s', data.freezeLogPath),
+      data => hilog.error(DOMAIN, 'hm_metricx_cj', 'freeze info %{public}s', data.rawFile),
       this.context.cacheDir
     );
     initTrafficHandler(

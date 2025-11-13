@@ -123,7 +123,6 @@ export declare class InteropFreezeInfo {
     tid: string | undefined
     tname: string | undefined
     extraInfo: string | undefined
-    freezeLogPath: string | undefined
     cpuThread: string | undefined
     cpu: string | undefined
     stacktrace: Array<string> | undefined
@@ -201,7 +200,6 @@ export declare class InteropCrashInfo {
     limits: string | undefined
     threads: string | undefined
     extraInfo: string | undefined
-    crashLogPath: string | undefined
     dumpOnOOMPath: string | undefined
     appVersion: string | undefined
     rawFile: string | undefined

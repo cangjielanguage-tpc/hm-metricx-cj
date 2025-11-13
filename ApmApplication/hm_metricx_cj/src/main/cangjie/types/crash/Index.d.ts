@@ -17,7 +17,6 @@ export declare class InteropCrashInfo {
     limits: string | undefined
     threads: string | undefined
     extraInfo: string | undefined
-    crashLogPath: string | undefined
     dumpOnOOMPath: string | undefined
     appVersion: string | undefined
     rawFile: string | undefined

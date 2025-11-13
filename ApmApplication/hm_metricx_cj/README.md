@@ -118,7 +118,7 @@ export default class EntryAbility extends UIAbility {
     initCrashHandler(
       this.context.getApplicationContext(),
       () => "{}",
-      data => hilog.error(DOMAIN, 'hm_metricx_cj', 'crash log path: ' + data.crashLogPath),
+      data => hilog.error(DOMAIN, 'hm_metricx_cj', 'crash rawFile: ' + data.rawFile),
       this.context.cacheDir,
       OOMHandlerMode.ASYNC,
       1000,

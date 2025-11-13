@@ -29,7 +29,6 @@ public class CrashInfo {
     public var limits: ?String = None
     public var threads: ?String = None
     public var extraInfo: ?String = None
-    public var crashLogPath: ?String = None
     public var dumpOnOOMPath: ?String = None
     public var appVersion: ?String = None
     public var rawFile: ?String = None
@@ -58,7 +57,6 @@ public class CrashInfo {
         crashInfo.limits = limits
         crashInfo.threads = threads
         crashInfo.extraInfo = extraInfo
-        crashInfo.crashLogPath = crashLogPath
         crashInfo.dumpOnOOMPath = dumpOnOOMPath
         crashInfo.appVersion = appVersion
         crashInfo.rawFile = rawFile
@@ -125,10 +123,6 @@ public class CrashInfo {
         }
         res += "extraInfo:\n"
         if (let Some(v) <- extraInfo) {
-            res += "${v}\n"
-        }
-        res += "crashLogPath:\n"
-        if (let Some(v) <- crashLogPath) {
             res += "${v}\n"
         }
         res += "dumpOnOOMPath:\n"
@@ -218,10 +212,8 @@ public class CrashInfo {
                 crashInfo.limits = collect()
             } else if (line == "extraInfo:") {
                 crashInfo.threads = collect()
-            } else if (line == "crashLogPath:") {
-                crashInfo.extraInfo = collect()
             } else if (line == "dumpOnOOMPath:") {
-                crashInfo.crashLogPath = collect()
+                crashInfo.extraInfo = collect()
             } else if (line == "appVersion:") {
                 crashInfo.dumpOnOOMPath = collect()
             } else if (line == "rawFile:") {
@@ -263,7 +255,6 @@ public class InteropCrashInfo {
     public var limits: Option<String> = None
     public var threads: Option<String> = None
     public var extraInfo: Option<String> = None
-    public var crashLogPath: Option<String> = None
     public var dumpOnOOMPath: Option<String> = None
     public var appVersion: Option<String> = None
     public var rawFile: Option<String> = None
@@ -690,7 +681,6 @@ private func initCrashWatcher(
             } else {
                 metricx_warn("hm-metricx-cj error: No persistent crash memory file.")
             }
-            var crashLogPath = external_log
             if (crash_type == "JsError") {
                 crashInfo.language = "js_crash"
             } else if (crash_type == "NativeCrash") {
@@ -701,17 +691,16 @@ private func initCrashWatcher(
             crashInfo.stacktrace = exception
             crashInfo.hilog = hilog
             crashInfo.appVersion = bundle_version
-            if (crashLogPath.isEmpty()) {
+            if (external_log.isEmpty()) {
                 crashInfo.rawFile = "hm-metricx-cj error: crash log path is empty \n" + getLogFileInfo()
                 crashInfo.historyRawFiles = collectAndCleanHistoryLogFiles()
-            } else if (!exists(crashLogPath)) {
-                crashInfo.rawFile = "hm-metricx-cj error: crash log path ${crashLogPath} does not exist \n" +
+            } else if (!exists(external_log)) {
+                crashInfo.rawFile = "hm-metricx-cj error: crash log path ${external_log} does not exist \n" +
                     getLogFileInfo()
             }
-            crashInfo.crashLogPath = crashLogPath
-            let content = readFile(Path(crashLogPath), isReturnException: true)
+            let content = readFile(Path(external_log), isReturnException: true)
             crashInfo.rawFile = content
-            deleteFile(crashLogPath)
+            deleteFile(external_log)
             let res = extractFromCrashLog(content.split("\n", removeEmpty: true), crashInfo.pid, crashInfo.threads)
             crashInfo.pname = res[0]
             crashInfo.tid = res[1]

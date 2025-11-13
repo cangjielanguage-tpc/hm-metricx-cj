@@ -17,7 +17,6 @@ public class FreezeInfo {
     private var tidValue: ?String = None
     private var tnameValue: ?String = None
     private var extraInfoValue: ?String = None
-    private var freezeLogPathValue: ?String = None
     private var cpuThreadValue: ?HashMap<String, String> = None
     private var cpuValue: ?HashMap<String, String> = None
     private var stacktraceValue: ?ArrayList<String> = None
@@ -87,15 +86,6 @@ public class FreezeInfo {
         }
     }
 
-    public mut prop freezeLogPath: ?String {
-        get() {
-            freezeLogPathValue
-        }
-        set(value) {
-            freezeLogPathValue = value
-        }
-    }
-
     public mut prop cpuThread: ?HashMap<String, String> {
         get() {
             cpuThreadValue
@@ -152,7 +142,6 @@ public class FreezeInfo {
         if (let Some(v) <- extraInfoValue) {
             freezeInfo.extraInfo = v.toString()
         }
-        freezeInfo.freezeLogPath = freezeLogPathValue
         freezeInfo.rawFile = rawFileValue
         freezeInfo.historyRawFiles = historyRawFilesValue
         if (let Some(v) <- cpuThreadValue) {
@@ -179,7 +168,6 @@ public class InteropFreezeInfo {
     public var tid: Option<String> = None
     public var tname: Option<String> = None
     public var extraInfo: Option<String> = None
-    public var freezeLogPath: Option<String> = None
     //    public var cpuThread: Option<JSHashMapEx<String, String>> = None TODO cannot use JSHashMapEx due to known bug in ark_interop lib
     //    public var cpu: Option<JSHashMapEx<String, String>> = None
     public var cpuThread: Option<String> = None
@@ -288,7 +276,6 @@ private func initFreezeWatcher(
                 } else if (!exists(external_log)) {
                     freezeInfo.rawFile = "hm-metricx-cj freeze error: freezeLogPath path ${external_log} does not exist"
                 }
-                freezeInfo.freezeLogPath = external_log
                 freezeInfo.rawFile = readFile(Path(external_log), isReturnException: true)
                 let res = extractFromFreezeLog(freezeInfo
                     .rawFile
