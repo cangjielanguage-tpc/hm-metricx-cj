@@ -42,8 +42,6 @@ void TrafficData::onConnect(int fd, const struct sockaddr *addr, socklen_t len) 
     int ret = parse_ip_port_from_sockaddr(addr, ip_buf, &port);
     if (ret == 0 && strlen(ip_buf) > 0 && 0 != strcmp(ip_buf, "::ffff:127.0.0.1")) {
         bindAddress(fd, ip_buf, port);
-    } else {
-        bindAddress(fd, nullptr, 0);
     }
 }
 
@@ -79,10 +77,6 @@ void TrafficData::onSend(int fd, size_t len) {
     SocketInfo *socketInfo = findSocketInfoByFd(fd);
     if (nullptr != socketInfo) {
         socketInfo->onSend(fd,len);
-    } else {
-        socketInfo = new SocketInfo(fd);
-        fd_sockinfo_map[fd] = socketInfo;
-        fd_sockinfo_map[fd]->onSend(fd,len);
     }
     pthread_rwlock_unlock(&this->g_rwlock);
 }
@@ -92,10 +86,6 @@ void TrafficData::onRecv(int fd, size_t len) {
     SocketInfo *socketInfo = findSocketInfoByFd(fd);
     if (nullptr != socketInfo) {
         socketInfo->onRecv(fd,len);
-    } else {
-        socketInfo = new SocketInfo(fd);
-        fd_sockinfo_map[fd] = socketInfo;
-        fd_sockinfo_map[fd]->onRecv(fd,len);
     }
     pthread_rwlock_unlock(&this->g_rwlock);
 }
@@ -111,7 +101,9 @@ std::string TrafficData::toString() {
     pthread_rwlock_wrlock(&this->g_rwlock);
     std::string res = "";
     for (auto it = fd_sockinfo_map.begin(); it != fd_sockinfo_map.end(); ++it) {
-        res += it->second->toString() + ";";
+        if (it->second->getHost() != "null" && it->second->getSum() > 0) {
+            res += it->second->toString() + ";";
+        }
     }
     pthread_rwlock_unlock(&this->g_rwlock);
     return res;
