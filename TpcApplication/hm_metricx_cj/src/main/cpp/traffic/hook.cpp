@@ -233,7 +233,10 @@ int hookSocket() {
         // __recv_chk: triggered when button is clicked
         ".*libmmi-client.z\\.so$",
         // sendto: triggered when app is started
-        ".*libhisysevent.z\\.so$"
+        ".*libhisysevent.z\\.so$",
+        ".*/libhilog_ndk.z.so$",
+        ".*/libstdx.encoding.so$",
+        ".*/libhilog.so$"
     };
 
     for (auto &pattern : ignore_patterns) {
