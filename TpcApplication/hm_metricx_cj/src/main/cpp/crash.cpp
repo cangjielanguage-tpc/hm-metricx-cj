@@ -86,6 +86,8 @@ static SignalCrashInfo signalCrashInfo[] = {{.sigNum = SIGABRT}, {.sigNum = SIGB
                                             {.sigNum = SIGILL},  {.sigNum = SIGSEGV},  {.sigNum = SIGTRAP},
                                             {.sigNum = SIGSYS},  {.sigNum = SIGSTKFLT}};
 
+auto bundleName = OH_NativeBundle_GetCurrentApplicationInfo().bundleName;
+
 int RemoveSignalHandler() {
     int r = SUCCESS;
     size_t i;
@@ -208,7 +210,7 @@ static void CrashSignalHandler(int sig, siginfo_t *si, void *context) {
     std::string vss = "Vss:\t\t\t\t" + getVss(readFile("/proc/self/statm"), ' ') + " KB";
     std::string meminfo = smaps_rollup + "\n" + vss;
     cjcb(persistentFilePath.c_str(), cjLimits.c_str(), cjCollectCrashInfo, fds.c_str(), threads.c_str(),
-         meminfo.c_str(), OH_NativeBundle_GetCurrentApplicationInfo().bundleName);
+         meminfo.c_str(), bundleName);
     writeSystemLog(persistentSystemLogFilePath.c_str());
     persistMemoryData(persistentMemMapFilePath.c_str(), persistentMemMallocFilePath.c_str(),
                       persistentParsedAddrFilePath.c_str(), memPersistTimePath.c_str());
