@@ -52,8 +52,7 @@ typedef const char *(*CollectCrashInfo)();
 
 CollectCrashInfo cjCollectCrashInfo;
 
-typedef void (*Callback)(const char *, const char *, CollectCrashInfo, const char *, const char *, const char *,
-                         char *);
+typedef void (*Callback)(const char *, const char *, CollectCrashInfo, const char *, const char *, const char *);
 
 Callback cjcb;
 
@@ -85,8 +84,6 @@ std::string cjLimits;
 static SignalCrashInfo signalCrashInfo[] = {{.sigNum = SIGABRT}, {.sigNum = SIGBUS},   {.sigNum = SIGFPE},
                                             {.sigNum = SIGILL},  {.sigNum = SIGSEGV},  {.sigNum = SIGTRAP},
                                             {.sigNum = SIGSYS},  {.sigNum = SIGSTKFLT}};
-
-auto bundleName = OH_NativeBundle_GetCurrentApplicationInfo().bundleName;
 
 int RemoveSignalHandler() {
     int r = SUCCESS;
@@ -165,8 +162,8 @@ void CrashLastNHilogCallback(const LogType type, const LogLevel level, const uns
 }
 
 extern "C" {
-int8_t writeSystemLog(const char *pFilePath);
-int8_t writeLastNHiLog(const char *pFilePath);
+int8_t WriteSystemLog(const char *pFilePath);
+int8_t WriteLastNHiLog(const char *pFilePath);
 }
 
 bool startsWith(const std::string& str, const std::string& prefix) {
@@ -210,11 +207,11 @@ static void CrashSignalHandler(int sig, siginfo_t *si, void *context) {
     std::string vss = "Vss:\t\t\t\t" + getVss(readFile("/proc/self/statm"), ' ') + " KB";
     std::string meminfo = smaps_rollup + "\n" + vss;
     cjcb(persistentFilePath.c_str(), cjLimits.c_str(), cjCollectCrashInfo, fds.c_str(), threads.c_str(),
-         meminfo.c_str(), bundleName);
-    writeSystemLog(persistentSystemLogFilePath.c_str());
+         meminfo.c_str());
+    WriteSystemLog(persistentSystemLogFilePath.c_str());
     persistMemoryData(persistentMemMapFilePath.c_str(), persistentMemMallocFilePath.c_str(),
                       persistentParsedAddrFilePath.c_str(), memPersistTimePath.c_str());
-    writeLastNHiLog(persistentLastNHilogFilePath.c_str());
+    WriteLastNHiLog(persistentLastNHilogFilePath.c_str());
     RemoveSignalHandler();
     pthread_mutex_unlock(&signalHandlerMutex);
     signalCrashInfo[sig].oldact.sa_sigaction(sig, si, context);
@@ -384,23 +381,17 @@ int8_t registerCrashLastNHilogCallback() {
     return SUCCESS;
 }
 
-
-int8_t writeSystemLog(const char *pFilePath) {
-    std::ofstream file(pFilePath);
+int8_t WriteFile(const char *filepath, const char *content) {
+    std::ofstream file(filepath);
     try {
         if (!file.is_open()) {
             return FAIL;
         }
-        for (const auto &entry : systemLogMessages) {
-            std::string entryString = LogEntryToString(entry);
-            std::ostringstream logStream;
-            logStream << entryString;
-            file << logStream.str() << "\n";
-        }
+        file << content;
         file.close();
         return SUCCESS;
     } catch (const std::exception &e) {
-        OH_LOG_Print(LOG_APP, LOG_WARN, 0x00008, "hm_metricx_cj", "hm-metricx-cj error: writeSystemLog failed");
+        OH_LOG_Print(LOG_APP, LOG_WARN, 0x00008, "hm_metricx_cj", "hm-metricx-cj error: write %{public}s failed", filepath);
     }
     if (file.is_open()) {
         file.close();
@@ -408,27 +399,26 @@ int8_t writeSystemLog(const char *pFilePath) {
     return FAIL;
 }
 
-int8_t writeLastNHiLog(const char *pFilePath) {
-    std::ofstream file(pFilePath);
-    try {
-        if (!file.is_open()) {
-            return FAIL;
-        }
-        for (const auto &entry : hilogMessages) {
-            std::string entryString = LogEntryToString(entry);
-            std::ostringstream logStream;
-            logStream << entryString;
-            file << logStream.str() << "\n";
-        }
-        file.close();
-        return SUCCESS;
-    } catch (const std::exception &e) {
-        OH_LOG_Print(LOG_APP, LOG_WARN, 0x00008, "hm_metricx_cj", "hm-metricx-cj error: writeLastNHiLog failed");
+int8_t WriteCrashJson(const char *content) {
+    return WriteFile(persistentFilePath.c_str(), content);
+}
+
+int8_t WriteSystemLog(const char *pFilePath) {
+    std::ostringstream logStream;
+    for (const auto &entry : systemLogMessages) {
+        std::string entryString = LogEntryToString(entry);
+        logStream << entryString << "\n";
     }
-    if (file.is_open()) {
-        file.close();
+    return WriteFile(pFilePath, logStream.str().c_str());
+}
+
+int8_t WriteLastNHiLog(const char *pFilePath) {
+    std::ostringstream logStream;
+    for (const auto &entry : hilogMessages) {
+        std::string entryString = LogEntryToString(entry);
+        logStream << entryString << "\n";
     }
-    return FAIL;
+    return WriteFile(pFilePath, logStream.str().c_str());
 }
 
 int8_t installNativeMemoryMonitor() {

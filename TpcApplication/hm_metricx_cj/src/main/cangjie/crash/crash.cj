@@ -635,20 +635,23 @@ private func initNativeSignalHandler(applicationContext: ApplicationContext, lim
             lastNHilogNumber,
             systemLogNumber,
             {
-                persistentFilePath, limits, collectCrashInfo, fds, threads, meminfo, bundleName =>
-                let crashInfo = CrashInfo()
-                crashInfo.limits = limits.toString()
-                crashInfo.fds = parseFDs(fds.toString())
-                // sometimes invoking collectThreads will crash, so read tids at native side
-                crashInfo.threads = threads.toString()
-                // sometimes invoking collectMemInfo will crash, so read meminfo at native side
-                crashInfo.meminfo = meminfo.toString()
+                persistentFilePath, limits, collectCrashInfo, fds, threads, meminfo =>
                 try {
+                    let crashInfo = CrashInfo()
+                    crashInfo.limits = limits.toString()
+                    crashInfo.fds = parseFDs(fds.toString())
+                    // sometimes invoking collectThreads will crash, so read tids at native side
+                    crashInfo.threads = threads.toString()
+                    // sometimes invoking collectMemInfo will crash, so read meminfo at native side
+                    crashInfo.meminfo = meminfo.toString()
                     crashInfo.extraInfo = JsonValue.fromStr(collectCrashInfo().toString())
+                    let res = WriteCrashJson(LibC.mallocCString(crashInfo.toString()))
+                    if (res != 0) {
+                        AppLog.warn("hm-metricx-cj error: WriteCrashJson failed.")
+                    }
                 } catch (e: Exception) {
                     AppLog.warn("hm-metricx-cj error: " + e.toString())
                 }
-                writeFile(persistentFilePath.toString(), crashInfo.toString())
             }
         ) != 0) {
             AppLog.warn("hm-metricx-cj error: InitNativeSignalHandler failed.")
@@ -1181,7 +1184,7 @@ private func compressFile(src: String, dest: String): Bool {
 private func writeSystemLog2File(persistentSystemLogPath: String) {
     unsafe {
         let filePath = LibC.mallocCString(persistentSystemLogPath)
-        if (writeSystemLog(filePath) != 0) {
+        if (WriteSystemLog(filePath) != 0) {
             AppLog.warn("hm-metricx-cj error: write system log file failed.")
         }
         LibC.free(filePath)
@@ -1208,7 +1211,7 @@ private func persistMemoryData2File(persistentMemMapFileName: String, persistent
 private func writeLastNHilog2File(persistentLastNHilogPath: String) {
     unsafe {
         let filePath = LibC.mallocCString(persistentLastNHilogPath)
-        if (writeLastNHiLog(filePath) != 0) {
+        if (WriteLastNHiLog(filePath) != 0) {
             AppLog.warn("hm-metricx-cj error: write lastNHilog log file failed.")
         }
         LibC.free(filePath)
@@ -1507,13 +1510,15 @@ foreign func InitNativeSignalHandler(persistentFilePath: CString, limits: CStrin
     collectCrashInfo: CFunc<() -> CString>, persistentSystemLogPath: CString, pMemMapFilePath: CString,
     pMemMallocPath: CString, parsedAddrPath: CString, memPersistTimePath: CString,
     persistentLastNHilogPath: CString, lastNHilogNumber: Int64, systemLogNumber: Int64,
-    cb: CFunc<(CString, CString, CFunc<() -> CString>, CString, CString, CString, CString) -> Unit>): Int8
+    cb: CFunc<(CString, CString, CFunc<() -> CString>, CString, CString, CString) -> Unit>): Int8
 
 foreign func InitOOMHandler(targetFile: CString): Int8
 
-foreign func writeSystemLog(persistentFilePath: CString): Int8
+foreign func WriteCrashJson(content: CString): Int8
 
-foreign func writeLastNHiLog(persistentFilePath: CString): Int8
+foreign func WriteSystemLog(persistentFilePath: CString): Int8
+
+foreign func WriteLastNHiLog(persistentFilePath: CString): Int8
 
 foreign func registerCrashSystemlogCallback(): Int8
 
