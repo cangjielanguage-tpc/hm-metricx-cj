@@ -113,6 +113,7 @@ public func syncCallBack(info: IntervalInfo)
             isComplite = true
         }
     }
+    eventMap.remove(timeBegain)
     sync.stop()
     sync.off(OnOffType.DS_FRAME)
     isFirstCallBack = true
