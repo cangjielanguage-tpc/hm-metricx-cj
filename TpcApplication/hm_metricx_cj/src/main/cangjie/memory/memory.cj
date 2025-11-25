@@ -14,10 +14,13 @@ import stdx.encoding.json.*
 import std.posix.*
 import tpc.ArkData.preferences
 import std.unicode.UnicodeStringExtension
+import std.runtime.*
 
 public open class MemoryInfo {
     private var avgMemoryValue: Int64 = 0
     private var maxMemoryValue: Int64 = 0
+    private var avgCJMemoryValue: Int64 = 0
+    private var maxCJMemoryValue: Int64 = 0
     private var sampleCountValue: Int64 = 0
 
     mut prop avgMemory: Int64 {
@@ -28,6 +31,7 @@ public open class MemoryInfo {
             avgMemoryValue = value
         }
     }
+
     mut prop maxMemory: Int64 {
         get() {
             maxMemoryValue
@@ -36,6 +40,25 @@ public open class MemoryInfo {
             maxMemoryValue = value
         }
     }
+
+    mut prop avgCJMemory: Int64 {
+        get() {
+            avgCJMemoryValue
+        }
+        set(value) {
+            avgCJMemoryValue = value
+        }
+    }
+
+    mut prop maxCJMemory: Int64 {
+        get() {
+            maxCJMemoryValue
+        }
+        set(value) {
+            maxCJMemoryValue = value
+        }
+    }
+
     mut prop sampleCount: Int64 {
         get() {
             sampleCountValue
@@ -48,27 +71,46 @@ public open class MemoryInfo {
     public init() {
         avgMemoryValue = 0
         maxMemoryValue = 0
+        avgCJMemoryValue = 0
+        maxCJMemoryValue = 0
         sampleCountValue = 0
     }
 
-    func computeAvg(currrentMemoryValue: Int64): Unit {
+    func computeAvg(currrentMemoryValue: Int64, currrentCJMemoryValue: Int64): Unit {
         this.avgMemoryValue = this.avgMemoryValue + (currrentMemoryValue - this.avgMemoryValue) / (sampleCountValue + 1)
         if (maxMemoryValue < currrentMemoryValue) {
             maxMemoryValue = currrentMemoryValue
         }
+
+        this.avgCJMemoryValue = this.avgCJMemoryValue + (currrentCJMemoryValue - this.avgCJMemoryValue) / (sampleCountValue + 1)
+        if (maxCJMemoryValue < currrentCJMemoryValue) {
+            maxCJMemoryValue = currrentCJMemoryValue
+        }
+
         sampleCountValue++
     }
 
     public func getAvgMemory(): Int64 {
         this.avgMemoryValue
     }
+
     public func getMaxMemory(): Int64 {
         this.maxMemoryValue
+    }
+
+    public func getAvgCJMemory(): Int64 {
+        this.avgCJMemoryValue
+    }
+
+    public func getMaxCJMemory(): Int64 {
+        this.maxCJMemoryValue
     }
 
     protected open func reset(): Unit {
         this.avgMemoryValue = 0
         this.maxMemoryValue = 0
+        this.avgCJMemoryValue = 0
+        this.maxCJMemoryValue = 0
         this.sampleCountValue = 0
     }
 }
@@ -178,6 +220,7 @@ var reportProcessMemory: (memoryInfo: ProcessMemoryInfo) -> Unit = {info: Proces
 let doMemorySample: (param: Array<String>) -> Unit = {
     param: Array<String> =>
     let memoryUsage = getPss().toInt64()
+    let cjMemoryUsage = getAllocatedHeapSize()
     if (!thresholdReported) {
         if (memoryUsage >= MEMOMRY_THRESHOLD) {
             processMemoryInfo.maxMemory = memoryUsage
@@ -185,8 +228,8 @@ let doMemorySample: (param: Array<String>) -> Unit = {
             thresholdReported = true
         }
     }
-    pageMemoryInfo.computeAvg(memoryUsage)
-    processMemoryInfo.computeAvg(memoryUsage)
+    pageMemoryInfo.computeAvg(memoryUsage, cjMemoryUsage)
+    processMemoryInfo.computeAvg(memoryUsage, cjMemoryUsage)
 }
 let handleProcessMemoryReport: (param: Array<String>) -> Unit = {
     param: Array<String> => reportProcessMemory(processMemoryInfo)
