@@ -728,6 +728,9 @@ private func initErrorObserver(crashInfo: CrashInfo, applicationContext: Applica
             } catch (e: Exception) {
                 AppLog.warn("hm-metricx-cj error: initErrorObserver error, " + e.toString())
                 exit(applicationContext)
+            } catch (e: OutOfMemoryError) {
+                AppLog.warn("hm-metricx-cj error: initErrorObserver OOM error, " + e.toString())
+                exit(applicationContext)
             }
         }
     )
@@ -770,6 +773,8 @@ private func collectFDInfo() {
         )
     } catch (e: Exception) {
         AppLog.warn("hm-metricx-cj error: collectFDInfo failed: " + e.toString())
+    } catch (e: OutOfMemoryError) {
+        AppLog.warn("hm-metricx-cj error: collectFDInfo OOM failed: " + e.toString())
     }
     fds
 }
