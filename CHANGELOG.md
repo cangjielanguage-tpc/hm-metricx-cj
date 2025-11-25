@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.8
+
+- 删除 crashLogPath 字段
+
 ## 1.0.7
 
 - 修复 crash 日志乱序问题

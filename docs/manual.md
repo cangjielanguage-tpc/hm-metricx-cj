@@ -82,7 +82,6 @@ export class CMemMonitorConfig {
 - `limits` 进程资源限制
 - `threads` OS线程ID与线程名
 - `extraInfo` `collectCrashInfo` 收集的自定义的业务/系统信息
-- `crashLogPath` 系统生成的faultlog文件路径
 - `dumpOnOOMPath` 导出的仓颉内存快照地址
 - `appVersion` 应用版本
 - `rawFile` 系统生成的faultlog文件的原始内容
@@ -103,7 +102,7 @@ export default class EntryAbility extends UIAbility {
     initCrashHandler(
       this.context.getApplicationContext(),
       () => "{}",
-      data => hilog.error(DOMAIN, 'hm_metricx_cj', 'crash log path: ' + data.crashLogPath),
+      data => hilog.error(DOMAIN, 'hm_metricx_cj', 'crash rawFile: ' + data.rawFile),
       this.context.cacheDir,
       OOMHandlerMode.ASYNC,
       1000,
@@ -174,7 +173,6 @@ export function initFreezeHandler(
 - `tid` freeze线程ID
 - `tname` freeze线程名
 - `exrtaInfo` 收集的自定义的业务/系统信息
-- `freezeLogPath` 系统生成的faultlog文件路径
 - `cpuThread` 线程CPU使用率
 - `cpu` 进程CPU使用率
 - `stacktrace` freeze调用栈
@@ -192,7 +190,7 @@ export default class EntryAbility extends UIAbility {
   onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): void {
     initFreezeHandler(
       () => "{}",
-      data => hilog.error(DOMAIN, 'hm_metricx_cj', 'freeze info %{public}s', data.freezeLogPath),
+      data => hilog.error(DOMAIN, 'hm_metricx_cj', 'freeze info %{public}s', data.rawFile),
       this.context.cacheDir
     );
   }
