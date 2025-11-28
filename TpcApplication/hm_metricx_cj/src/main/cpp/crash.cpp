@@ -14,6 +14,7 @@
 #include <hilog/log.h>
 #include <iostream>
 #include <malloc.h>
+#include <mutex>
 #include <ostream>
 #include <pthread.h>
 #include <signal.h>
@@ -25,7 +26,6 @@
 #include <sys/eventfd.h>
 #include <syscall.h>
 #include <unistd.h>
-#include <mutex>
 
 using namespace kwai::memory_monitor;
 typedef struct {
@@ -166,7 +166,7 @@ int8_t WriteSystemLog(const char *pFilePath);
 int8_t WriteLastNHiLog(const char *pFilePath);
 }
 
-bool startsWith(const std::string& str, const std::string& prefix) {
+bool startsWith(const std::string &str, const std::string &prefix) {
     return str.size() >= prefix.size() && str.substr(0, prefix.size()) == prefix;
 }
 
@@ -214,7 +214,15 @@ static void CrashSignalHandler(int sig, siginfo_t *si, void *context) {
     WriteLastNHiLog(persistentLastNHilogFilePath.c_str());
     RemoveSignalHandler();
     pthread_mutex_unlock(&signalHandlerMutex);
-    signalCrashInfo[sig].oldact.sa_sigaction(sig, si, context);
+    auto oldHandler = signalCrashInfo[sig].oldact;
+    if (((unsigned)oldHandler.sa_flags & SA_SIGINFO) != 0) {
+        oldHandler.sa_sigaction(sig, si, context);
+    } else if (oldHandler.sa_handler == SIG_DFL) {
+        signal(SIGSEGV, SIG_DFL);
+        raise(SIGSEGV);
+    } else {
+        oldHandler.sa_handler(sig);
+    }
 }
 
 int8_t saveMemoryMapToFile(const char *pFilePath) {
@@ -283,8 +291,10 @@ std::string LogEntryToString(const LogEntry &entry) {
     std::tm localTime = *std::localtime(&currentTime);
 
     // millisecond
-    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
-              entry.now - std::chrono::system_clock::from_time_t(currentTime)).count() % 1000;
+    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(entry.now -
+                                                                    std::chrono::system_clock::from_time_t(currentTime))
+                  .count() %
+              1000;
     // format time
     char timeBuffer[80];
     std::strftime(timeBuffer, sizeof(timeBuffer), "%m-%d %H:%M:%S", &localTime);
@@ -391,7 +401,8 @@ int8_t WriteFile(const char *filepath, const char *content) {
         file.close();
         return SUCCESS;
     } catch (const std::exception &e) {
-        OH_LOG_Print(LOG_APP, LOG_WARN, 0x00008, "hm_metricx_cj", "hm-metricx-cj error: write %{public}s failed", filepath);
+        OH_LOG_Print(LOG_APP, LOG_WARN, 0x00008, "hm_metricx_cj", "hm-metricx-cj error: write %{public}s failed",
+                     filepath);
     }
     if (file.is_open()) {
         file.close();
@@ -399,9 +410,7 @@ int8_t WriteFile(const char *filepath, const char *content) {
     return FAIL;
 }
 
-int8_t WriteCrashJson(const char *content) {
-    return WriteFile(persistentFilePath.c_str(), content);
-}
+int8_t WriteCrashJson(const char *content) { return WriteFile(persistentFilePath.c_str(), content); }
 
 int8_t WriteSystemLog(const char *pFilePath) {
     std::ostringstream logStream;
@@ -446,11 +455,7 @@ int8_t persistMemoryData(const char *mapPath, const char *memMallocPath, const c
     }
 }
 
-bool IsSigCaught() {
-    return xh_util_get_sig_caught() != 0;
-}
+bool IsSigCaught() { return xh_util_get_sig_caught() != 0; }
 
-void ResetSigCaught() {
-    xh_util_set_sig_caught(0);
-}
+void ResetSigCaught() { xh_util_set_sig_caught(0); }
 }
