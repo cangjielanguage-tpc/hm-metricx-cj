@@ -8,10 +8,8 @@ import tpc.PerformanceAnalysisKit.hiAppEvent.*
 import tpc.AbilityKit.ApplicationContext
 import std.fs.*
 import std.collection.*
-import ohos.hilog.Hilog
 import ohos.base.AppLog
 import std.convert.*
-import std.process.*
 import std.env.*
 import ohos.ability.ErrorManager
 import ohos.ability.ErrorObserver
@@ -513,7 +511,7 @@ struct DumpTime {
 
 private var inited = false
 private let TIMEOUT = Duration.second
-private var reported = false
+private let reported = HashSet<String>()
 private var OOMHandlerInited = false;
 private let PRIORITY_HIGH: Array<String> = []
 private let PRIORITY_LOW: Array<String> = []
@@ -582,11 +580,13 @@ private func reportLastCrash(persistentPaths: PersistentPaths, reportCrashInfo: 
                     crashInfo.dumpTime = dumpTime
                     if (let Some(pid) <- crashInfo.pid) {
                         crashInfo.dumpOnOOMPath = compressOOMFile(pid, persistentPaths.dir)
+                        if (!reported.contains(pid)) {
+                            reportCrashInfo(crashInfo)
+                            reported.add(pid)
+                        }
                     }
-                    reportCrashInfo(crashInfo)
                 }
             }
-            reported = true
         } catch (e: JsonException) {
             AppLog.warn("hm-metricx-cj error: " + e.toString())
         }
@@ -597,8 +597,9 @@ private func initOOMHandler(persistentDir: String) {
     setVariable("cjHeapDumpOnOOM", "on")
     setVariable("cjHeapDumpLog", persistentDir)
     unsafe {
-        let targetFile = LibC.mallocCString(persistentDir + "/cj_OOM_pid" + Process.current.pid.toString() + ".dat")
-        let zlibFile = LibC.mallocCString(persistentDir + "/cj_OOM_pid" + Process.current.pid.toString() + ".zlib")
+        let pid = getProcessId().toString()
+        let targetFile = LibC.mallocCString(persistentDir + "/cj_OOM_pid${pid}.dat")
+        let zlibFile = LibC.mallocCString(persistentDir + "/cj_OOM_pid${pid}.zlib")
         if (InitOOMHandler(targetFile) != 0) {
             AppLog.warn("hm-metricx-cj error: InitOOMHandler failed.")
         }
@@ -904,7 +905,7 @@ private func initCrashWatcher(applicationContext: ApplicationContext, reportCras
                             }
                         }
 
-                        if (Process.current.pid.toString() == crashInfo.pid.getOrDefault({=> ""})) {
+                        if (getProcessId().toString() == crashInfo.pid.getOrDefault({=> ""})) {
                             let shouldIgnore = crashInfo.language == "cpp_crash" && unsafe { IsSigCaught() }
                             if (shouldIgnore) {
                                 unsafe {
@@ -914,9 +915,7 @@ private func initCrashWatcher(applicationContext: ApplicationContext, reportCras
                             }
                             nextReportCrashInfos.add(crashInfo)
                         } else {
-                            if (!reported) {
-                                reportCrashInfos.add(crashInfo)
-                            }
+                            reportCrashInfos.add(crashInfo)
                         }
                     }
                 }
@@ -929,12 +928,15 @@ private func initCrashWatcher(applicationContext: ApplicationContext, reportCras
                 }
                 if(!reportCrashInfos.isEmpty()) {
                     spawn { =>
-                        for (info in reportCrashInfos) {
-                            if (let Some(pid) <- info.pid) {
-                                info.dumpOnOOMPath = compressOOMFile(pid, persistentPaths.dir)
+                        for (crashInfo in reportCrashInfos) {
+                            if (let Some(pid) <- crashInfo.pid) {
+                                crashInfo.dumpOnOOMPath = compressOOMFile(pid, persistentPaths.dir)
+                                // onReceive callback sometimes will be invoked both before app crash and next launch on high-verion (API 18?) devcies
+                                if (!reported.contains(pid)) {
+                                    reportCrashInfo(crashInfo)
+                                    reported.add(pid)
+                                }
                             }
-                            // onReceive callback sometimes will be invoked both before app crash and next launch on high-verion (API 18?) devcies
-                            reportCrashInfo(info)
                         }
                     }
                 }
