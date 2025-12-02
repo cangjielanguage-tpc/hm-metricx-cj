@@ -352,7 +352,7 @@ private var reported = false
 private var OOMHandlerInited = false;
 private let PRIORITY_HIGH: Array<String> = []
 private let PRIORITY_LOW: Array<String> = []
-private var iCollectCrashInfo: () -> String = {=> ""}
+private var iCollectCrashInfo: () -> String = { => "{}" }
 
 @C
 func collectExtraCrashInfo(): CString {
@@ -379,6 +379,7 @@ public func initCrashHandler(
         return
     }
     cleanHistoryLogFiles()
+    iCollectCrashInfo = collectCrashInfo
     let persistentPaths = PersistentPaths(persistentDir)
     let hilogNumber = max(lastNHilogNumber, 0)
     let systemLogNum = max(systemLogNumber, 0)

@@ -180,7 +180,7 @@ public class InteropFreezeInfo {
 }
 
 private var freezeInited = false
-private var extraInfo = ""
+private var iCollectFreezeInfo: () -> String = { => "{}" }
 
 public func initFreezeHandler(
     sdkApiVersion: Int64,
@@ -194,7 +194,7 @@ public func initFreezeHandler(
         return
     }
     cleanHistoryLogFiles()
-    extraInfo = collectFreezeInfo()
+    iCollectFreezeInfo = collectFreezeInfo
     let cpuUsageFilePath = persistentDir.join("cpuUsageFreeze.txt")
     let cpuUsageBakFilePath = persistentDir.join("cpuUsageFreeze-bak.txt")
     renameFile(cpuUsageFilePath, cpuUsageBakFilePath)
@@ -365,7 +365,7 @@ foreign func registerFreezeCallback(cpuUsageFilePath: CString, extraInfoFile: CS
 @C
 func collectExtraFreezeInfo(): CString {
     unsafe {
-        let crashInfoCStr = LibC.mallocCString(extraInfo)
+        let crashInfoCStr = LibC.mallocCString(iCollectFreezeInfo())
         crashInfoCStr
     }
 }
