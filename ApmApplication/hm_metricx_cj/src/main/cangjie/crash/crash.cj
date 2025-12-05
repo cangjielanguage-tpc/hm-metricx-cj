@@ -486,11 +486,11 @@ private func initNativeSignalHandler(limits: String, collectCrashInfo: CFunc<() 
                     crashInfo.threads = threads.toString()
                     // sometimes invoking collectMemInfo will crash, so read meminfo at native side
                     crashInfo.meminfo = meminfo.toString()
-                    try {
-                        crashInfo.extraInfo = collectCrashInfo().toString()
-                    } catch (e: Exception) {
-                        metricx_warn("hm-metricx-cj error: " + e.toString())
-                    }
+//                    try {
+//                        crashInfo.extraInfo = collectCrashInfo().toString() TODO inter-op bug between ArkTS/Cangjie/Native
+//                    } catch (e: Exception) {
+//                        metricx_warn("hm-metricx-cj error: " + e.toString())
+//                    }
                     writeFile(persistentFilePath.toString(), crashInfo.toString())
             }
         ) != 0) {

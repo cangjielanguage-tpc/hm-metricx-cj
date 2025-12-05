@@ -40,11 +40,11 @@ bool containFreezeTag(const std::vector<std::string> &msgTags, const std::string
 bool freezeCaught = false;
 void collectFreezeInfo()
 {
-    auto extraInfo = cjCollectExtraFreezeInfo();
-    if (extraInfoFile != nullptr) {
-        fwrite(extraInfo, sizeof(char), strlen(extraInfo), extraInfoFile);
-        fflush(extraInfoFile);
-    }
+//    auto extraInfo = cjCollectExtraFreezeInfo(); TODO js thread mismatch
+//    if (extraInfoFile != nullptr) {
+//        fwrite(extraInfo, sizeof(char), strlen(extraInfo), extraInfoFile);
+//        fflush(extraInfoFile);
+//    }
     std::string saveStr = "";
     HiDebug_ThreadCpuUsagePtr usagePtr = OH_HiDebug_GetAppThreadCpuUsage();
     while (usagePtr != nullptr) {
