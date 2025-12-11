@@ -21,6 +21,7 @@ import ohos.hybrid_base.HybridComponentBase
 import ohos_app_cangjie_hm_metricx_cj.util.*
 import ohos_app_cangjie_hm_metricx_cj.freeze.*
 import ohos_app_cangjie_hm_metricx_cj.storage.*
+import ohos_app_cangjie_hm_metricx_cj.memLeak.*
 import ohos.base.nativeLog
 import ohos.hilog.*
 import tpc.AbilityKit.*
@@ -118,6 +119,12 @@ class Index {
             .navDestination(bind<String>(PageMap, this))
         }
     }
+
+    private var memLeakMark: Option<MemLeakMark> = None
+    protected override func aboutToDisappear() {
+        this.memLeakMark = MemLeakMark()
+        collectDestroyedComponent(this.memLeakMark.getOrThrow(), this)
+    }
 }
 
 @Component
@@ -140,6 +147,12 @@ class PageOne{
             true
         }
     }
+
+    private var memLeakMark: Option<MemLeakMark> = None
+    protected override func aboutToDisappear() {
+        this.memLeakMark = MemLeakMark()
+        collectDestroyedComponent(this.memLeakMark.getOrThrow(), this)
+    }
 }
 
 @Component
@@ -159,6 +172,12 @@ class PageTwo{
             pageInfos.pop()
             true
         }
+    }
+
+    private var memLeakMark: Option<MemLeakMark> = None
+    protected override func aboutToDisappear() {
+        this.memLeakMark = MemLeakMark()
+        collectDestroyedComponent(this.memLeakMark.getOrThrow(), this)
     }
 }
 

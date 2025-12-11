@@ -10,6 +10,9 @@ import std.regex.Regex
 import std.time.*
 import stdx.encoding.json.*
 import std.convert.*
+import std.io.*
+import std.env.*
+import std.process.*
 import tpc.UIKit.Observer.*
 import tpc.BasicServicesKit.*
 
@@ -217,6 +220,10 @@ public func getTodayDate(): String {
     DateTime.now().format("yyyy-MM-dd")
 }
 
+public func getCurTimestampMillis(): String {
+    DateTime.now().format("yyyyMMdd-HHmmssS")
+}
+
 public func formatWithCommasAndPadding(num: Int64, width: Int64): String {
     let numStr = num.toString().toRuneArray()
     let len = numStr.size
@@ -299,5 +306,26 @@ private func recordCleanFiles(path: Path, deletedFiles: List<String>) {
 
     } catch (e: Exception) {
         AppLog.warn("hm-metricx-cj error: recordCleanFile error, " + e.toString())
+    }
+}
+
+
+// Execute the command and store the output.
+public func execWithOutput(exeTool: String, arguments: ArrayList<String>): (Bool, String, String) {
+    let subProcess: SubProcess
+    var returnCode: Int64
+    var outInfo = ""
+    var errInfo = ""
+    try {
+        let env = HashMap<String, String>(getVariables())
+        subProcess = launch(exeTool, arguments.toArray(), environment: env, stdOut: ProcessRedirect.Pipe, stdErr: ProcessRedirect.Pipe)
+
+        outInfo = StringReader(subProcess.stdOutPipe).readToEnd()
+        errInfo = StringReader(subProcess.stdErrPipe).readToEnd()
+        returnCode = subProcess.wait()
+        return (returnCode == 0, outInfo, errInfo)
+    } catch (e: Exception) {
+        AppLog.warn("hm-metricx-cj error: execWithOutput error, " + e.toString())
+        return (false, outInfo, errInfo)
     }
 }
