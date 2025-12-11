@@ -19,6 +19,7 @@ import ohos_app_cangjie_hm_metricx_cj.cpu.*
 import ohos_app_cangjie_hm_metricx_cj.memory.*
 import ohos_app_cangjie_hm_metricx_cj.laggy.*
 import ohos_app_cangjie_hm_metricx_cj.traffic.*
+import ohos_app_cangjie_hm_metricx_cj.memLeak.*
 import stdx.encoding.json.*
 import std.fs.*
 import ohos.hilog.*
@@ -61,6 +62,9 @@ class EntryAbility <: UIAbility {
         initBatteryHandler(this, {data =>}, {data =>})
         initCpuHandler(this.context, {data =>}, {data =>})
         initMemoryHandler(this.context, {data =>}, {data=>})
+        initMemLeakHandler(this.context, Path(this
+            .context
+            .cacheDir), {pageInfo, typeInfos => true}, {dumpFilePath => AppLog.info("dumpFilePath : ${dumpFilePath.toString()}")})
     }
 
     public override func onDestroy(): Unit {
