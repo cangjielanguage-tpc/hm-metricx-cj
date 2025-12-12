@@ -5,6 +5,7 @@ package ohos_app_cangjie_hm_metricx_cj.battery
 
 import ohos_app_cangjie_hm_metricx_cj.util.*
 import tpc.AbilityKit.UIAbility
+import tpc.AbilityKit.UIAbilityContext
 import tpc.BasicServicesKit.*
 import tpc.BasicServicesKit.batteryInfo.*
 import tpc.BasicServicesKit.commonEventManager.*
@@ -56,7 +57,7 @@ public class BatteryUsageInfo {
     private var useTimeValue: ?Int64 = None
     private var timeValue: ?Int64 = None
 
-    mut prop currentPageName: ?String {
+    public mut prop currentPageName: ?String {
         get() {
             currentPageNameValue
         }
@@ -64,7 +65,7 @@ public class BatteryUsageInfo {
             currentPageNameValue = value
         }
     }
-    mut prop level: ?Int32 {
+    public mut prop level: ?Int32 {
         get() {
             levelValue
         }
@@ -72,7 +73,7 @@ public class BatteryUsageInfo {
             levelValue = value
         }
     }
-    mut prop temperature: ?Float64 {
+    public mut prop temperature: ?Float64 {
         get() {
             temperatureValue
         }
@@ -80,7 +81,7 @@ public class BatteryUsageInfo {
             temperatureValue = value
         }
     }
-    mut prop capacity: ?Float64 {
+    public mut prop capacity: ?Float64 {
         get() {
             capacityValue
         }
@@ -88,7 +89,7 @@ public class BatteryUsageInfo {
             capacityValue = value
         }
     }
-    mut prop scale: ?Int32 {
+    public mut prop scale: ?Int32 {
         get() {
             scaleValue
         }
@@ -96,7 +97,7 @@ public class BatteryUsageInfo {
             scaleValue = value
         }
     }
-    mut prop status: ?Int32 {
+    public mut prop status: ?Int32 {
         get() {
             statusValue
         }
@@ -104,7 +105,7 @@ public class BatteryUsageInfo {
             statusValue = value
         }
     }
-    mut prop health: ?Int32 {
+    public mut prop health: ?Int32 {
         get() {
             healthValue
         }
@@ -112,7 +113,7 @@ public class BatteryUsageInfo {
             healthValue = value
         }
     }
-    mut prop voltage: ?Int32 {
+    public mut prop voltage: ?Int32 {
         get() {
             voltageValue
         }
@@ -120,7 +121,7 @@ public class BatteryUsageInfo {
             voltageValue = value
         }
     }
-    mut prop technology: ?String {
+    public mut prop technology: ?String {
         get() {
             technologyValue
         }
@@ -128,7 +129,7 @@ public class BatteryUsageInfo {
             technologyValue = value
         }
     }
-    mut prop plugged: ?Int32 {
+    public mut prop plugged: ?Int32 {
         get() {
             pluggedValue
         }
@@ -136,7 +137,7 @@ public class BatteryUsageInfo {
             pluggedValue = value
         }
     }
-    mut prop charging: ?Bool {
+    public mut prop charging: ?Bool {
         get() {
             chargingValue
         }
@@ -144,7 +145,7 @@ public class BatteryUsageInfo {
             chargingValue = value
         }
     }
-    mut prop limit: ?Int32 {
+    public mut prop limit: ?Int32 {
         get() {
             limitValue
         }
@@ -152,7 +153,7 @@ public class BatteryUsageInfo {
             limitValue = value
         }
     }
-    mut prop brightness: ?Int32 {
+    public mut prop brightness: ?Int32 {
         get() {
             brightnessValue
         }
@@ -160,7 +161,7 @@ public class BatteryUsageInfo {
             brightnessValue = value
         }
     }
-    mut prop useTime: ?Int64 {
+    public mut prop useTime: ?Int64 {
         get() {
             useTimeValue
         }
@@ -168,7 +169,7 @@ public class BatteryUsageInfo {
             useTimeValue = value
         }
     }
-    mut prop time: ?Int64 {
+    public mut prop time: ?Int64 {
         get() {
             timeValue
         }
@@ -188,50 +189,50 @@ public class BatteryUsageInfo {
 
     public func toString(): String {
         let jsonObj = JsonObject()
-        if (currentPageNameValue.isSome()) {
-            jsonObj.put("currentPageName", JsonString(currentPageNameValue.getOrThrow()))
+        if (let Some(v) <- currentPageNameValue) {
+            jsonObj.put("currentPageName", JsonString(v))
         }
-        if (levelValue.isSome()) {
-            jsonObj.put("level", JsonString(levelValue.getOrThrow().toString()))
+        if (let Some(v) <- levelValue) {
+            jsonObj.put("level", JsonString(v.toString()))
         }
-        if (temperatureValue.isSome()) {
-            jsonObj.put("temperature", JsonString(temperatureValue.getOrThrow().toString()))
+        if (let Some(v) <- temperatureValue) {
+            jsonObj.put("temperature", JsonString(v.toString()))
         }
-        if (capacityValue.isSome()) {
-            jsonObj.put("capacity", JsonString(capacityValue.getOrThrow().toString()))
+        if (let Some(v) <- capacityValue) {
+            jsonObj.put("capacity", JsonString(v.toString()))
         }
-        if (scaleValue.isSome()) {
-            jsonObj.put("scale", JsonString(scaleValue.getOrThrow().toString()))
+        if (let Some(v) <- scaleValue) {
+            jsonObj.put("scale", JsonString(v.toString()))
         }
-        if (statusValue.isSome()) {
-            jsonObj.put("status", JsonString(statusValue.getOrThrow().toString()))
+        if (let Some(v) <- statusValue) {
+            jsonObj.put("status", JsonString(v.toString()))
         }
-        if (healthValue.isSome()) {
-            jsonObj.put("health", JsonString(healthValue.getOrThrow().toString()))
+        if (let Some(v) <- healthValue) {
+            jsonObj.put("health", JsonString(v.toString()))
         }
-        if (voltageValue.isSome()) {
-            jsonObj.put("voltage", JsonString(voltageValue.getOrThrow().toString()))
+        if (let Some(v) <- voltageValue) {
+            jsonObj.put("voltage", JsonString(v.toString()))
         }
-        if (technologyValue.isSome()) {
-            jsonObj.put("technology", JsonString(technologyValue.getOrThrow()))
+        if (let Some(v) <- technologyValue) {
+            jsonObj.put("technology", JsonString(v))
         }
-        if (pluggedValue.isSome()) {
-            jsonObj.put("pluegged", JsonString(pluggedValue.getOrThrow().toString()))
+        if (let Some(v) <- pluggedValue) {
+            jsonObj.put("pluegged", JsonString(v.toString()))
         }
-        if (chargingValue.isSome()) {
-            jsonObj.put("charging", JsonString(chargingValue.getOrThrow().toString()))
+        if (let Some(v) <- chargingValue) {
+            jsonObj.put("charging", JsonString(v.toString()))
         }
-        if (limitValue.isSome()) {
-            jsonObj.put("limit", JsonString(limitValue.getOrThrow().toString()))
+        if (let Some(v) <- limitValue) {
+            jsonObj.put("limit", JsonString(v.toString()))
         }
-        if (brightnessValue.isSome()) {
-            jsonObj.put("brightness", JsonString(brightnessValue.getOrThrow().toString()))
+        if (let Some(v) <- brightnessValue) {
+            jsonObj.put("brightness", JsonString(v.toString()))
         }
-        if (useTimeValue.isSome()) {
-            jsonObj.put("useTime", JsonString(useTimeValue.getOrThrow().toString()))
+        if (let Some(v) <- useTimeValue) {
+            jsonObj.put("useTime", JsonString(v.toString()))
         }
-        if (time.isSome()) {
-            jsonObj.put("time", JsonString(time.getOrThrow().toString()))
+        if (let Some(v) <- timeValue) {
+            jsonObj.put("time", JsonString(v.toString()))
         }
         jsonObj.toString()
     }
@@ -283,7 +284,7 @@ private func isPulggedStatus(): Bool {
     return status
 }
 
-var uiAbility: UIAbility = UIAbility()
+var uiContext: Option<UIAbilityContext> = None
 var events: Array<String> = [
     Support.COMMON_EVENT_POWER_CONNECTED,
     Support.COMMON_EVENT_POWER_DISCONNECTED,
@@ -307,7 +308,7 @@ private func reset() {
 }
 
 private func getBrightness(): Int32 {
-    let brightness = getValue<Display>(uiAbility.context, Display.SCREEN_BRIGHTNESS_STATUS,
+    let brightness = getValue<Display>(uiContext.getOrThrow(), Display.SCREEN_BRIGHTNESS_STATUS,
         DomainName.DEVICE_SHARED.toString())
     let convertValue: Option<Int32> = Int32.tryParse(brightness)
     var status: Int32 = 0
@@ -345,7 +346,6 @@ let commonEventCallback: AsyncCallback<CommonEventData> = {
         }
     }
     if (eventData.event == Support.COMMON_EVENT_BATTERY_CHANGED) {
-        let logPath: String = uiAbility.context.cacheDir + "/battery.json"
 
         let isCharging: Bool = isPulggedStatus()
         if (isCharging) {
@@ -686,16 +686,15 @@ let abilityLifecycleCallback: AbilityLifecycleCallback = AbilityLifecycleCallbac
 )
 
 public func initBatteryHandler(
-    ability: UIAbility,
+    context: UIAbilityContext,
     reportBatteryInfo: (batteryInfo: BatteryUsageInfo) -> Unit,
     reportThreadCpuUsageInfo: (allThreadCpuUsageInfo: AllThreadCpuUsageInfo) -> Unit,
     limit!: Int32 = 1
 ): Unit {
+    uiContext = context
     reportBatteryCallback = reportBatteryInfo
-    uiAbility = ability
     batteryLimit = limit
-    let context = uiAbility.context
-    let applicationContext = context.getApplicationContext()
+    let applicationContext = uiContext.getOrThrow().getApplicationContext()
 
     //3min轮询一次
     reportThreadCpuUsageCallback = reportThreadCpuUsageInfo
@@ -709,7 +708,7 @@ public func initBatteryHandler(
 
 public func destroyBatteryHandler(): Unit {
     reportBatteryCallback = {data: BatteryUsageInfo =>}
-    let context = uiAbility.context
+    let context = uiContext.getOrThrow()
     let applicationContext = context.getApplicationContext()
 // todo: tpc bug
 //    applicationContext.off(ApplicationContextType.APPLICATION_STATE_CHANGE, callback: applicationCallback)
