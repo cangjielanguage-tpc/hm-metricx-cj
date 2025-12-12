@@ -59,7 +59,7 @@ class EntryAbility <: UIAbility {
         )
         initTrafficHandler(this.context, {data =>}, {data =>})
         initStorageHandler({data: StorageInfo =>}, sizeLimit: 100000000, dirSizeLimit: 1000, reportTopNum: 5)
-        initBatteryHandler(this, {data =>}, {data =>})
+        initBatteryHandler(this.context, {data =>}, {data =>})
         initCpuHandler(this.context, {data =>}, {data =>})
         initMemoryHandler(this.context, {data =>}, {data=>})
         initMemLeakHandler(this.context, Path(this
