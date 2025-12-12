@@ -17,7 +17,7 @@ func getBuildModeFromEnv(): String {
     let configVar = getVariable("config")
     if (let Some(v) <- configVar) {
     	if (!v.contains("buildMode")) {
-    		return buildMode
+    		return "debug"
     	}
         let config: String = v.removePrefix("{").removeSuffix("}")
         let items: Array<String> = config.split(",", removeEmpty: true)
@@ -58,14 +58,11 @@ func getProductTargetFromeEnv(): (String, String) {
 
 func stagePreBuild(): Int64 {
     println("PRE-BUILD start")
-    var buildMode = getBuildModeFromEnv()
+    let buildMode = getBuildModeFromEnv()
     let (product, target) = getProductTargetFromeEnv()
     let targetDir = canonicalize("../../../build/${product}/intermediates/cj/build/${target}")
     let workingDir = canonicalize("../../../oh_modules/hm_metricx_cj/src/main/cangjie")
-    
-    if (buildMode.isEmpty()) {
-        buildMode = "debug"
-    }
+
     executeWithOutput(
         "cjpm",
         [

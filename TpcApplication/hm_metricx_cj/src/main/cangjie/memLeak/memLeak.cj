@@ -32,13 +32,14 @@ public class PageInfo {
 
 var inited = false
 let aliveComponents: List<Component> = ArrayList<Component>()
-var reportMemLeakCallback: (Path) -> Unit = {path: Path => }
+var reportMemLeakCallback: (Path) -> Unit = {path: Path =>}
 var needDumpSnapshotInfo: (PageInfo, List<String>) -> Bool = {pageInfo, arr => true}
 var currentPageName: String = defaultPageName
 var dumpDirStr: String = ""
 
 public func collectDestroyedComponent(memLeakMark: MemLeakMark, customView: CustomView) {
     if (!inited) {
+        AppLog.warn("hm-metricx-cj warn: memLeak does not init.")
         return
     }
     let weakRefObj = WeakRef<MemLeakMark>(memLeakMark, CleanupPolicy.EAGER)
@@ -113,14 +114,6 @@ const NEW_LINE: String = "\r\n"
 @When[os != "Windows"]
 const NEW_LINE: String = "\n"
 
-func checkCangjeiHome(): Bool {
-    let cangjieHome = getVariable("CANGJIE_HOME")
-    if (let Some(v) <- cangjieHome) {
-    	return true
-    }
-    false
-}
-
 func analyzeCjprofRoot(output: String): ArrayList<String> {
     let items: ArrayList<String> = ArrayList<String>()
     var item: String = ""
@@ -132,12 +125,11 @@ func analyzeCjprofRoot(output: String): ArrayList<String> {
         }
         if (line.startsWith(" ")) {
         	if (!item.isEmpty()) {
-        		item = item + NEW_LINE + line
+        		item += NEW_LINE + line
         	}
         } else {
             if (item.contains("[ROOT")) {
                 items.add(item)
-                item = ""
             }
             item = line
         }
@@ -149,26 +141,24 @@ func analyzeCjprofRoot(output: String): ArrayList<String> {
 }
 
 public func analyzeComponentMemLeak(dumpFilePath: Path): Option<ArrayList<String>> {
-    var res: Option<ArrayList<String>> = None
     if (!exists(dumpFilePath)) {
         AppLog.warn("hm-metricx-cj warn: ${dumpFilePath.toString()} does not exit.")
-    	return res
+    	return None
     }
-    if (!checkCangjeiHome()) {
+    if (getVariable("CANGJIE_HOME").isNone()) {
         AppLog.warn("hm-metricx-cj warn: cannot find CANGJIE_HOME, please make sure cangjie sdk is configured.")
-    	return res
+    	return None
     }
     var (flag, output, errlog) = execWithOutput(CJPROF_NAME, ArrayList<String>(["-v"]))
     if (!flag) {
         AppLog.warn("hm-metricx-cj warn: failed to run ${CJPROF_NAME} -v, error: ${errlog}")
-    	return res
+    	return None
     }
 
     (flag, output, errlog) = execWithOutput(CJPROF_NAME, ArrayList<String>(["heap", "-i", dumpFilePath.toString(), "--show-reference"]))
     if (!flag) {
         AppLog.warn("hm-metricx-cj warn: failed to run cjprof heap -i ${dumpFilePath.toString()} --show-reference, error: ${errlog}")
-    	return res
+    	return None
     }
-    res = analyzeCjprofRoot(output)
-    res
+    analyzeCjprofRoot(output)
 }

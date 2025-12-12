@@ -309,20 +309,18 @@ private func recordCleanFiles(path: Path, deletedFiles: List<String>) {
     }
 }
 
-
 // Execute the command and store the output.
 public func execWithOutput(exeTool: String, arguments: ArrayList<String>): (Bool, String, String) {
-    let subProcess: SubProcess
-    var returnCode: Int64
     var outInfo = ""
     var errInfo = ""
     try {
         let env = HashMap<String, String>(getVariables())
-        subProcess = launch(exeTool, arguments.toArray(), environment: env, stdOut: ProcessRedirect.Pipe, stdErr: ProcessRedirect.Pipe)
+        let subProcess = launch(exeTool, arguments.toArray(), environment: env, stdOut: ProcessRedirect.Pipe,
+            stdErr: ProcessRedirect.Pipe)
 
         outInfo = StringReader(subProcess.stdOutPipe).readToEnd()
         errInfo = StringReader(subProcess.stdErrPipe).readToEnd()
-        returnCode = subProcess.wait()
+        let returnCode = subProcess.wait()
         return (returnCode == 0, outInfo, errInfo)
     } catch (e: Exception) {
         AppLog.warn("hm-metricx-cj error: execWithOutput error, " + e.toString())
