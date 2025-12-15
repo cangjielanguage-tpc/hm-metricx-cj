@@ -19,9 +19,7 @@ import std.fs.*
 import std.env.*
 import ohos.base.AppLog
 
-public class MemLeakMark {
-
-}
+public class MemLeakMark {}
 
 class Component {
     public Component(let weakRefObj: WeakRef<MemLeakMark>, let typeInfo: String) {}
@@ -49,14 +47,16 @@ public func collectDestroyedComponent(memLeakMark: MemLeakMark, customView: Cust
     aliveComponents.add(Component(weakRefObj, typeInfo))
 }
 
-let pageSwitchCallback: PageSwitchCallBack = PageSwitchCallBack({
+let pageSwitchCallback: PageSwitchCallBack = PageSwitchCallBack(
+    {
         info: NavDestinationSwitchInfo =>
-        let fromPage = currentPageName
-        currentPageName = getTargetPageName(info, defaultName: currentPageName)
-        let toPage = currentPageName
-        let arguments: Array<String> = [fromPage, toPage]
-        setTimeout(handleMemLeak, 1000, arguments)
-})
+            let fromPage = currentPageName
+            currentPageName = getTargetPageName(info, defaultName: currentPageName)
+            let toPage = currentPageName
+            let arguments: Array<String> = [fromPage, toPage]
+            setTimeout(handleMemLeak, 1000, arguments)
+    }
+)
 
 private func handleMemLeak(array: Array<String>): Unit {
     if (array.size < 2) {
@@ -95,12 +95,12 @@ private func handleMemLeak(array: Array<String>): Unit {
     }
 }
 
-public func initMemLeakHandler (
+public func initMemLeakHandler(
     context: UIAbilityContext,
     persistentDir: Path,
     needDumpSnapshot: (pageInfo: PageInfo, typeInfos: List<String>) -> Bool,
     clearHistoryComponentInfo: (typeInfos: List<String>) -> Bool,
-    reportMemLeak: (path:Path) -> Unit
+    reportMemLeak: (path: Path) -> Unit
 ) {
     dumpDirStr = persistentDir.toString()
     reportMemLeakCallback = reportMemLeak
@@ -114,7 +114,6 @@ public func initMemLeakHandler (
 const CJPROF_NAME: String = "cjprof.exe"
 @When[os != "Windows"]
 const CJPROF_NAME: String = "cjprof"
-
 @When[os == "Windows"]
 const NEW_LINE: String = "\r\n"
 @When[os != "Windows"]
@@ -125,14 +124,14 @@ func analyzeCjprofRoot(output: String): ArrayList<String> {
     var item: String = ""
     let lines: Array<String> = output.split(NEW_LINE, removeEmpty: true)
     for (i in 0..lines.size) {
-    	let line: String = lines[i]
+        let line: String = lines[i]
         if (!line.contains("@")) {
-        	continue
+            continue
         }
         if (line.startsWith(" ")) {
-        	if (!item.isEmpty()) {
-        		item += NEW_LINE + line
-        	}
+            if (!item.isEmpty()) {
+                item += NEW_LINE + line
+            }
         } else {
             if (item.contains("[ROOT")) {
                 items.add(item)
@@ -149,22 +148,22 @@ func analyzeCjprofRoot(output: String): ArrayList<String> {
 public func analyzeComponentMemLeak(dumpFilePath: Path): Option<ArrayList<String>> {
     if (!exists(dumpFilePath)) {
         AppLog.warn("hm-metricx-cj warn: ${dumpFilePath.toString()} does not exit.")
-    	return None
+        return None
     }
     if (getVariable("CANGJIE_HOME").isNone()) {
         AppLog.warn("hm-metricx-cj warn: cannot find CANGJIE_HOME, please make sure cangjie sdk is configured.")
-    	return None
+        return None
     }
     var (flag, output, errlog) = execWithOutput(CJPROF_NAME, ArrayList<String>(["-v"]))
     if (!flag) {
         AppLog.warn("hm-metricx-cj warn: failed to run ${CJPROF_NAME} -v, error: ${errlog}")
-    	return None
+        return None
     }
 
     (flag, output, errlog) = execWithOutput(CJPROF_NAME, ArrayList<String>(["heap", "-i", dumpFilePath.toString(), "--show-reference"]))
     if (!flag) {
         AppLog.warn("hm-metricx-cj warn: failed to run cjprof heap -i ${dumpFilePath.toString()} --show-reference, error: ${errlog}")
-    	return None
+        return None
     }
     analyzeCjprofRoot(output)
 }

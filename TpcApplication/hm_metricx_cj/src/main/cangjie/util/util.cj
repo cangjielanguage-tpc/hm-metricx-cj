@@ -69,7 +69,7 @@ public func deleteFile(path: String) {
 public func readFile(path: Path, isReturnException!: Bool = false) {
     if (!exists(path)) {
         if (isReturnException) {
-        	return "hm-metricx-cj error: read file path ${path} does not exist"
+            return "hm-metricx-cj error: read file path ${path} does not exist"
         } else {
             return ""
         }

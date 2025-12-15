@@ -16,18 +16,18 @@ func getBuildModeFromEnv(): String {
     var buildMode: String = ""
     let configVar = getVariable("config")
     if (let Some(v) <- configVar) {
-    	if (!v.contains("buildMode")) {
-    		return "debug"
-    	}
+        if (!v.contains("buildMode")) {
+            return "debug"
+        }
         let config: String = v.removePrefix("{").removeSuffix("}")
         let items: Array<String> = config.split(",", removeEmpty: true)
         for (item in items) {
-        	let keyValues: Array<String> = item.split(":", removeEmpty: true)
+            let keyValues: Array<String> = item.split(":", removeEmpty: true)
             if (keyValues.size != 2) {
-            	continue
+                continue
             }
             if (keyValues[0] == "\"buildMode\"") {
-            	buildMode = keyValues[1].removeSuffix("\"").removeSuffix("\"")
+                buildMode = keyValues[1].removeSuffix("\"").removeSuffix("\"")
                 break
             }
         }
@@ -40,14 +40,14 @@ func getProductTargetFromeEnv(): (String, String) {
     var target: String = ""
     let compileEnv = getVariable("COMPILE_CONDITION_ENTRY")
     if (let Some(v) <- compileEnv) {
-    	let items: Array<String> = v.split(",", removeEmpty: true)
+        let items: Array<String> = v.split(",", removeEmpty: true)
         for (item in items) {
-        	let keyValues: Array<String> = item.split("=", removeEmpty: true)
+            let keyValues: Array<String> = item.split("=", removeEmpty: true)
             if (keyValues.size != 2) {
-            	continue
+                continue
             }
             if (keyValues[0] == "product") {
-            	product = keyValues[1]
+                product = keyValues[1]
             } else if (keyValues[0] == "target") {
                 target = keyValues[1]
             }
@@ -89,8 +89,8 @@ func stagePostBuild(): Int64 {
 
 main(): Int64 {
     match (getCommandLine()[1]) {
-    	case "pre-build" => stagePreBuild()
-    	case "post-build" => stagePostBuild()
+        case "pre-build" => stagePreBuild()
+        case "post-build" => stagePostBuild()
         case _ => 0
     }
 }

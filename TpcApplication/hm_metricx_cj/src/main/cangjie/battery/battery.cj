@@ -556,9 +556,9 @@ private func currentJiffiesSnapshot(): JiffiesSnapshot {
         let tid = threadId
         let path = "/proc/self/task/" + tid.toString() + "/stat"
         if (!exists(path)) {
-        	continue
+            continue
         }
-    	var threadJiffiesSnapshot: ThreadJiffiesSnapshot = ThreadJiffiesSnapshot(tid)
+        var threadJiffiesSnapshot: ThreadJiffiesSnapshot = ThreadJiffiesSnapshot(tid)
         parseThreadInfo(currentPid, tid, threadJiffiesSnapshot, path)
         jiffiesSnapshot.threadEntries.add(threadJiffiesSnapshot)
     }
@@ -570,10 +570,10 @@ private func getAllThreadId(): ArrayList<UInt32> {
     let path = "/proc/self/task/"
     var threadArray = Array<String>()
     if (exists(path) && isDir(path)) {
-    	threadArray =  listFile(path)
+        threadArray =  listFile(path)
     }
     for (thread in threadArray) {
-    	threadIdArray.add(UInt32.parse(thread))
+        threadIdArray.add(UInt32.parse(thread))
     }
     threadIdArray
 }
@@ -611,7 +611,7 @@ private func calculateAndReportCpuUsage(deltaThreadJiffiesList: ArrayList<Thread
     let allThreadCpuUsageInfo = AllThreadCpuUsageInfo()
     let reportThreadList = allThreadCpuUsageInfo.threadCpuUsageInfoList
     for (deltaThreadJiffies in deltaThreadJiffiesList) {
-    	//todo trace
+        //todo trace
         let threadJiffiesPercent = Float64(deltaThreadJiffies.jiffies) / Float64(singleIntervalTotalJiffies)
         let threadCpuUsageInfo = ThreadCpuUsageInfo(deltaThreadJiffies.tid, deltaThreadJiffies.name.getOrThrow()
             ,deltaThreadJiffies.state.getOrThrow(), threadJiffiesPercent, deltaThreadJiffies.jiffies, singleIntervalTotalJiffies)
@@ -628,17 +628,17 @@ let processInfoCallback: AsyncCallback<Array<ProcessInformation>> = {
     err, data =>
     //判断所有进程是否都在后台
     if (data.isNone()) {
-    	return
+        return
     }
     let processInfoArray = data.getOrThrow()
     for (processInfo in processInfoArray) {
-    	match (processInfo.state) {
-    		case STATE_BACKGROUND => isOnBackground = true
+        match (processInfo.state) {
+            case STATE_BACKGROUND => isOnBackground = true
             case STATE_FOREGROUND =>
                 isOnBackground = false
                 break
             case _ => isOnBackground = isOnBackground
-    	}
+        }
     }
     if (isOnBackground && needUpdateStartBgTime) {
         startBgTime = DateTime.now().toUnixTimeStamp().toMilliseconds()
@@ -652,11 +652,11 @@ private func cpuErrorPercentReport(): Unit {
 
     let currentJiffiesSnapshot = currentJiffiesSnapshot()
     if (lastJiffiesSnapshot.isSome()) {
-    	let deltaThreadJiffiesSnapshot = diffThreadJiffiesSnapshot(currentJiffiesSnapshot, lastJiffiesSnapshot.getOrThrow())
+        let deltaThreadJiffiesSnapshot = diffThreadJiffiesSnapshot(currentJiffiesSnapshot, lastJiffiesSnapshot.getOrThrow())
         let singleIntervalTotalJiffies: Int64 = deltaThreadJiffiesSnapshot[0]
         let deltaThreadJiffiesList = deltaThreadJiffiesSnapshot[1]
         if (isHitRule(deltaThreadJiffiesList, singleIntervalTotalJiffies)) {
-        	calculateAndReportCpuUsage(deltaThreadJiffiesList, singleIntervalTotalJiffies)
+            calculateAndReportCpuUsage(deltaThreadJiffiesList, singleIntervalTotalJiffies)
         }
     }
     lastJiffiesSnapshot = currentJiffiesSnapshot
