@@ -64,7 +64,8 @@ class EntryAbility <: UIAbility {
         initMemoryHandler(this.context, {data =>}, {data=>})
         initMemLeakHandler(this.context, Path(this
             .context
-            .cacheDir), {pageInfo, typeInfos => true}, {dumpFilePath => AppLog.info("dumpFilePath : ${dumpFilePath.toString()}")})
+            .cacheDir), {pageInfo, typeInfos => true}, {typeInfos => false},
+            {dumpFilePath => AppLog.info("dumpFilePath : ${dumpFilePath.toString()}")})
     }
 
     public override func onDestroy(): Unit {

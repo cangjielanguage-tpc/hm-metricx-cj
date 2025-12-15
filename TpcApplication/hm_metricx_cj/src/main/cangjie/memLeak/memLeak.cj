@@ -34,6 +34,7 @@ var inited = false
 let aliveComponents: List<Component> = ArrayList<Component>()
 var reportMemLeakCallback: (Path) -> Unit = {path: Path =>}
 var needDumpSnapshotInfo: (PageInfo, List<String>) -> Bool = {pageInfo, arr => true}
+var _clearHistoryComponentInfo: (List<String>) -> Bool = {arr => true}
 var currentPageName: String = defaultPageName
 var dumpDirStr: String = ""
 
@@ -52,8 +53,6 @@ let pageSwitchCallback: PageSwitchCallBack = PageSwitchCallBack({
         let fromPage = currentPageName
         currentPageName = getTargetPageName(info, defaultName: currentPageName)
         let toPage = currentPageName
-
-        aliveComponents.clear()
         let arguments: Array<String> = [fromPage, toPage]
         setTimeout(handleMemLeak, 1000, arguments)
 })
@@ -78,11 +77,15 @@ private func handleMemLeak(array: Array<String>): Unit {
         }
         let typeInfos = collectArrayList(aliveComponents.iterator().map({data => data.typeInfo}))
         let needDump = needDumpSnapshotInfo(PageInfo(fromPage, toPage), typeInfos)
+        let shouldClear = _clearHistoryComponentInfo(typeInfos)
+        if (shouldClear) {
+            aliveComponents.clear()
+        }
         if (!needDump) {
             return
         }
         let curTimestamp: String = getCurTimestampMillis()
-        let dumpSnapshotPath = Path(dumpDirStr).join("memLeakSnapshot_" + curTimestamp + ".data")
+        let dumpSnapshotPath = Path(dumpDirStr).join("memLeakSnapshot_${curTimestamp}.data")
         spawn {
             =>
                 dumpHeapData(dumpSnapshotPath)
@@ -95,11 +98,13 @@ public func initMemLeakHandler (
     context: UIAbilityContext,
     persistentDir: Path,
     needDumpSnapshot: (pageInfo: PageInfo, typeInfos: List<String>) -> Bool,
+    clearHistoryComponentInfo: (typeInfos: List<String>) -> Bool,
     reportMemLeak: (path:Path) -> Unit
 ) {
     dumpDirStr = persistentDir.toString()
     reportMemLeakCallback = reportMemLeak
     needDumpSnapshotInfo = needDumpSnapshot
+    _clearHistoryComponentInfo = clearHistoryComponentInfo
     on(navDestinationSwitch, context, pageSwitchCallback)
     inited = true
 }
