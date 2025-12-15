@@ -784,3 +784,53 @@ ii.
 reportAppStorageInfo()
 ```
 
+### 监控内存泄漏
+
+`hm_metricx_cj` 提供
+
+```text
+public func initMemLeakHandler(
+    context: UIAbilityContext,
+    persistentDir: Path,
+    needDumpSnapshot: (pageInfo: PageInfo, typeInfos: List<String>) -> Bool,
+    clearHistoryComponentInfo: (typeInfos: List<String>) -> Bool,
+    reportMemLeak: (path: Path) -> Unit
+)
+```
+
+接口对内存泄漏进行监控。
+
+`initMemLeakHandler` 需要的入参说明如下：
+
+- `context: UIAbilityContext` 指定UIAbility上下文。
+- `persistentDir: Path` 指定内存快照导出目录。
+- `needDumpSnapshot: (pageInfo: PageInfo, typeInfos: List<String>) -> Bool` 是否需要导出内存快照， `pageInfo` 为 `PageInfo` 类型对象，记录页面切换的名称信息，`typeInfos` 记录存活组件的类型信息。
+- `clearHistoryComponentInfo: (typeInfos: List<String>) -> Bool` 每次内存检测结束，是否清除存活的组件，`typeInfos` 记录存活组件的类型信息。
+- `reportMemLeak: (path: Path) -> Unit` 内存泄漏上报函数，入参为 `Path` 类型对象，表示内存快照文件路径。
+
+`PageInfo` 包含以下信息：
+
+- `fromPage` 页面切换的源页面名称。
+- `toPage` 页面切换的目的页面名称。
+
+使用示例：
+
+i.
+
+```text
+class EntryAbility <: UIAbility {
+    public override func onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): Unit {
+        AppLog.info("Ability OnCreated.${want.abilityName}")
+        match (launchParam.launchReason) {
+            case AbilityConstant.LaunchReason.START_ABILITY => AppLog.info("START_ABILITY")
+            case _ => ()
+        }
+        initMemLeakHandler(
+            this.context,
+            Path(this.context.cacheDir),
+            {pageInfo, typeInfos => true},
+            {typeInfos => false},
+            {dumpFilePath => AppLog.info("dumpFilePath : ${dumpFilePath.toString()}")})
+    }
+}
+```
