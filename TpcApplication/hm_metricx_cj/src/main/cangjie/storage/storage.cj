@@ -37,7 +37,7 @@ public class StorageInfo {
             jsonObj.put("totalSize", JsonString(v.toString()))
         }
         if (!topStorageFileList.isEmpty()) {
-        	jsonObj.put("topStorageFileList", JsonString(topStorageFileList.toString()))
+            jsonObj.put("topStorageFileList", JsonString(topStorageFileList.toString()))
         }
         if (!exceptionDirList.isEmpty()) {
             jsonObj.put("exceptionDirList", JsonString(exceptionDirList.toString()))
@@ -53,25 +53,25 @@ public class StorageFileInfo <: Comparable<StorageFileInfo> & ToString {
     public let isDir: Bool
 
     public init(f: FileInfo, isDir: Bool) {
-    	this.path = f.path.toString()
+        this.path = f.path.toString()
         this.size = f.size
         this.isDir = isDir
     }
 
     public init(path: String, size: Int64, isDir: Bool) {
-    	this.path = path
+        this.path = path
         this.size = size
         this.isDir = isDir
     }
 
     public func compare(f: StorageFileInfo) {
         if (this.size > f.size) {
-        	return Ordering.LT
+            return Ordering.LT
         } else if (this.size < f.size) {
             return Ordering.GT
         }
         if (this.path < f.path) {
-        	return Ordering.LT
+            return Ordering.LT
         } else if (this.path > f.path) {
             return Ordering.GT
         }
@@ -83,7 +83,7 @@ public class StorageFileInfo <: Comparable<StorageFileInfo> & ToString {
         jsonObj.put("path", JsonString(path))
         jsonObj.put("size", JsonString(size.toString()))
         if (isDir) {
-        	jsonObj.put("subfileList", JsonString(subfileList.toString()))
+            jsonObj.put("subfileList", JsonString(subfileList.toString()))
         }
         jsonObj.toString().replace("\\\"", "\"").replace("\"[", "[").replace("]\"", "]")
     }
@@ -103,7 +103,7 @@ public func reportAppStorageInfo(): Unit {
                     storageInfo.dataSize = data.getOrThrow().dataSize
                     storageInfo.cacheSize = data.getOrThrow().cacheSize
                     if (storageInfo.appSize.isSome() && storageInfo.dataSize.isSome()) {
-                    	storageInfo.totalSize = storageInfo.appSize.getOrThrow() + storageInfo.dataSize.getOrThrow()
+                        storageInfo.totalSize = storageInfo.appSize.getOrThrow() + storageInfo.dataSize.getOrThrow()
                     }
 
                     let allAppStorageFiles = TreeSet<StorageFileInfo>()
@@ -121,7 +121,7 @@ public func reportAppStorageInfo(): Unit {
                                 let storageDirInfo = getAllStorage(fileInfo, allAppStorageFiles)
                                 allStorageInfoList.add(storageDirInfo)
                                 if (dirSizeLimitValue.isSome()) {
-                                	getDirsOverLimit(storageDirInfo, dirSizeLimitValue.getOrThrow(), allAppStorageDirs)
+                                    getDirsOverLimit(storageDirInfo, dirSizeLimitValue.getOrThrow(), allAppStorageDirs)
                                 }
                             }
                             reportTopNFile(allAppStorageFiles, storageInfo.topStorageFileList, reportTopNumValue)
@@ -150,19 +150,19 @@ public func getDirsOverLimit(f: StorageFileInfo, dirLimitSize: Int64, dirSet: Tr
     let subfilePathList = f.subfileList
     var reportFlag = true
     if (f.size <= dirLimitSize) {
-    	return
+        return
     }
     for (subfile in subfilePathList) {
-    	if (!subfile.isDir) {
-    		continue
-    	}
+        if (!subfile.isDir) {
+            continue
+        }
         if (subfile.size > dirLimitSize) {
-        	getDirsOverLimit(subfile, dirLimitSize, dirSet)
+            getDirsOverLimit(subfile, dirLimitSize, dirSet)
             reportFlag = false
         }
     }
     if (reportFlag) {
-    	dirSet.add(f)
+        dirSet.add(f)
     }
 }
 
@@ -172,30 +172,30 @@ public func getAllStoragePath(): ArrayList<String> {
         "/data/storage/el2/sharefiles",
         "/data/storage/el2/distributedfiles"])
     for (i in 1..6) {
-    	storagePathList.add("/data/storage/el${i}/base")
-    	storagePathList.add("/data/storage/el${i}/database")
+        storagePathList.add("/data/storage/el${i}/base")
+        storagePathList.add("/data/storage/el${i}/database")
     }
     storagePathList
 }
 
 public func getAllStorage(f: FileInfo, fileSet: TreeSet<StorageFileInfo>): StorageFileInfo {
     if (f.size <= 0) {
-    	return StorageFileInfo(f.path.toString(), 0, true)
+        return StorageFileInfo(f.path.toString(), 0, true)
     }
     let storageFilesList = TreeSet<StorageFileInfo>()
     var size = 0
     let fileList = Directory.readFrom(f.path)
     for (file in fileList) {
-    	if (file.isDirectory()) {
-    		let childStorageFileInfo = getAllStorage(file, fileSet)
+        if (file.isDirectory()) {
+            let childStorageFileInfo = getAllStorage(file, fileSet)
             size += childStorageFileInfo.size
             storageFilesList.add(childStorageFileInfo)
-    	} else {
+        } else {
             let fileInfo = StorageFileInfo(file, false)
             fileSet.add(fileInfo)
             storageFilesList.add(fileInfo)
             size += fileInfo.size
-    	}
+        }
     }
     let parentStorageFileInfo = StorageFileInfo(f.path.toString(), size, true)
     parentStorageFileInfo.subfileList = storageFilesList

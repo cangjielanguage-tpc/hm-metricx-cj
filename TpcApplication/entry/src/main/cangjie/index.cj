@@ -57,7 +57,7 @@ class Index {
         if (name == "pageOne"){
             PageOne()
         }else {
-        	PageTwo()
+            PageTwo()
         }
     }
 

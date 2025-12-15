@@ -232,7 +232,7 @@ public func initFreezeHandler(
     renameFile(extraInfoFilePath, extraInfoBakFilePath)
     initFreezeWatcher(applicationContext, reportFreezeInfo, cpuUsageBakFilePath, extraInfoBakFilePath, cleanFileRecordPath)
     if (DeviceInfo.sdkApiVersion >= 18) {
-    	onFreeze({ => freezeCallback(cpuUsageFilePath, extraInfoFilePath)})
+        onFreeze({ => freezeCallback(cpuUsageFilePath, extraInfoFilePath)})
     } else {
         initHilogWatcher(cpuUsageFilePath, extraInfoFilePath)
     }
@@ -242,7 +242,7 @@ public func initFreezeHandler(
 var reportFlag = false
 private func freezeCallback(cpuUsageFilePath: Path, extraInfoFilePath: Path): Unit {
     if (!reportFlag) {
-    	collectFreezeInfo(cpuUsageFilePath, extraInfoFilePath)
+        collectFreezeInfo(cpuUsageFilePath, extraInfoFilePath)
         reportFlag = true
     }
 }
@@ -359,7 +359,7 @@ private func initFreezeWatcher(
                 }
                 reportFreezeInfo(freezeInfo)
             } catch (e: Exception) {
-            	AppLog.warn("hm-metricx-cj freeze error: initFreezeWatcher error, " + e.toString())
+                AppLog.warn("hm-metricx-cj freeze error: initFreezeWatcher error, " + e.toString())
             }
         }
     )
