@@ -27,25 +27,24 @@ var prevDownload: Int64 = 0
 var inited: Bool = false
 var uiContext: Option<UIAbilityContext> = None
 var currentPageName = defaultPageName
+var DAY_SAMPLE_TIME: Int64 = 30 * 1000
 var SAMPLE_TIME: Int64 = 0
 var SAMPLE_THRESHOLD: Int64 = 0
 var sampleId: Int64 = -1
+var sampleDayId: Int64 = -1
 var reportTrafficCallback: (sampleTrafficInfo: SampleTrafficInfo) -> Unit = {
     sampleTrafficInfo: SampleTrafficInfo =>
 }
 
-// current
+// current value, will not remove
 private let KEY_CURRENT_UPLOAD: String = "current_upload"
 private let KEY_CURRENT_DOWNLOAD: String = "current_download"
 // today
 private let KEY_TODAY_DATE: String = "today_date"
 private let KEY_TODAY_UPLOAD: String = "today_upload"
 private let KEY_TODAY_DOWNLOAD: String = "today_download"
-// yesterday
-private let KEY_YESTERDAY_DATE: String = "yesterday_date"
-private let KEY_YESTERDAY_UPLOAD: String = "yesterday_upload"
-private let KEY_YESTERDAY_DOWNLOAD: String = "yesterday_download"
-private let KEY_YESTERDAY_REPORTED: String = "yesterday_reported"
+// last report day
+private let KEY_LAST_REPORT_DAY: String = "last_report_day"
 
 public func GetAppUid(): UInt32 {
     let flag = BundleFlag.GET_BUNDLE_INFO_WITH_APPLICATION
@@ -285,11 +284,13 @@ public func initTrafficHandler(
     reportTraffic: (sampleTraffixInfo: SampleTrafficInfo) -> Unit,
     reportYesterdayTraffic: (yesterdayTraffic: DayTrafficInfo) -> Unit,
     sampleTime!: Int64 = 10 * 60 * 1000,
-    sampleThreshold!: Int64 = 50 * 1024 * 1024
+    sampleThreshold!: Int64 = 50 * 1024 * 1024,
+    daySampleTime!: Int64 = 30 * 1024
 ) {
     uiContext = context
     reportTrafficCallback = reportTraffic
     SAMPLE_TIME = sampleTime
+    DAY_SAMPLE_TIME = daySampleTime
     SAMPLE_THRESHOLD = sampleThreshold
     let yesterdayTraffic = getYesterdayTraffic()
     if (let Some(v) <- yesterdayTraffic) {
@@ -298,6 +299,7 @@ public func initTrafficHandler(
     doTrafficSample()
     on(navDestinationSwitch, uiContext.getOrThrow(), PageSwitchCallBack(navDestinationSwitchCallBack))
     sampleId = setInterval(doTrafficSample, SAMPLE_TIME, Array<String>())
+    sampleDayId = setInterval(doDayTrafficSample, DAY_SAMPLE_TIME, Array<String>())
     spawn {
         unsafe {
             let initStatus: Int8 = InitTrafficNativeHandler()
@@ -348,37 +350,29 @@ let updataPageMapCallback: (upload: Int64, download: Int64, pageName: String) ->
     pageTxStart = upload
     pageRxStart = download
 }
-let updateDayTrafficCallback: (upload: Int64, download: Int64) -> Unit = {
-    upload: Int64, download: Int64 =>
-    let todayDate: String = getTodayDate()
-    let todayDateStored: String = getStoredData(KEY_TODAY_DATE)
-    if (!todayDateStored.isEmpty() && todayDate != todayDateStored) {
-        // update yesterday data
-        setStoredData(KEY_YESTERDAY_DATE, getStoredData(KEY_TODAY_DATE))
-        setStoredData(KEY_YESTERDAY_UPLOAD, getStoredData(KEY_TODAY_UPLOAD))
-        setStoredData(KEY_YESTERDAY_DOWNLOAD, getStoredData(KEY_TODAY_DOWNLOAD))
-        setStoredData(KEY_YESTERDAY_REPORTED, "false")
 
-        // reset today data
-        setStoredData(KEY_TODAY_DATE, todayDate)
-        setStoredData(KEY_TODAY_UPLOAD, "0")
-        setStoredData(KEY_TODAY_DOWNLOAD, "0")
-    } else {
-        setStoredData(KEY_TODAY_DATE, todayDate)
-        // upload
-        let todayUpload: Int64 = Int64.tryParse(getStoredData(KEY_TODAY_UPLOAD)).getOrDefault({=> 0})
-        let prevUpload: Int64 = Int64.tryParse(getStoredData(KEY_CURRENT_UPLOAD)).getOrDefault({=> 0})
-        let newUpload: Int64 = todayUpload + upload - prevUpload
-        setStoredData(KEY_TODAY_UPLOAD, newUpload.toString())
-        // download
-        let todayDownload: Int64 = Int64.tryParse(getStoredData(KEY_TODAY_DOWNLOAD)).getOrDefault({=> 0})
-        let prevDownload: Int64 = Int64.tryParse(getStoredData(KEY_CURRENT_DOWNLOAD)).getOrDefault({=> 0})
-        let newDownload: Int64 = todayDownload + download - prevDownload
-        setStoredData(KEY_TODAY_DOWNLOAD, newDownload.toString())
-    }
-    setStoredData(KEY_CURRENT_DOWNLOAD, upload.toString())
+let updateDayTrafficCallback: (upload: Int64, download: Int64, pageName: String) -> Unit = {
+    upload: Int64, download: Int64, pageName: String =>
+    // upload
+    let todayUpload: Int64 = Int64.tryParse(getStoredData(KEY_TODAY_UPLOAD)).getOrDefault({ => 0})
+    let prevUpload: Int64 = Int64.tryParse(getStoredData(KEY_CURRENT_UPLOAD)).getOrDefault({ => 0})
+    let newUpload: Int64 = todayUpload + upload - prevUpload
+    // download
+    let todayDownload: Int64 = Int64.tryParse(getStoredData(KEY_TODAY_DOWNLOAD)).getOrDefault({ => 0})
+    let prevDownload: Int64 = Int64.tryParse(getStoredData(KEY_CURRENT_DOWNLOAD)).getOrDefault({ => 0})
+    let newDownload: Int64 = todayDownload + download - prevDownload
+
+    setStoredData(KEY_CURRENT_UPLOAD, upload.toString())
     setStoredData(KEY_CURRENT_DOWNLOAD, download.toString())
+    if (prevUpload == 0 && prevDownload == 0) {
+        AppLog.warn("hm_metricx_cj: first time only save value")
+        return
+    }
+
+    setStoredData(KEY_TODAY_UPLOAD, newUpload.toString())
+    setStoredData(KEY_TODAY_DOWNLOAD, newDownload.toString())
 }
+
 let sampleCallback: (upload: Int64, download: Int64, pageName: String) -> Unit = {
     upload: Int64, download: Int64, pageName: String =>
     if (!inited) {
@@ -406,11 +400,14 @@ let sampleCallback: (upload: Int64, download: Int64, pageName: String) -> Unit =
     pageRxStart = download
     pageTrafficMap.clear()
     clearUrlTrafficInfo()
-    updateDayTrafficCallback(upload, download)
 }
 
 private func doTrafficSample(array: Array<String>) {
     processUidTrafficBytes(sampleCallback, currentPageName)
+}
+
+private func doDayTrafficSample(array: Array<String>) {
+    processUidTrafficBytes(updateDayTrafficCallback, currentPageName)
 }
 
 private func navDestinationSwitchCallBack(info: NavDestinationSwitchInfo) {
@@ -431,14 +428,15 @@ private func updatePageMap(pageName: String, curTx: Int64, curRx: Int64) {
 
 private func getYesterdayTraffic(): Option<DayTrafficInfo> {
     var res: Option<DayTrafficInfo> = None
-    let reported: String = getStoredData(KEY_YESTERDAY_REPORTED)
-    let yesterdayStored: String = getStoredData(KEY_YESTERDAY_DATE)
-    if (!yesterdayStored.isEmpty() && reported == "false") {
-        let date: String = getStoredData(KEY_YESTERDAY_DATE)
-        let upload: Int64 = Int64.tryParse(getStoredData(KEY_YESTERDAY_UPLOAD)).getOrDefault({=> 0})
-        let download: Int64 = Int64.tryParse(getStoredData(KEY_YESTERDAY_DOWNLOAD)).getOrDefault({=> 0})
-        res = DayTrafficInfo(date, upload, download)
-        setStoredData(KEY_YESTERDAY_REPORTED, "true")
+    let today: String = getTodayDate()
+    let lastReportDay: String = getStoredData(KEY_LAST_REPORT_DAY)
+    if (!lastReportDay.isEmpty() && today != lastReportDay) {
+        let upload: Int64 = Int64.tryParse(getStoredData(KEY_TODAY_UPLOAD)).getOrDefault({ => 0})
+        let download: Int64 = Int64.tryParse(getStoredData(KEY_TODAY_DOWNLOAD)).getOrDefault({ => 0})
+        res = DayTrafficInfo(lastReportDay, upload, download)
+        setStoredData(KEY_TODAY_UPLOAD, "0")
+        setStoredData(KEY_TODAY_DOWNLOAD, "0")
+        setStoredData(KEY_LAST_REPORT_DAY, today)
     }
     res
 }
@@ -447,7 +445,10 @@ public func destroyTrafficHandler() {
     if (sampleId != -1) {
         clearInterval(sampleId)
     }
-    processUidTrafficBytes({upload, download, _ => updateDayTrafficCallback(upload, download)}, "")
+    if (sampleDayId != -1) {
+        clearInterval(sampleDayId)
+    }
+    processUidTrafficBytes({upload, download, _ => updateDayTrafficCallback(upload, download, currentPageName)}, "")
 }
 
 private func getUrlTraficNativeInfo(): ArrayList<UrlTrafficInfo> {
