@@ -490,10 +490,11 @@ public class ThreadJiffiesSnapshot {
     }
 }
 
-private func parseThreadInfo(pid: Int64, tid: UInt32, threadJiffiesSnapshot: ThreadJiffiesSnapshot, path: String): Unit {
+private func parseThreadInfo(pid: Int64, tid: UInt32, path: String): Option<ThreadJiffiesSnapshot> {
     if (!exists(path)) {
-        return
+        return None
     }
+    let threadJiffiesSnapshot: ThreadJiffiesSnapshot = ThreadJiffiesSnapshot(tid)
     try (file = File(path, Read)) {
         let originText = String.fromUtf8(readToEnd(file))
         let splitText = originText.split(" ")
@@ -504,9 +505,11 @@ private func parseThreadInfo(pid: Int64, tid: UInt32, threadJiffiesSnapshot: Thr
         let cutime = Int64.parse(splitText[15])
         let cstime = Int64.parse(splitText[16])
         threadJiffiesSnapshot.jiffies = utime + stime + cutime + cstime
+        return threadJiffiesSnapshot
     } catch (e: Exception) {
         AppLog.warn(e.toString())
     }
+    None
 }
 
 //计算两个JiffiesSnapshot的差值
@@ -554,17 +557,13 @@ private func currentJiffiesSnapshot(): JiffiesSnapshot {
     let jiffiesSnapshot: JiffiesSnapshot = JiffiesSnapshot(currentPid, Process.current.name)
     let threads: ArrayList<UInt32> = getAllThreadId()
 
-    for (threadId in threads) {
-        let tid = threadId
-        let path = "/proc/self/task/" + tid.toString() + "/stat"
-        if (!exists(path)) {
-            continue
+    for (tid in threads) {
+        let path = "/proc/self/task/${tid.toString()}/stat"
+        if (let Some(threadJiffiesSnapshot) <- parseThreadInfo(currentPid, tid, path)) {
+            jiffiesSnapshot.threadEntries.add(threadJiffiesSnapshot)
         }
-        var threadJiffiesSnapshot: ThreadJiffiesSnapshot = ThreadJiffiesSnapshot(tid)
-        parseThreadInfo(currentPid, tid, threadJiffiesSnapshot, path)
-        jiffiesSnapshot.threadEntries.add(threadJiffiesSnapshot)
     }
-    return jiffiesSnapshot
+    jiffiesSnapshot
 }
 
 private func getAllThreadId(): ArrayList<UInt32> {
