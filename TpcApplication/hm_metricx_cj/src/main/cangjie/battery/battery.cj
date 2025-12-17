@@ -504,6 +504,8 @@ private func parseThreadInfo(pid: Int64, tid: UInt32, threadJiffiesSnapshot: Thr
         let cutime = Int64.parse(splitText[15])
         let cstime = Int64.parse(splitText[16])
         threadJiffiesSnapshot.jiffies = utime + stime + cutime + cstime
+    } catch (e: Exception) {
+        AppLog.warn(e.toString())
     }
 }
 
