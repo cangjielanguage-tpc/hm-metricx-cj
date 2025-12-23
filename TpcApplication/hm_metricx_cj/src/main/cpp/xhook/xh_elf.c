@@ -438,7 +438,7 @@ static int xh_elf_gnu_hash_lookup(xh_elf_t *self, const char *symbol, uint32_t *
     return XH_ERRNO_NOTFND;
 }
 
-static int xh_elf_find_symidx_by_name(xh_elf_t *self, const char *symbol, uint32_t *symidx)
+static int xh_elf_find_symidx_by_name_unsafe(xh_elf_t *self, const char *symbol, uint32_t *symidx)
 {
     if(self->is_use_gnu_hash)
         return xh_elf_gnu_hash_lookup(self, symbol, symidx);
@@ -1019,8 +1019,21 @@ int xh_elf_hook(xh_elf_t *self, const char *symbol, void *new_func, void **old_f
 
     OH_LOG_Print(LOG_APP, LOG_INFO, 0x00008, "xhook", "hooking %{public}s in %{public}s\n", symbol, self->pathname);
     
-    //find symbol index by symbol name
-    if(0 != (r = xh_elf_find_symidx_by_name(self, symbol, &symidx))) return 0;
+    BYTESIG_TRY(SIGSEGV, SIGBUS) {
+        //find symbol index by symbol name
+        r = xh_elf_find_symidx_by_name_unsafe(self, symbol, &symidx); //segmentation fault sometimes
+    }
+    BYTESIG_CATCH(signum, code) {
+        xh_util_set_sig_caught(1);
+        r = XH_ERRNO_NOTFND;
+        OH_LOG_Print(LOG_APP, LOG_WARN, 0x00008, "xhook", "catch SIGSEGV/SIGBUS when xh_elf_find_symidx_by_name_unsafe: %{public}s", symbol);
+    }
+    BYTESIG_EXIT;
+    
+    if (r != 0)
+    {
+        return 0;
+    }
     
     //replace for .rel(a).plt
     if(0 != self->relplt)
