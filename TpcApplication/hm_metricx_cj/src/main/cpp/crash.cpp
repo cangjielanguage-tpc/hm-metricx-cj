@@ -48,6 +48,8 @@ static sig_atomic_t inCrash = 0;
 
 int initSuccess = 0;
 
+static int globalCrashTid = 0;
+
 typedef const char *(*CollectCrashInfo)();
 
 CollectCrashInfo cjCollectCrashInfo;
@@ -170,17 +172,27 @@ bool startsWith(const std::string &str, const std::string &prefix) {
     return str.size() >= prefix.size() && str.substr(0, prefix.size()) == prefix;
 }
 
+static int signal_crash_queue(siginfo_t *si) {
+    if (SIGABRT == si->si_signo || si->si_code <= 0) {
+        if (0 != syscall(SYS_rt_tgsigqueueinfo, getpid(), gettid(), si->si_signo, si))
+            return -1;
+    }
+    return 0;
+}
+
 static void CrashSignalHandler(int sig, siginfo_t *si, void *context) {
     if (initSuccess == 0) {
-        signalCrashInfo[sig].oldact.sa_sigaction(sig, si, context);
         return;
+    }
+    if (inCrash && globalCrashTid == gettid()) {
+        _exit(1);
     }
     pthread_mutex_lock(&signalHandlerMutex);
     if (inCrash) {
         pthread_mutex_unlock(&signalHandlerMutex);
-        signalCrashInfo[sig].oldact.sa_sigaction(sig, si, context);
-        return;
+        _exit(1);
     }
+    globalCrashTid = gettid();
     inCrash = 1;
     if (std::__fs::filesystem::exists("/data/storage/el2/log/hiappevent/")) {
         for (const auto &entry : std::__fs::filesystem::directory_iterator("/data/storage/el2/log/hiappevent/")) {
@@ -213,15 +225,10 @@ static void CrashSignalHandler(int sig, siginfo_t *si, void *context) {
                       persistentParsedAddrFilePath.c_str(), memPersistTimePath.c_str());
     WriteLastNHiLog(persistentLastNHilogFilePath.c_str());
     RemoveSignalHandler();
+    auto res = signal_crash_queue(si);
     pthread_mutex_unlock(&signalHandlerMutex);
-    auto oldHandler = signalCrashInfo[sig].oldact;
-    if (((unsigned)oldHandler.sa_flags & SA_SIGINFO) != 0) {
-        oldHandler.sa_sigaction(sig, si, context);
-    } else if (oldHandler.sa_handler == SIG_DFL) {
-        signal(SIGSEGV, SIG_DFL);
-        raise(SIGSEGV);
-    } else {
-        oldHandler.sa_handler(sig);
+    if (res != 0) {
+        _exit(1);
     }
 }
 
