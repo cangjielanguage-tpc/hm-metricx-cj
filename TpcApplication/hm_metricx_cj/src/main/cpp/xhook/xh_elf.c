@@ -772,6 +772,20 @@ static void xh_elf_dump(xh_elf_t *self)
 
 #endif
 
+bool xh_util_is_readable(void *addr, size_t len) {
+    if (NULL == addr) return false;
+
+    int filedes[2];
+    if (pipe(filedes) == -1) return false;
+
+    ssize_t n = write(filedes[1], addr, len);
+    
+    close(filedes[0]);
+    close(filedes[1]);
+
+    return (n == (ssize_t)len);
+}
+
 int parse_dynamic_segment_unsafe(xh_elf_t *self, ElfW(Phdr) *dhdr)
 {
     self->dyn          = (ElfW(Dyn) *)(self->bias_addr + dhdr->p_vaddr);
@@ -779,8 +793,25 @@ int parse_dynamic_segment_unsafe(xh_elf_t *self, ElfW(Phdr) *dhdr)
     ElfW(Dyn) *dyn     = self->dyn;
     ElfW(Dyn) *dyn_end = self->dyn + (self->dyn_sz / sizeof(ElfW(Dyn)));
     uint32_t  *raw;
+
+    size_t page_size = sysconf(_SC_PAGESIZE);
+    uintptr_t last_checked_page = 0;
     for(; dyn < dyn_end; dyn++)
     {
+        uintptr_t start_addr = (uintptr_t)dyn;
+        uintptr_t end_addr   = start_addr + sizeof(ElfW(Dyn)) - 1;
+        
+        uintptr_t  start_page = start_addr & ~(page_size - 1);
+        uintptr_t  end_page = end_addr & ~(page_size - 1);
+        
+        if (start_page != last_checked_page || end_page != last_checked_page) {
+            if (!xh_util_is_readable(dyn, sizeof(ElfW(Dyn)))) {
+                OH_LOG_Print(LOG_APP, LOG_ERROR, 0x00008, "xhook", "Memory page is unreachable: %{public}p", (void *)dyn);
+                return -1;
+            }
+            last_checked_page = end_page;
+        }
+    
         switch(dyn->d_tag) //segmentation fault sometimes
         {
         case DT_NULL:
