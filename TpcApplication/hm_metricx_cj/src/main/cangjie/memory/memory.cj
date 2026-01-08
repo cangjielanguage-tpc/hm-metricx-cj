@@ -106,6 +106,10 @@ public open class MemoryInfo {
         this.maxCJMemoryValue
     }
 
+    public func getSampleCount(): Int64 {
+        this.sampleCountValue
+    }
+
     protected open func reset(): Unit {
         this.avgMemoryValue = 0
         this.maxMemoryValue = 0
@@ -211,6 +215,7 @@ public class ProcessMemoryInfo <: MemoryInfo {
 
 let preferenceOptionName: String = "hm-metric-cj-memory"
 var MEMOMRY_THRESHOLD: Int64 = 1024 * 100
+var SAMPLE_INTERVAL: Int64 = 30
 var thresholdReported: Bool = false
 var pageMemoryInfo = PageMemoryInfo(defaultPageName)
 var processMemoryInfo = ProcessMemoryInfo()
@@ -219,17 +224,20 @@ var reportPageMemory: (memoryInfo: PageMemoryInfo) -> Unit = {info: PageMemoryIn
 var reportProcessMemory: (memoryInfo: ProcessMemoryInfo) -> Unit = {info: ProcessMemoryInfo =>}
 let doMemorySample: (param: Array<String>) -> Unit = {
     param: Array<String> =>
-    let memoryUsage = getPss().toInt64()
-    let cjMemoryUsage = getAllocatedHeapSize()
-    if (!thresholdReported) {
-        if (memoryUsage >= MEMOMRY_THRESHOLD) {
-            processMemoryInfo.maxMemory = memoryUsage
-            reportProcessMemory(processMemoryInfo)
-            thresholdReported = true
-        }
+    spawn {
+        =>
+            let memoryUsage = getPss().toInt64()
+            let cjMemoryUsage = getAllocatedHeapSize()
+            if (!thresholdReported) {
+                if (memoryUsage >= MEMOMRY_THRESHOLD) {
+                    processMemoryInfo.maxMemory = memoryUsage
+                    reportProcessMemory(processMemoryInfo)
+                    thresholdReported = true
+                }
+            }
+            pageMemoryInfo.computeAvg(memoryUsage, cjMemoryUsage)
+            processMemoryInfo.computeAvg(memoryUsage, cjMemoryUsage)
     }
-    pageMemoryInfo.computeAvg(memoryUsage, cjMemoryUsage)
-    processMemoryInfo.computeAvg(memoryUsage, cjMemoryUsage)
 }
 let handleProcessMemoryReport: (param: Array<String>) -> Unit = {
     param: Array<String> => reportProcessMemory(processMemoryInfo)
@@ -259,7 +267,7 @@ let saveProcessMemory: (param: Array<String>) -> Unit = {
 }
 
 private func handleMemory(array: Array<String>): Unit {
-    setInterval(doMemorySample, 2000, Array<String>())
+    setInterval(doMemorySample, SAMPLE_INTERVAL * 1000, Array<String>())
     setInterval(handleProcessMemoryReport, 30 * 60 * 1000, Array<String>())
     setInterval(saveProcessMemory, 60 * 1000, Array<String>())
 }
@@ -297,12 +305,14 @@ public func initMemoryHandler(
     context: UIAbilityContext,
     reportPageMemoryInfo: (info: PageMemoryInfo) -> Unit,
     reportProcessMemoryInfo: (info: ProcessMemoryInfo) -> Unit,
-    memoryThreshold!: Int64 = 100 * 1024
+    memoryThreshold!: Int64 = 100 * 1024,
+    sampleInterval!: Int64 = 30
 ): Unit {
     uiContext = context
     reportPageMemory = reportPageMemoryInfo
     reportProcessMemory = reportProcessMemoryInfo
     MEMOMRY_THRESHOLD = memoryThreshold
+    SAMPLE_INTERVAL = sampleInterval
     let lastProcessMemory = getStoragedProcessMemory()
     if (let Some(v) <- lastProcessMemory) {
         reportProcessMemoryInfo(v)
