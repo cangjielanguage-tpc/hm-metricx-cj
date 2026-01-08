@@ -436,16 +436,21 @@ public func getProcessMemoryInfo(): ProcessMemoryInfo
 - `reportPageMemoryInfo: (info: PageMemoryInfo) -> Unit` 将当前页面内存的使用情况进行上报，入参为 `PageMemoryInfo` 类型对象。
 - `reportProcessMemoryInfo: (info: ProcessMemoryInfo) -> Unit` 将进程内存的使用情况进行上报，入参为 `ProcessMemoryInfo` 类型对象。
 - `memoryThreshold!: Int64` 内存使用阈值，默认为100 * 1024 KB。当使用内存超过该阈值时，将内存使用情况上报。
+- `sampleInterval!: Int64` 内存采样时间，单位为秒，默认为30秒。
 
 `PageMemoryInfo` 包含以下信息：
 - `avgMemory` 内存使用平均值，单位为KB
 - `maxMemory` 内存使用最大值，单位为KB
+- `avgCJMemory` 仓颉堆已被使用的平均值，单位为 byte。
+- `maxCJMemory` 仓颉堆已被使用的最大值，单位为 byte。
 - `sampleCount` 内存采样次数
 - `pageName` 当前页面名称
 
 `ProcessMemoryInfo` 包含以下信息：
 - `avgMemory` 内存使用平均值，单位为KB
 - `maxMemory` 内存使用最大值，单位为KB
+- `avgCJMemory` 仓颉堆已被使用的平均值，单位为 byte。
+- `maxCJMemory` 仓颉堆已被使用的最大值，单位为 byte。
 - `sampleCount` 内存采样次数
 - `pid` 进程ID
 
