@@ -38,6 +38,7 @@ public class CrashInfo {
     private var extraInfoValue: ?JsonValue = None
     private var crashLogPathValue: ?String = None
     private var dumpOnOOMPathValue: ?String = None
+    private var dumpOnArktsOOMPathValue: ?String = None
     private var appVersionValue: ?String = None
     private var rawFileValue: ?String = None
     private var systemLogValue: ?String = None
@@ -182,6 +183,15 @@ public class CrashInfo {
         }
     }
 
+    public mut prop dumpOnArktsOOMPath: ?String {
+        get() {
+            dumpOnArktsOOMPathValue
+        }
+        set(value) {
+            dumpOnArktsOOMPathValue = value
+        }
+    }
+
     public mut prop appVersion: ?String {
         get() {
             appVersionValue
@@ -301,6 +311,9 @@ public class CrashInfo {
         if (let Some(v) <- dumpOnOOMPathValue) {
             jsonObj.put("dumpOnOOMPath", JsonString(v))
         }
+        if (let Some(v) <- dumpOnArktsOOMPathValue) {
+            jsonObj.put("dumpOnArktsOOMPath", JsonString(v))
+        }
         if (let Some(v) <- appVersionValue) {
             jsonObj.put("appVersion", JsonString(v))
         }
@@ -376,6 +389,9 @@ public class CrashInfo {
         if (let Some(v) <- jsonObject.get("dumpOnOOMPath")) {
             crashInfo.dumpOnOOMPath = JsonValueToString(v)
         }
+        if (let Some(v) <- jsonObject.get("dumpOnArktsOOMPath")) {
+            crashInfo.dumpOnArktsOOMPath = JsonValueToString(v)
+        }
         if (let Some(v) <- jsonObject.get("appVersion")) {
             crashInfo.appVersion = JsonValueToString(v)
         }
@@ -419,6 +435,7 @@ public class CrashInfo {
         this.extraInfoValue = None
         this.crashLogPathValue = None
         this.dumpOnOOMPathValue = None
+        this.dumpOnArktsOOMPathValue = None
         this.appVersionValue = None
         this.rawFileValue = None
         this.systemLogValue = None
@@ -794,11 +811,13 @@ private func collectMemInfo() {
     smaps_rollup + "\n" + vss
 }
 
+private let arktsOOMPathMap: HashMap<String, String> = HashMap<String, String>()
+
 private func initCrashWatcher(applicationContext: ApplicationContext, reportCrashInfo: (crashInfo: CrashInfo) -> Unit,
     persistentPaths: PersistentPaths, enableMemMonitor: Option<CMemMonitorConfig>) {
     let watcher = Watcher(
         "crashWatcher",
-        appEventFilters: [AppEventFilter(OS, names: [APP_CRASH], eventTypes: [FAULT])],
+        appEventFilters: [AppEventFilter(OS, names: [RESOURCE_OVERLIMIT, APP_CRASH], eventTypes: [FAULT])],
         onReceive: {
             domain: String, appEventGroups: Array<AppEventGroup> =>
             try {
@@ -841,10 +860,18 @@ private func initCrashWatcher(applicationContext: ApplicationContext, reportCras
                 let nextReportCrashInfos = ArrayList<CrashInfo>()
                 let reportCrashInfos = ArrayList<CrashInfo>()
                 for (eventGroup in appEventGroups) {
-                    if (eventGroup.name != APP_CRASH) {
+                    if (eventGroup.name != APP_CRASH && eventGroup.name != RESOURCE_OVERLIMIT) {
                         continue
                     }
                     for (eventInfo in eventGroup.appEventInfos) {
+                        if (eventGroup.name == RESOURCE_OVERLIMIT) {
+                            if (let Some(log) <- eventInfo.params.get("external_log")) {
+                                if (let Some(pid) <- eventInfo.params.get("pid")) {
+                                    arktsOOMPathMap.add(pid.toString().removeSuffix(".000000"), log.toString().removePrefix("[").removeSuffix("]"))
+                                }
+                            }
+                            continue
+                        }
                         let crashInfo = CrashInfo.fromJson(JsonValue.fromStr(curCrashInfo.toString()).asObject())
                         if (eventInfo.params.get("external_log").isNone()) {
                             crashInfo.rawFile = "hm-metricx-cj error: external_log is none"
@@ -922,6 +949,11 @@ private func initCrashWatcher(applicationContext: ApplicationContext, reportCras
                 if(!nextReportCrashInfos.isEmpty()) {
                     let jsonArray = JsonArray()
                     for (info in nextReportCrashInfos) {
+                        if (let Some(pid) <- info.pid) {
+                            if (let Some(logPath) <- arktsOOMPathMap.get(pid)) {
+                                info.dumpOnArktsOOMPath = logPath
+                            }
+                        }
                         jsonArray.add(JsonValue.fromStr(info.toString()))
                     }
                     writeFile(persistentPaths.lastCrashFilePath, jsonArray.toString())
@@ -930,6 +962,9 @@ private func initCrashWatcher(applicationContext: ApplicationContext, reportCras
                     spawn { =>
                         for (crashInfo in reportCrashInfos) {
                             if (let Some(pid) <- crashInfo.pid) {
+                                if (let Some(logPath) <- arktsOOMPathMap.get(pid)) {
+                                    crashInfo.dumpOnArktsOOMPath = logPath
+                                }
                                 crashInfo.dumpOnOOMPath = compressOOMFile(pid, persistentPaths.dir)
                                 // onReceive callback sometimes will be invoked both before app crash and next launch on high-verion (API 18?) devcies
                                 if (!reported.contains(pid)) {
@@ -947,7 +982,9 @@ private func initCrashWatcher(applicationContext: ApplicationContext, reportCras
             }
         }
     )
-    addWatcher(watcher)
+    let configParams = HashMap<String, ParamType>()
+    configParams.add("js_heap_logtype", ParamType.STRING("event_rawheap"))
+    setEventConfig(RESOURCE_OVERLIMIT, configParams, {error, data => addWatcher(watcher)})
 }
 
 private func compressOOMFile(pid: String, dir: Path): Option<String> {
