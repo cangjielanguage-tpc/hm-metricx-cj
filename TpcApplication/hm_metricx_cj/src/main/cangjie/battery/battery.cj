@@ -555,28 +555,25 @@ private func diffThreadJiffiesSnapshot(current: JiffiesSnapshot, last: JiffiesSn
 private func currentJiffiesSnapshot(): JiffiesSnapshot {
     let currentPid = Process.current.pid
     let jiffiesSnapshot: JiffiesSnapshot = JiffiesSnapshot(currentPid, Process.current.name)
-    let threads: ArrayList<UInt32> = getAllThreadId()
 
-    for (tid in threads) {
-        let path = "/proc/self/task/${tid.toString()}/stat"
-        if (let Some(threadJiffiesSnapshot) <- parseThreadInfo(currentPid, tid, path)) {
+    let threadPathList: ArrayList<(UInt32, String)> = ArrayList<(UInt32, String)>()
+    let taskPath: String = "/proc/self/task"
+    if (exists(taskPath) && isDir(taskPath)) {
+        Directory.walk(
+            taskPath,
+            {
+                fileinfo =>
+                threadPathList.add((UInt32.parse(fileinfo.name), fileinfo.path.join("stat").toString()))
+                true
+            }
+        )
+    }
+    for ((tid, tidPath) in threadPathList) {
+        if (let Some(threadJiffiesSnapshot) <- parseThreadInfo(currentPid, tid, tidPath)) {
             jiffiesSnapshot.threadEntries.add(threadJiffiesSnapshot)
         }
     }
     jiffiesSnapshot
-}
-
-private func getAllThreadId(): ArrayList<UInt32> {
-    let  threadIdArray = ArrayList<UInt32>()
-    let path = "/proc/self/task/"
-    var threadArray = Array<String>()
-    if (exists(path) && isDir(path)) {
-        threadArray =  listFile(path)
-    }
-    for (thread in threadArray) {
-        threadIdArray.add(UInt32.parse(thread))
-    }
-    threadIdArray
 }
 
 /**
