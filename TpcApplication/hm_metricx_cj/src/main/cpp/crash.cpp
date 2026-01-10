@@ -3,6 +3,7 @@
  */
 
 #include "crash.h"
+#include "oom.h"
 #include "common.h"
 #include "memory/memory_monitor.h"
 #include "xhook/xh_util.h"
@@ -224,6 +225,9 @@ static void CrashSignalHandler(int sig, siginfo_t *si, void *context) {
     persistMemoryData(persistentMemMapFilePath.c_str(), persistentMemMallocFilePath.c_str(),
                       persistentParsedAddrFilePath.c_str(), memPersistTimePath.c_str());
     WriteLastNHiLog(persistentLastNHilogFilePath.c_str());
+    
+    waitOOMDumping();
+    
     RemoveSignalHandler();
     auto res = signal_crash_queue(si);
     pthread_mutex_unlock(&signalHandlerMutex);

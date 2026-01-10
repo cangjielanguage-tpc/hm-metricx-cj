@@ -5,4 +5,6 @@
 #ifndef TPCAPPLICATION_OOM_H
 #define TPCAPPLICATION_OOM_H
 
+void waitOOMDumping();
+
 #endif //TPCAPPLICATION_OOM_H

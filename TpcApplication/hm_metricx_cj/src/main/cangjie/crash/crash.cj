@@ -600,7 +600,8 @@ private func initOOMHandler(persistentDir: String) {
         let pid = getProcessId().toString()
         let targetFile = LibC.mallocCString(persistentDir + "/cj_OOM_pid${pid}.dat")
         let zlibFile = LibC.mallocCString(persistentDir + "/cj_OOM_pid${pid}.zlib")
-        if (InitOOMHandler(targetFile) != 0) {
+        let dumpTimePath = LibC.mallocCString(persistentDir + "/dumpTime.txt")
+        if (InitOOMHandler(targetFile, dumpTimePath) != 0) {
             AppLog.warn("hm-metricx-cj error: InitOOMHandler failed.")
         }
         else {
@@ -608,6 +609,7 @@ private func initOOMHandler(persistentDir: String) {
         }
         LibC.free(targetFile)
         LibC.free(zlibFile)
+        LibC.free(dumpTimePath)
     }
 }
 
@@ -1519,7 +1521,7 @@ foreign func InitNativeSignalHandler(persistentFilePath: CString, limits: CStrin
     persistentLastNHilogPath: CString, lastNHilogNumber: Int64, systemLogNumber: Int64,
     cb: CFunc<(CString, CString, CFunc<() -> CString>, CString, CString, CString) -> Unit>): Int8
 
-foreign func InitOOMHandler(targetFile: CString): Int8
+foreign func InitOOMHandler(targetFile: CString, dumpTimePath: CString): Int8
 
 foreign func WriteCrashJson(content: CString): Int8
 
