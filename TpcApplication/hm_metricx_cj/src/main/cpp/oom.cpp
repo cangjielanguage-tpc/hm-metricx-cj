@@ -24,6 +24,7 @@
 #include <unistd.h>
 #include <sys/wait.h>
 #include <chrono>
+#include <thread>
 #include "memory/hook_helper.h"
 
 #define PAGE_SHIFT 12
@@ -41,7 +42,10 @@ char *oomFile;
 
 FILE *gFp;
 
+bool isInitOOMHandler = false;
 bool isOOMDumping = false;
+
+std::string dumpFilePathStr = "";
 
 typedef struct {
     long long total;
@@ -202,8 +206,34 @@ void *Dlsym(void *handle, const char *name) {
     return elf_reader.LookupSymbol(name, data->info_.dlpi_addr, true);
 }
 
+void waitOOMDumping() {
+    if (!isInitOOMHandler) {
+        return;
+    }
+    const auto TIMEOUT = std::chrono::milliseconds(1000);
+    while (true) {
+        std::this_thread::sleep_for(TIMEOUT);
+        if (isOOMDumping) {
+            continue;
+        } else {
+            std::ofstream ofs(dumpFilePathStr);
+            if (ofs.is_open()) {
+                ofs << "dump time: total: " << dumpTime.total 
+                    << " ms, stw: " << dumpTime.stw 
+                    << " ms, fork: " << dumpTime.fork 
+                    << " ms, dump: " << dumpTime.dump << " ms";
+                ofs.close();
+            }
+            break;
+        }
+    }
+}
+
 extern "C" {
-int8_t InitOOMHandler(const char *targetFile) {
+int8_t InitOOMHandler(const char *targetFile, const char *dumpTimePath) {
+    
+    dumpFilePathStr = dumpTimePath;
+    
     char line[512];
     FILE *fp;
     uintptr_t baseAddr = 0;
@@ -265,6 +295,8 @@ int8_t InitOOMHandler(const char *targetFile) {
     oomFile = new char[targetFileLen + 1];
     strncpy(oomFile, targetFile, targetFileLen);
     oomFile[targetFileLen] = '\0';
+    
+    isInitOOMHandler = true;
     return SUCCESS;
 }
 
