@@ -151,6 +151,8 @@ public class PageMemoryInfo <: MemoryInfo {
         let jsonObj = JsonObject()
         jsonObj.put("avgMemory", JsonString(avgMemory.toString()))
         jsonObj.put("maxMemory", JsonString(maxMemory.toString()))
+        jsonObj.put("avgCJMemory", JsonString(avgCJMemory.toString()))
+        jsonObj.put("maxCJMemory", JsonString(maxCJMemory.toString()))
         jsonObj.put("sampleCount", JsonString(sampleCount.toString()))
         jsonObj.put("pageName", JsonString(pageNameValue.toString()))
         jsonObj.toString()
@@ -190,6 +192,8 @@ public class ProcessMemoryInfo <: MemoryInfo {
         let jsonObj = JsonObject()
         jsonObj.put("avgMemory", JsonString(avgMemory.toString()))
         jsonObj.put("maxMemory", JsonString(maxMemory.toString()))
+        jsonObj.put("avgCJMemory", JsonString(avgCJMemory.toString()))
+        jsonObj.put("maxCJMemory", JsonString(maxCJMemory.toString()))
         jsonObj.put("sampleCount", JsonString(sampleCount.toString()))
         jsonObj.put("pid", JsonString(pidValue.toString()))
         jsonObj.toString()
@@ -202,6 +206,12 @@ public class ProcessMemoryInfo <: MemoryInfo {
         }
         if (let Some(v) <-  jsonObject.get("maxMemory")) {
             processMemoryInfo.maxMemory = Int64.parse(JsonValueToString(v))
+        }
+        if (let Some(v) <-  jsonObject.get("avgCJMemory")) {
+            processMemoryInfo.avgCJMemory = Int64.parse(JsonValueToString(v))
+        }
+        if (let Some(v) <-  jsonObject.get("maxCJMemory")) {
+            processMemoryInfo.maxCJMemory = Int64.parse(JsonValueToString(v))
         }
         if (let Some(v) <-  jsonObject.get("sampleCount")) {
             processMemoryInfo.sampleCount = Int64.parse(JsonValueToString(v))
@@ -317,7 +327,7 @@ public func initMemoryHandler(
     if (let Some(v) <- lastProcessMemory) {
         reportProcessMemoryInfo(v)
     }
-    setTimeout(handleMemory, 2 * 1000, Array<String>())
+    setTimeout(handleMemory, SAMPLE_INTERVAL * 1000, Array<String>())
     on(navDestinationSwitch, uiContext.getOrThrow(), pageSwitchCallback)
 }
 
