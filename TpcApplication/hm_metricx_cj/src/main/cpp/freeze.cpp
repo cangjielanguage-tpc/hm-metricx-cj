@@ -3,6 +3,7 @@
  */
 
 #include "common.h"
+#include "crash.h"
 #include "hidebug/hidebug.h"
 #include "hilog/log.h"
 #include <cstdio>
@@ -18,6 +19,8 @@ CollectExtraFreezeInfo cjCollectExtraFreezeInfo;
 
 FILE *cpuUsageFile = nullptr;
 FILE *extraInfoFile = nullptr;
+
+std::string _ignoreFilePath;
 
 const int FREEZE_TYPE = 3;
 const unsigned int FREEZE_DOMAIN = 218108688;
@@ -38,6 +41,11 @@ bool containFreezeTag(const std::vector<std::string> &msgTags, const std::string
 bool freezeCaught = false;
 void collectFreezeInfo()
 {
+    if (isInCrash()) {
+        auto fp = std::fopen(_ignoreFilePath.c_str(), "w+");
+        std::fclose(fp);
+        return;
+    }
     auto extraInfo = cjCollectExtraFreezeInfo();
     if (extraInfoFile != nullptr) {
         fwrite(extraInfo, sizeof(char), strlen(extraInfo), extraInfoFile);
@@ -85,9 +93,10 @@ void FreezeHilogCallback(const LogType type, const LogLevel level, const unsigne
     collectFreezeInfo();
 }
 
-extern "C" int8_t registerFreezeHilogCallback(const char * cpuUsageFilePath,
+extern "C" int8_t registerFreezeHilogCallback(const char * ignoreFilePath, const char * cpuUsageFilePath,
                                         const char * extraInfoFilePath, CollectExtraFreezeInfo collectExtraFreezeInfo)
 {
+    _ignoreFilePath = ignoreFilePath;
     cpuUsageFile = std::fopen(cpuUsageFilePath, "w+");
     if (cpuUsageFile == NULL) {
         return FAIL;
@@ -101,9 +110,10 @@ extern "C" int8_t registerFreezeHilogCallback(const char * cpuUsageFilePath,
     return SUCCESS;
 }
 
-extern "C" int8_t registerFreezeCallback(const char * cpuUsageFilePath,
+extern "C" int8_t registerFreezeCallback(const char * ignoreFilePath, const char * cpuUsageFilePath,
                                         const char * extraInfoFilePath, CollectExtraFreezeInfo collectExtraFreezeInfo)
 {
+    _ignoreFilePath = ignoreFilePath;
     cpuUsageFile = std::fopen(cpuUsageFilePath, "w+");
     if (cpuUsageFile == NULL) {
         return FAIL;

@@ -230,32 +230,35 @@ public func initFreezeHandler(
     let extraInfoFilePath = persistentDir.join("extraInfoFreeze.json")
     let extraInfoBakFilePath = persistentDir.join("extraInfoFreeze-bak.json")
     renameFile(extraInfoFilePath, extraInfoBakFilePath)
-    initFreezeWatcher(applicationContext, reportFreezeInfo, cpuUsageBakFilePath, extraInfoBakFilePath, cleanFileRecordPath)
+    let ignoreFilePath = persistentDir.join("ignoreFreeze.txt")
+    initFreezeWatcher(applicationContext, reportFreezeInfo, cpuUsageBakFilePath, extraInfoBakFilePath, cleanFileRecordPath, ignoreFilePath)
     if (DeviceInfo.sdkApiVersion >= 18) {
-        onFreeze({ => freezeCallback(cpuUsageFilePath, extraInfoFilePath)})
+        onFreeze({ => freezeCallback(ignoreFilePath, cpuUsageFilePath, extraInfoFilePath)})
     } else {
-        initHilogWatcher(cpuUsageFilePath, extraInfoFilePath)
+        initHilogWatcher(ignoreFilePath, cpuUsageFilePath, extraInfoFilePath)
     }
     freezeInited = true
 }
 
 var reportFlag = false
-private func freezeCallback(cpuUsageFilePath: Path, extraInfoFilePath: Path): Unit {
+private func freezeCallback(ignoreFilePath: Path, cpuUsageFilePath: Path, extraInfoFilePath: Path): Unit {
     if (!reportFlag) {
-        collectFreezeInfo(cpuUsageFilePath, extraInfoFilePath)
+        collectFreezeInfo(ignoreFilePath, cpuUsageFilePath, extraInfoFilePath)
         reportFlag = true
     }
 }
 
-private func collectFreezeInfo(cpuUsageFilePath: Path, extraInfoFilePath: Path): Unit {
+private func collectFreezeInfo(ignoreFilePath: Path, cpuUsageFilePath: Path, extraInfoFilePath: Path): Unit {
     unsafe {
-        let cpuUsageFilePathForC = LibC.mallocCString(cpuUsageFilePath.toString())
-        let extraInfoFilePathForC = LibC.mallocCString(extraInfoFilePath.toString())
-        if (registerFreezeCallback(cpuUsageFilePathForC, extraInfoFilePathForC, collectExtraFreezeInfo) != 0) {
+        let cpuUsageFilePath = LibC.mallocCString(cpuUsageFilePath.toString())
+        let extraInfoFilePath = LibC.mallocCString(extraInfoFilePath.toString())
+        let ignoreFilePath = LibC.mallocCString(ignoreFilePath.toString())
+        if (registerFreezeCallback(ignoreFilePath, cpuUsageFilePath, extraInfoFilePath, collectExtraFreezeInfo) != 0) {
             AppLog.warn("registerFreezeCallback failed.")
         }
-        LibC.free(cpuUsageFilePathForC)
-        LibC.free(extraInfoFilePathForC)
+        LibC.free(cpuUsageFilePath)
+        LibC.free(extraInfoFilePath)
+        LibC.free(ignoreFilePath)
     }
 }
 
@@ -264,7 +267,8 @@ private func initFreezeWatcher(
     reportFreezeInfo: (freeezeInfo: FreezeInfo) -> Unit,
     cpuUsageFilePath: Path,
     extraInfoFilePath: Path,
-    cleanFileRecordPath: Path
+    cleanFileRecordPath: Path,
+    ignoreFilePath: Path
 ) {
     let watcher = Watcher(
         "freezeWatcher",
@@ -274,6 +278,11 @@ private func initFreezeWatcher(
             try {
                 if (domain != OS) {
                     return
+                }
+                var shouldIgnore = false
+                if (exists(ignoreFilePath)) {
+                    shouldIgnore = true
+                    deleteFile(ignoreFilePath)
                 }
                 let freezeInfo = FreezeInfo()
                 if (exists(cpuUsageFilePath)) {
@@ -357,7 +366,9 @@ private func initFreezeWatcher(
                         }
                     }
                 }
-                reportFreezeInfo(freezeInfo)
+                if (!shouldIgnore) {
+                    reportFreezeInfo(freezeInfo)
+                }
             } catch (e: Exception) {
                 AppLog.warn("hm-metricx-cj freeze error: initFreezeWatcher error, " + e.toString())
             }
@@ -431,8 +442,8 @@ private func extractDataFromLog(content: String): HashMap<String, String> {
     cpuUsageMap
 }
 
-foreign func registerFreezeHilogCallback(cpuUsageFilePath: CString, extraInfoFile: CString, cb: CFunc<() -> CString>): Int8
-foreign func registerFreezeCallback(cpuUsageFilePath: CString, extraInfoFile: CString, cb: CFunc<() -> CString>): Int8
+foreign func registerFreezeHilogCallback(ignoreFilePath: CString, cpuUsageFilePath: CString, extraInfoFile: CString, cb: CFunc<() -> CString>): Int8
+foreign func registerFreezeCallback(ignoreFilePath: CString, cpuUsageFilePath: CString, extraInfoFile: CString, cb: CFunc<() -> CString>): Int8
 
 @C
 func collectExtraFreezeInfo(): CString {
@@ -448,14 +459,16 @@ func collectExtraFreezeInfo(): CString {
     }
 }
 
-public func initHilogWatcher(cpuUsageFilePath: Path, extraInfoFilePath: Path): Unit {
+public func initHilogWatcher(ignoreFilePath: Path, cpuUsageFilePath: Path, extraInfoFilePath: Path): Unit {
     unsafe {
         let cpuUsageFilePath = LibC.mallocCString(cpuUsageFilePath.toString())
         let extraInfoFilePath = LibC.mallocCString(extraInfoFilePath.toString())
-        if (registerFreezeHilogCallback(cpuUsageFilePath, extraInfoFilePath, collectExtraFreezeInfo) != 0) {
+        let ignoreFilePath = LibC.mallocCString(ignoreFilePath.toString())
+        if (registerFreezeHilogCallback(ignoreFilePath, cpuUsageFilePath, extraInfoFilePath, collectExtraFreezeInfo) != 0) {
             AppLog.warn("registerFreezeHilogCallback failed.")
         }
         LibC.free(cpuUsageFilePath)
         LibC.free(extraInfoFilePath)
+        LibC.free(ignoreFilePath)
     }
 }

@@ -711,6 +711,7 @@ private func initErrorObserver(crashInfo: CrashInfo, applicationContext: Applica
         onException: {
             errObject =>
             try {
+                unsafe { MarkCrash() }
                 cleanHistoryLogFiles({name => name.startsWith("APP_CRASH")}, persistentPaths.cleanFileRecordPath,
                 "initErrorObserver", keepLatest: false)
                 crashInfo.meminfo = collectMemInfo()
@@ -1546,3 +1547,5 @@ foreign func installNativeMemoryMonitor(): Int8
 foreign func IsSigCaught(): Bool
 
 foreign func ResetSigCaught(): Unit
+
+foreign func MarkCrash(): Unit

@@ -167,6 +167,7 @@ void CrashLastNHilogCallback(const LogType type, const LogLevel level, const uns
 extern "C" {
 int8_t WriteSystemLog(const char *pFilePath);
 int8_t WriteLastNHiLog(const char *pFilePath);
+void MarkCrash();
 }
 
 bool startsWith(const std::string &str, const std::string &prefix) {
@@ -194,7 +195,7 @@ static void CrashSignalHandler(int sig, siginfo_t *si, void *context) {
         _exit(1);
     }
     globalCrashTid = gettid();
-    inCrash = 1;
+    MarkCrash();
     if (std::__fs::filesystem::exists("/data/storage/el2/log/hiappevent/")) {
         for (const auto &entry : std::__fs::filesystem::directory_iterator("/data/storage/el2/log/hiappevent/")) {
             std::string fileName = entry.path().filename().string();
@@ -355,6 +356,8 @@ int64_t getMaxMapAddr(const std::string &filePath) {
     return parseHexAddress(secondAddr);
 }
 
+bool isInCrash() { return inCrash == 1; }
+
 extern "C" {
 int8_t InitNativeSignalHandler(const char *pFilePath, const char *limits, CollectCrashInfo collectCrashInfo,
                                const char *pSystemLogFilePath, const char *pMemMapFilePath, const char *pMemMallocPath,
@@ -469,4 +472,7 @@ int8_t persistMemoryData(const char *mapPath, const char *memMallocPath, const c
 bool IsSigCaught() { return xh_util_get_sig_caught() != 0; }
 
 void ResetSigCaught() { xh_util_set_sig_caught(0); }
+
+void MarkCrash() { inCrash = 1; }
+
 }

@@ -11,5 +11,6 @@ int8_t writeSystemLog(const char *pFilePath);
 int8_t persistMemoryData(const char *mapPath, const char *memMallocPath, const char *parsedAddrPath,
                          const char *memPersistTimePath);
 }
+bool isInCrash();
 
 #endif // TPCAPPLICATION_CRASH_H
