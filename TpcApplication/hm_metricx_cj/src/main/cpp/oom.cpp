@@ -210,7 +210,7 @@ void waitOOMDumping() {
     if (!isInitOOMHandler) {
         return;
     }
-    const auto TIMEOUT = std::chrono::milliseconds(1000);
+    const auto TIMEOUT = std::chrono::milliseconds(500);
     while (true) {
         std::this_thread::sleep_for(TIMEOUT);
         if (isOOMDumping) {

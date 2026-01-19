@@ -515,6 +515,7 @@ private let reported = HashSet<String>()
 private var OOMHandlerInited = false;
 private let PRIORITY_HIGH: Array<String> = []
 private let PRIORITY_LOW: Array<String> = []
+public var crashPid: String = ""
 
 public func initCrashHandler(
     applicationContext: ApplicationContext,
@@ -867,6 +868,9 @@ private func initCrashWatcher(applicationContext: ApplicationContext, reportCras
                         crashInfo.pid = match (eventInfo.params.get("pid")) {
                             case Some(value) => value.toString().removeSuffix(".000000")
                             case _ => None
+                        }
+                        if (let Some(v) <- crashInfo.pid) {
+                            crashPid = v
                         }
                         crashInfo.stacktrace = match (eventInfo.params.get("exception")) {
                             case Some(value) => match (value) {
