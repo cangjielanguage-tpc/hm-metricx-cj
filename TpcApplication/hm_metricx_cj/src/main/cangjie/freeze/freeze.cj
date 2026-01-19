@@ -4,6 +4,7 @@
 package ohos_app_cangjie_hm_metricx_cj.freeze
 
 import ohos_app_cangjie_hm_metricx_cj.util.*
+import ohos_app_cangjie_hm_metricx_cj.crash.crashPid
 import tpc.AbilityKit.kit_common.*
 import tpc.AbilityKit.errorManager.*
 import tpc.PerformanceAnalysisKit.hiAppEvent.*
@@ -323,8 +324,13 @@ private func initFreezeWatcher(
                             case _ => None
                         }
                         freezeInfo.pid = match (eventInfo.params.get("pid")) {
-                            case Some(value) => value.toString()
+                            case Some(value) => value.toString().removeSuffix(".000000")
                             case _ => None
+                        }
+                        if (let Some(pid) <- freezeInfo.pid) {
+                            if (crashPid == pid) {
+                                shouldIgnore = true
+                            }
                         }
                         freezeInfo.exception = match (eventInfo.params.get("exception")) {
                             case Some(value) => value.toString()
