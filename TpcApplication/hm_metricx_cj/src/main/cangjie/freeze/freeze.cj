@@ -4,7 +4,6 @@
 package ohos_app_cangjie_hm_metricx_cj.freeze
 
 import ohos_app_cangjie_hm_metricx_cj.util.*
-import ohos_app_cangjie_hm_metricx_cj.crash.crashPid
 import tpc.AbilityKit.kit_common.*
 import tpc.AbilityKit.errorManager.*
 import tpc.PerformanceAnalysisKit.hiAppEvent.*
@@ -34,10 +33,14 @@ public class FreezeInfo {
     private var tnameValue: ?String = None
     private var extraInfoValue: ?JsonValue = None
     private var freezeLogPathValue: ?String = None
+    //freezeExtLogPathValue
+    private var freezeExtLogPathValue: ?String = None
     private var cpuThreadValue: ?HashMap<String, String> = None
     private var cpuValue: ?HashMap<String, String> = None
     private var stacktraceValue: ?ArrayList<String> = None
     private var rawFileValue: ?String = None
+    //extRawFileValue
+    private var extRawFileValue: ?String = None
     private var historyRawFilesValue: ?String = None
 
     public mut prop timestamp: ?String {
@@ -111,6 +114,15 @@ public class FreezeInfo {
             freezeLogPathValue = value
         }
     }
+    //freezeExtLogPath
+    public mut prop freezeExtLogPath: ?String {
+        get() {
+            freezeExtLogPathValue
+        }
+        set(value) {
+            freezeExtLogPathValue = value
+        }
+    }
 
     public mut prop cpuThread: ?HashMap<String, String> {
         get() {
@@ -145,6 +157,15 @@ public class FreezeInfo {
         }
         set(value) {
             rawFileValue = value
+        }
+    }
+    //extRawFile
+    public mut prop extRawFile: ?String {
+        get() {
+            extRawFileValue
+        }
+        set(value) {
+            extRawFileValue = value
         }
     }
 
@@ -183,6 +204,10 @@ public class FreezeInfo {
         if (freezeLogPathValue.isSome()) {
             jsonObj.put("freezeLogPath", JsonString(freezeLogPathValue.getOrThrow()))
         }
+        //freezeExtLogPathValue
+        if (freezeExtLogPathValue.isSome()) {
+            jsonObj.put("freezeExtLogPath", JsonString(freezeExtLogPathValue.getOrThrow()))
+        }
         if (cpuThreadValue.isSome()) {
             jsonObj.put("cpuThread", map2json(cpuThreadValue.getOrThrow()))
         }
@@ -191,6 +216,10 @@ public class FreezeInfo {
         }
         if (rawFileValue.isSome()) {
             jsonObj.put("rawFile", JsonString(rawFileValue.getOrThrow()))
+        }
+        //extRawFileValue
+        if (extRawFileValue.isSome()) {
+            jsonObj.put("freezeExtRawFile", JsonString(extRawFileValue.getOrThrow()))
         }
         if (stacktraceValue.isSome()) {
             let arrJson = ArrayList<JsonValue>()
@@ -324,13 +353,8 @@ private func initFreezeWatcher(
                             case _ => None
                         }
                         freezeInfo.pid = match (eventInfo.params.get("pid")) {
-                            case Some(value) => value.toString().removeSuffix(".000000")
+                            case Some(value) => value.toString()
                             case _ => None
-                        }
-                        if (let Some(pid) <- freezeInfo.pid) {
-                            if (crashPid == pid) {
-                                shouldIgnore = true
-                            }
                         }
                         freezeInfo.exception = match (eventInfo.params.get("exception")) {
                             case Some(value) => value.toString()
@@ -345,9 +369,28 @@ private func initFreezeWatcher(
                             freezeInfo.rawFile = "hm-metricx-cj freeze error: external_log is none"
                             continue
                         }
+                        // Extract freeze log path from external_log param
+                        let externalValue = eventInfo.params.get("external_log").getOrThrow()
+                        var freezeLogPath: String = ""
+                        var freezeExtLogPath: String = ""
+                        try {
+                            let externalArr = externalValue.asArray()
+                            freezeLogPath = match (externalArr.get(0)) {
+                                case Some(v) => v.toString().removePrefix("\"").removeSuffix("\"")
+                                case _ => ""
+                            }
+                            freezeExtLogPath = match (externalArr.get(1)) {
+                                case Some(v) => v.toString().removePrefix("\"").removeSuffix("\"")
+                                case _ => ""
+                            }
+                        } catch (e: Exception) {
+                            freezeLogPath = externalValue.toString()
+                                .removePrefix("[")
+                                .removeSuffix("]")
+                                .removePrefix("\"")
+                                .removeSuffix("\"")
+                        }
 
-                        var freezeLogPath: String = eventInfo.params.get("external_log")
-                            .getOrThrow().toString().removePrefix("[").removeSuffix("]")
                         if (freezeLogPath.isEmpty() ) {
                             freezeInfo.rawFile = "hm-metricx-cj freeze error: freezeLogPath is empty"
                             freezeInfo.historyRawFiles = collectAndCleanHistoryLogFiles({name => name.startsWith("APP_FREEZE")},
@@ -359,6 +402,10 @@ private func initFreezeWatcher(
                             continue
                         }
                         freezeInfo.freezeLogPath = freezeLogPath
+
+                        if (!freezeExtLogPath.isEmpty()) {
+                            freezeInfo.freezeExtLogPath = freezeExtLogPath
+                        }
                         try {
                             freezeInfo.rawFile = readFile(Path(freezeLogPath), isReturnException: true)
                             let res = extractFromFreezeLog(freezeInfo.rawFile.getOrThrow())
@@ -367,6 +414,13 @@ private func initFreezeWatcher(
                             freezeInfo.tname = res[1]
                             freezeInfo.stacktrace = res[2]
                             freezeInfo.cpu = res[3]
+                            if (!freezeExtLogPath.isEmpty() && exists(freezeExtLogPath)) {
+                                content = readFile(Path(freezeExtLogPath), isReturnException: true)
+                                if (!content.isEmpty()) {
+                                    freezeInfo.extRawFile = content
+                                }
+                                deleteFile(freezeExtLogPath)
+                            }
                         } catch (e: Exception) {
                             AppLog.warn(e.toString())
                         }
