@@ -28,60 +28,73 @@ public class ThermalEventInfo {
     private var isForegroundValue: Bool = true
     private var durationMsValue: Int64 = 0
     private var timestampValue: Int64 = 0
-    private var eventTypeValue: String = ""
 
     public mut prop pageName: String {
-        get() { pageNameValue }
-        set(value) { pageNameValue = value }
+        get() { 
+            pageNameValue 
+        }
+        set(value) { 
+            pageNameValue = value 
+        }
     }
-
     public mut prop level: Int32 {
-        get() { levelValue }
-        set(value) { levelValue = value }
+        get() { 
+            levelValue 
+        }
+        set(value) { 
+            levelValue = value 
+        }
     }
-
     public mut prop levelName: String {
-        get() { levelNameValue }
-        set(value) { levelNameValue = value }
+        get() { 
+            levelNameValue 
+        }
+        set(value) { 
+            levelNameValue = value
+        }
     }
-
     public mut prop threshold: Int32 {
-        get() { thresholdValue }
-        set(value) { thresholdValue = value }
+        get() { 
+            thresholdValue 
+        }
+        set(value) { 
+            thresholdValue = value 
+        }
     }
-
     public mut prop isForeground: Bool {
-        get() { isForegroundValue }
-        set(value) { isForegroundValue = value }
+        get() { 
+        isForegroundValue 
     }
-
+        set(value) { 
+            isForegroundValue = value 
+        }
+    }
     public mut prop durationMs: Int64 {
-        get() { durationMsValue }
-        set(value) { durationMsValue = value }
+        get() { 
+            durationMsValue 
+        }
+        set(value) { 
+        durationMsValue = value 
+        }
     }
-
     public mut prop timestamp: Int64 {
-        get() { timestampValue }
-        set(value) { timestampValue = value }
-    }
-
-    public mut prop eventType: String {
-        get() { eventTypeValue }
-        set(value) { eventTypeValue = value }
+        get() { 
+            timestampValue 
+        }
+        set(value) { 
+            timestampValue = value 
+        }
     }
 
     public func toString(): String {
         let jsonObj = JsonObject()
         jsonObj.put("pageName", JsonString(pageNameValue))
-        jsonObj.put("level", JsonString(levelValue.toString()))
+        //jsonObj.put("level", JsonString(levelValue.toString()))
         jsonObj.put("levelName", JsonString(levelNameValue))
         jsonObj.put("threshold", JsonString(thresholdValue.toString()))
         jsonObj.put("isForeground", JsonString(isForegroundValue.toString()))
         jsonObj.put("durationMs", JsonString(durationMsValue.toString()))
-        jsonObj.put("timestamp", JsonString(timestampValue.toString()))
-        if (!eventTypeValue.isEmpty()) {
-            jsonObj.put("eventType", JsonString(eventTypeValue))
-        }
+        //jsonObj.put("timestamp", JsonString(timestampValue.toString()))
         jsonObj.toString()
     }
 }
@@ -129,12 +142,7 @@ private func thermalLevelToName(levelEnum: ThermalLevel): String {
     }
 }
 
-private func buildEvent(
-    levelEnum: ThermalLevel,
-    levelInt: Int32,
-    now: Int64,
-    eventType: String
-): ThermalEventInfo {
+private func buildEvent(levelEnum: ThermalLevel, levelInt: Int32, now: Int64): ThermalEventInfo {
     let info = ThermalEventInfo()
     info.pageName = currentPageName
     info.level = levelInt
@@ -143,7 +151,6 @@ private func buildEvent(
     info.isForeground = isForeground
     info.durationMs = now - levelStartTime
     info.timestamp = now
-    info.eventType = eventType
     info
 }
 
@@ -151,38 +158,23 @@ private func sampleThermal(force!: Bool = false): Unit {
     if (!force && !isForeground) {
         return
     }
-
     let now = nowMs()
-
     try {
         let levelEnum: ThermalLevel = getLevel()
         let levelInt: Int32 = thermalLevelToInt(levelEnum)
         let prevLevel = lastLevelInt
-
         if (prevLevel != levelInt) {
             levelStartTime = now
             lastLevelInt = levelInt
         }
-
         let abnormalNow = levelInt >= abnormalThresholdLevel
         let levelIncreased = prevLevel >= 0 && levelInt > prevLevel
-
-        let shouldReport =
-            abnormalNow &&
-            (!lastAbnormalState ||
-             levelIncreased ||
-             (now - lastReportTime) >= reportMinIntervalMs)
-
+        let shouldReport = abnormalNow && (!lastAbnormalState || levelIncreased || (now - lastReportTime) >= reportMinIntervalMs)
         if (shouldReport) {
-            let eventType = if (!lastAbnormalState) "enter" else "keep"
-            reportThermalCallback(
-                buildEvent(levelEnum, levelInt, now, eventType)
-            )
+            reportThermalCallback(buildEvent(levelEnum, levelInt, now))
             lastReportTime = now
         }
-
         lastAbnormalState = abnormalNow
-
     } catch (e: Exception) {
         AppLog.warn("hm-metricx-cj thermal sample failed: ${e.toString()}")
     }
@@ -196,12 +188,10 @@ private func startThermalMonitor(): Unit {
     if (monitorId != -1) {
         clearInterval(monitorId)
     }
-
     lastLevelInt = -1
     levelStartTime = nowMs()
     lastReportTime = 0
     lastAbnormalState = false
-
     monitorId = setInterval(handleThermalSample, sampleIntervalMs, Array<String>())
     sampleThermal(force: true)
 }
@@ -217,7 +207,8 @@ let pageSwitchCallback: PageSwitchCallBack =
     PageSwitchCallBack({
         info: NavDestinationSwitchInfo =>
             currentPageName = getTargetPageName(info, defaultName: currentPageName)
-    })
+    }
+)
 
 public func onAbilityForegroundCallBack(ability: UIAbility) {
     isForeground = true
@@ -230,8 +221,7 @@ public func onAbilityBackgroundCallBack(ability: UIAbility) {
     stopThermalMonitor()
 }
 
-let abilityLifecycleCallback: AbilityLifecycleCallback =
-    AbilityLifecycleCallback(
+let abilityLifecycleCallback: AbilityLifecycleCallback = AbilityLifecycleCallback(
         onAbilityCreate: { ability: UIAbility => () },
         onWindowStageCreate: { abilty: UIAbility, windowStage: window.WindowStage => () },
         onWindowStageActive: { abilty: UIAbility, windowStage: window.WindowStage => () },
@@ -256,11 +246,9 @@ public func initThermalHandler(
     sampleIntervalMs = sampleInterval
     reportMinIntervalMs = reportMinInterval
     abnormalThresholdLevel = abnormalThreshold
-
     let applicationContext = uiContext.getOrThrow().getApplicationContext()
     applicationContext.on(ApplicationContextType.ABILITY_LIFECYCLE, abilityLifecycleCallback)
     on(navDestinationSwitch, uiContext.getOrThrow(), pageSwitchCallback)
-
     isForeground = true
     startThermalMonitor()
 }
@@ -268,15 +256,8 @@ public func initThermalHandler(
 public func destroyThermalHandler(): Unit {
     reportThermalCallback = {info: ThermalEventInfo =>}
     stopThermalMonitor()
-
     if (uiContext.isSome()) {
         off(navDestinationSwitch, uiContext.getOrThrow(), pageSwitchCallback)
     }
 }
 
-public func testThermalHeating(): Unit {
-    AppLog.info("start CPU burn")
-    let levelEnum: ThermalLevel = getLevel()
-    let level: Int32 = thermalLevelToInt(levelEnum)
-    AppLog.info("thermal level after burn = ${level}")
-}

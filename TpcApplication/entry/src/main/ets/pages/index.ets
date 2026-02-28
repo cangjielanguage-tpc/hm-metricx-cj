@@ -1,7 +1,7 @@
 /*
  * Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
  */
-import { CJHybridComponentV2 } from 'cjhybridview'
+import { CJHybridComponentV2 } from '@cangjie/cjhybridview'
 
 @Entry
 @Component
