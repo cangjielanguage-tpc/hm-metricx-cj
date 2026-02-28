@@ -49,6 +49,12 @@ import ohos_app_cangjie_hm_metricx_cj.util.DisplaySync
 import ohos_app_cangjie_hm_metricx_cj.util.Logger
 import ohos_app_cangjie_hm_metricx_cj.util.initLogger as _initLogger
 import ohos_app_cangjie_hm_metricx_cj.util.JSHelper
+import ohos_app_cangjie_hm_metricx_cj.thermal.InteropThermalEventInfo
+import ohos_app_cangjie_hm_metricx_cj.thermal.ThermalInfoInterface
+import ohos_app_cangjie_hm_metricx_cj.thermal.Scheduler
+import ohos_app_cangjie_hm_metricx_cj.thermal.AppHooks
+import ohos_app_cangjie_hm_metricx_cj.thermal.initThermalHandler as _initThermalHandler
+import ohos_app_cangjie_hm_metricx_cj.thermal.destroyThermalHandler as _destroyThermalHandler
 import std.fs.*
 
 private func transEnableDumpOnOOM(enableDumpOnOOM: Int8): Option<OOMHandlerMode> {
@@ -232,4 +238,26 @@ public func initLaggyHandler(
 @Interop[ArkTS]
 public func initLogger(logger: Logger): Unit {
     _initLogger(logger)
+}
+
+@Interop[ArkTS]
+public func initThermalHandler(
+    getUptimeMs: () -> Int64,
+    thermalInterface: ThermalInfoInterface,
+    scheduler: Scheduler,
+    hooks: AppHooks,
+    reportThermalInfo: (InteropThermalEventInfo) -> Unit,
+    sampleInterval: Int64,
+    reportMinInterval: Int64,
+    abnormalThreshold: Int32
+): Unit {
+    let jsReport = { info: InteropThermalEventInfo =>
+        JSHelper.postJSTask { reportThermalInfo(info) }
+    }
+    _initThermalHandler(getUptimeMs,thermalInterface,scheduler,hooks,jsReport,sampleInterval: sampleInterval,reportMinInterval: reportMinInterval,abnormalThreshold: abnormalThreshold)
+}
+
+@Interop[ArkTS]
+public func destroyThermalHandler(): Unit {
+    _destroyThermalHandler()
 }

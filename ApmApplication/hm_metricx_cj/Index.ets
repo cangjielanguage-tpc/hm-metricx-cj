@@ -1,6 +1,8 @@
 import { AbilityConstant, bundleManager, common, errorManager } from '@kit.AbilityKit';
 import { ApplicationStateChangeCallback, appManager } from '@kit.AbilityKit';
+import {thermal} from '@kit.BasicServicesKit';
 import { requireCJLib } from 'libark_interop_loader.so';
+
 import {
   CustomLib,
   InteropCrashInfo as CrashInfo,
@@ -16,6 +18,10 @@ import {
   InteropBatteryUsageInfo as BatteryUsageInfo,
   BatteryInfoInterface,
   InteropAllThreadCpuUsageInfo as AllThreadCpuUsageInfo,
+  InteropThermalEventInfo as ThermalEventInfo,
+  ThermalInfoInterface,
+  Scheduler,
+  AppHooks,
   FpsEventInfo,
   ScrollHitchInfo,
   ClickInfo,
@@ -42,12 +48,14 @@ import {
 import { displaySync } from '@kit.ArkGraphics2D';
 
 const cjLib = requireCJLib('libohos_app_cangjie_hm_metricx_cj.wrapper.so') as CustomLib;
+
 const DOMAIN = 0x0021;
 const TAG = 'hm_metricx_cj';
 let logger: Logger = {
   warn: (content: string): void => hilog.warn(DOMAIN, TAG, content),
   info: (content: string): void => hilog.info(DOMAIN, TAG, content),
 };
+
 cjLib.initLogger(logger);
 
 export class CMemMonitorConfig {
@@ -591,6 +599,60 @@ export function initPageEventHandler(
     });
   };
   cjLib.initPageEventHandler(getDisplaySync(), onNavDestinationSwitch, onWindowEvent, reportFpsInfo);
+}
+
+let offThermalHandlerCallback = () => {
+};
+
+
+
+export function initThermalHandler(
+  context: common.UIAbilityContext,
+  reportThermalInfo: (info: ThermalEventInfo) => void,
+  sampleInterval: number = 5 * 1000,
+  reportMinInterval: number = 30 * 1000,
+  abnormalThreshold: number = 2
+): void {
+  const getUptimeMs = (): number =>
+  systemDateTime.getUptime(systemDateTime.TimeType.STARTUP);
+
+  const scheduler: Scheduler = {
+    setInterval: (cb: () => void, intervalMs: number): number => setInterval(cb, intervalMs),
+    clearInterval: (id: number): void => clearInterval(id),
+  };
+
+  const thermalInterface: ThermalInfoInterface = {
+    getThermalLevel: (): number => {
+      try {
+        return thermal.getLevel();
+      } catch (e) {
+        return -1;
+      }
+    }
+  };
+
+  const hooks: AppHooks = {
+    onAppStateChange: (onFg: () => void, onBg: () => void): void => {
+      const cb: ApplicationStateChangeCallback = {
+        onApplicationForeground() { onFg(); },
+        onApplicationBackground() { onBg(); },
+      };
+      context.getApplicationContext().on('applicationStateChange', cb);
+      // 如果有 off 能力就记录；没有就只能不解绑
+    },
+    onNavDestinationSwitch: (cb: (targetPageName: string) => void): void => {
+      const callback = (info: uiObserver.NavDestinationSwitchInfo) => cb(getTargetPageName(info));
+      uiObserver.on('navDestinationSwitch', context, callback);
+      offThermalHandlerCallback = () => uiObserver.off('navDestinationSwitch', context, callback);
+    },
+  };
+
+  cjLib.initThermalHandler(getUptimeMs, thermalInterface, scheduler, hooks, reportThermalInfo, sampleInterval, reportMinInterval, abnormalThreshold);
+}
+
+export function destroyThermalHandler(): void {
+  offThermalHandlerCallback();
+  cjLib.destroyThermalHandler();
 }
 
 export function initLaggyHandler(
