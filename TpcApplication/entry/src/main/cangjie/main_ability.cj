@@ -20,6 +20,7 @@ import ohos_app_cangjie_hm_metricx_cj.memory.*
 import ohos_app_cangjie_hm_metricx_cj.laggy.*
 import ohos_app_cangjie_hm_metricx_cj.traffic.*
 import ohos_app_cangjie_hm_metricx_cj.memLeak.*
+import ohos_app_cangjie_hm_metricx_cj.thermal.*
 import stdx.encoding.json.*
 import std.fs.*
 import ohos.hilog.*
@@ -57,6 +58,20 @@ class EntryAbility <: UIAbility {
                 .context
                 .cacheDir)
         )
+        initThermalHandler(
+            context,
+            { info: ThermalEventInfo =>
+                AppLog.error("[MetricX][Thermal] ${info.toString()}")
+            },
+            abnormalThreshold: 2
+        )
+        match (launchParam.launchReason) {
+            case AbilityConstant
+                .LaunchReason
+                .START_ABILITY => AppLog.info("START_ABILITY")
+            case _ => ()
+        }
+        
         initTrafficHandler(this.context, {data =>}, {data =>})
         initStorageHandler({data: StorageInfo =>}, sizeLimit: 100000000, dirSizeLimit: 1000, reportTopNum: 5)
         initBatteryHandler(this.context, {data =>}, {data =>})

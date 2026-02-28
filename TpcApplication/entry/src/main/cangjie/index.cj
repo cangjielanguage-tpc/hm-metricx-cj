@@ -33,6 +33,11 @@ import ohos.state_macro_manage.Provide
 import ohos.state_macro_manage.Builder
 import tpc.ArkWeb.webview.WebviewController
 
+//对于thermal测试的新增
+import tpc.UIKit.global.*   // setTimeout
+import std.time.*           // DateTime
+import std.sync.*
+
 @Component
 class pageOneTmp {
     public func build() {
@@ -91,6 +96,19 @@ class Index {
                 Hilog.info(0, "testTag", "storage click")
                 reportAppStorageInfo()
             }
+
+            Button("Start Heating (CPU Burn)").onClick {
+                =>
+                msg = "Heating..."
+                startCpuBurnMulti()
+            }
+
+            Button("Stop Heating").onClick {
+                =>
+                msg = "Stop heating"
+                stopCpuBurnMulti()
+            }
+            
             Navigation(this.pageInfos) {
                 Text(msg)
 
@@ -194,4 +212,59 @@ foreign func Crash(): Unit
 
 func oom() {
     let arr = ArrayList<Int64>(4200000000000)
+}
+
+
+// ===================== Multi-Thread CPU Heating =====================
+
+var burnRunning: Bool = false
+var burnFutures: ArrayList<Future<Unit>> = ArrayList<Future<Unit>>()
+
+const THREAD_COUNT: Int64 = 6i64   // 直接写死
+const BURN_LOOP_COUNT: Int64 = 80_000_000i64
+
+public func startCpuBurnMulti(): Unit {
+    if (burnRunning) {
+        AppLog.info("CPU burn already running")
+        return
+    }
+
+    burnRunning = true
+    burnFutures.clear()
+
+    AppLog.info("Starting CPU burn with ${THREAD_COUNT} threads")
+
+    for (n in 1i64..THREAD_COUNT) {
+        let future = spawn {
+            =>
+            var x: Int64 = 1
+
+            while (burnRunning) {
+                for (i in 1i64..BURN_LOOP_COUNT) {
+                    x = (x * 1664525 + 1013904223 + i) & 0xffffffff
+                }
+            }
+
+            ()
+        }
+
+        burnFutures.add(future)
+    }
+}
+
+public func stopCpuBurnMulti(): Unit {
+    if (!burnRunning) {
+        AppLog.info("CPU burn not running")
+        return
+    }
+
+    burnRunning = false
+
+    for (f in burnFutures) {
+        try { f.cancel() } catch (_: Exception) {}
+    }
+
+    burnFutures.clear()
+
+    AppLog.info("CPU burn stopped")
 }

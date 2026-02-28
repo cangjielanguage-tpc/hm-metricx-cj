@@ -7,7 +7,7 @@
   "license": "",
   "dependencies": {
     "libark_interop_loader.so": "file:./src/main/cangjie/loader",
-    "cjhybridview": "file:./har/CJHybridView-v1.0.4.har",
+    "@cangjie/cjhybridview": "1.0.6",
     "hm_metricx_cj": "file:../hm_metricx_cj"
   }
 }
