@@ -19,7 +19,9 @@ import {
   initPageEventHandler,
   initLaggyHandler,
   destroyCpuHandler,
-  destroyTrafficHandler
+  destroyTrafficHandler,
+  InitThermalHandler,
+  destroyThermalHandler
 } from '@cangjie-tpc/hm_metricx_cj_hybrid';
 
 const DOMAIN = 0x0000;
@@ -43,6 +45,19 @@ export default class EntryAbility extends UIAbility {
       data => hilog.error(DOMAIN, 'hm_metricx_cj', 'freeze info %{public}s', data.rawFile),
       this.context.cacheDir
     );
+    initThermalHandler(
+      this.context,
+      (info) => {
+        hilog.error(0x0000, 'thermal',
+          `pageName=${info.pageName}, level=${info.level}, levelName=${info.levelName}, ` +
+            `threshold=${info.threshold}, isForeground=${info.isForeground}, durationMs=${info.durationMs}`
+        );
+      },
+      5* 1000,  // 1s，先把周期调短验证链路
+      30 * 1000,  // 1s
+      2
+    );
+    hilog.error(0x0000, 'thermal', 'initThermalHandler called in EntryAbility');
     initTrafficHandler(
       this.context,
       data => {
