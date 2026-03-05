@@ -373,20 +373,33 @@ private func initFreezeWatcher(
                         let externalValue = eventInfo.params.get("external_log").getOrThrow()
                         var freezeLogPath: String = ""
                         var freezeExtLogPath: String = ""
-                        try {
-                            let externalArr = externalValue.asArray()
-                            freezeLogPath = match (externalArr.get(0)) {
-                                case Some(v) => v.toString().removePrefix("\"").removeSuffix("\"")
+
+                        // 统一按字符串处理
+                        let extStr = externalValue.toString()
+
+                        if (extStr.startsWith("[")) {
+                            // 去掉 []
+                            let inner = extStr.removePrefix("[").removeSuffix("]")
+                            let parts = inner.split(",", removeEmpty: true)
+
+                            freezeLogPath = match (parts.get(0)) {
+                                case Some(v) => v
+                                    .removePrefix(" ")
+                                    .removePrefix("\"")
+                                    .removeSuffix("\"")
                                 case _ => ""
                             }
-                            freezeExtLogPath = match (externalArr.get(1)) {
-                                case Some(v) => v.toString().removePrefix("\"").removeSuffix("\"")
+
+                            freezeExtLogPath = match (parts.get(1)) {
+                                case Some(v) => v
+                                    .removePrefix(" ")
+                                    .removePrefix("\"")
+                                    .removeSuffix("\"")
                                 case _ => ""
                             }
-                        } catch (e: Exception) {
-                            freezeLogPath = externalValue.toString()
-                                .removePrefix("[")
-                                .removeSuffix("]")
+
+                        } else {
+                            freezeLogPath = extStr
                                 .removePrefix("\"")
                                 .removeSuffix("\"")
                         }
@@ -415,7 +428,7 @@ private func initFreezeWatcher(
                             freezeInfo.stacktrace = res[2]
                             freezeInfo.cpu = res[3]
                             if (!freezeExtLogPath.isEmpty() && exists(freezeExtLogPath)) {
-                                content = readFile(Path(freezeExtLogPath), isReturnException: true)
+                                let content = readFile(Path(freezeExtLogPath), isReturnException: true)
                                 if (!content.isEmpty()) {
                                     freezeInfo.extRawFile = content
                                 }
