@@ -75,10 +75,13 @@ func stagePreBuild(): Int64 {
     )
     let finalDir = targetDir.join("aarch64-linux-ohos/release/ohos_app_cangjie_entry")
     setVariable("OHOS_APP_CANGJIE_HM_METRICX_CJ", finalDir.toString())
-//    setVariable("MEM_LEAK_COMPILE_PLUGIN_PATH", canonicalize("../../../oh_modules/hm_metricx_cj/assets/mem_leak_compile_plugin.so").toString())
-    copy("../../../oh_modules/hm_metricx_cj/assets/" + memLeakLib,
-         to: finalDir.join(memLeakLib).toString(),
-         overwrite: true)
+
+    executeWithOutput("cmd.exe", ["/c", "mkdir", finalDir.toString()])
+    let src = canonicalize("../../../oh_modules/hm_metricx_cj/assets/" + memLeakLib).toString()
+    let dst = finalDir.join(memLeakLib).toString()
+
+    copy(src, to: dst, overwrite: true)
+    println("Copied memleak Lib：" + src + " -> " + dst)
     0
 }
 
@@ -88,9 +91,5 @@ func stagePostBuild(): Int64 {
 }
 
 main(): Int64 {
-    match (getCommandLine()[1]) {
-        case "pre-build" => stagePreBuild()
-        case "post-build" => stagePostBuild()
-        case _ => 0
-    }
+    return 0
 }
