@@ -18,7 +18,7 @@
     "libark_interop_api.so": "file:./src/main/cangjie/ark_interop_api",
     "libohos_app_cangjie_hm_metricx_cj.wrapper.so": "file:./src/main/cangjie/types/wrapper",
     "libohos_app_cangjie_hm_metricx_cj.storage.so": "file:./src/main/cangjie/types/storage",
-    "libohos_app_cangjie_hm_metricx_cj.storage.so": "file:./src/main/cangjie/types/thermal",
+    "libohos_app_cangjie_hm_metricx_cj.thermal.so": "file:./src/main/cangjie/types/thermal",
     "libohos_app_cangjie_hm_metricx_cj.cpu.so": "file:./src/main/cangjie/types/cpu",
     "libohos_app_cangjie_hm_metricx_cj.crash.so": "file:./src/main/cangjie/types/crash",
     "libohos_app_cangjie_hm_metricx_cj.exitInfo.so": "file:./src/main/cangjie/types/exitInfo",
