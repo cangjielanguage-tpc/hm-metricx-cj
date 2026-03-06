@@ -16,6 +16,13 @@
 
 `hm-metricx-cj` 系统性地采集和分析监控指标数据，帮助开发团队及时发现性能瓶颈和异常，持续优化应用质量，提升用户体验。
 
+## 使用流程，基于DevEco6.0.0.878和相对应的SDK，STDX
+#### noohos_pulish分支
+- 在file -> project structure -> signing Configs: ☑️勾选Automatically generate signature，然后apply再点ok。
+- 点中hm_metricx_cj文件夹，然后再Build -> make moudle "hm_metricx_cj", 之后会产生一个hm_metricx_cj.har文件。
+- 在entry里创建一个libs文件夹（跟src同级），然后把hm_metricx_cj.har放入libs，同时在entry中的oh-package.json5中uncomment(去掉//) "@cangjie-tpc/hm_metricx_cj_hybrid": "file:./libs/hm_metricx_cj.har"。
+- 然后点运行即可。
+
 ## 优势
 
 - 覆盖范围广，支持收集多种量化指标
