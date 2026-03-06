@@ -20,7 +20,7 @@ import {
   initLaggyHandler,
   destroyCpuHandler,
   destroyTrafficHandler,
-  InitThermalHandler,
+  initThermalHandler,
   destroyThermalHandler
 } from '@cangjie-tpc/hm_metricx_cj_hybrid';
 
