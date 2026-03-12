@@ -295,7 +295,7 @@ let updateDayTrafficCallback: (upload: Int64, download: Int64) -> Unit = {
             let newDownload: Int64 = todayDownload + download - prevDownload
             setStoredData(KEY_TODAY_DOWNLOAD, newDownload.toString())
         }
-        setStoredData(KEY_CURRENT_DOWNLOAD, upload.toString())
+        setStoredData(KEY_CURRENT_UPLOAD, upload.toString())
         setStoredData(KEY_CURRENT_DOWNLOAD, download.toString())
 }
 let sampleCallback: (upload: Int64, download: Int64, pageName: String) -> Unit = {
