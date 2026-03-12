@@ -50,6 +50,7 @@ import ohos_app_cangjie_hm_metricx_cj.util.Logger
 import ohos_app_cangjie_hm_metricx_cj.util.initLogger as _initLogger
 import ohos_app_cangjie_hm_metricx_cj.util.JSHelper
 import ohos_app_cangjie_hm_metricx_cj.thermal.InteropThermalEventInfo
+import ohos_app_cangjie_hm_metricx_cj.thermal.ThermalEventInfo
 import ohos_app_cangjie_hm_metricx_cj.thermal.ThermalInfoInterface
 import ohos_app_cangjie_hm_metricx_cj.thermal.Scheduler
 import ohos_app_cangjie_hm_metricx_cj.thermal.AppHooks
@@ -251,10 +252,38 @@ public func initThermalHandler(
     reportMinInterval: Int64,
     abnormalThreshold: Int32
 ): Unit {
-    let jsReport = { info: InteropThermalEventInfo =>
-        JSHelper.postJSTask { reportThermalInfo(info) }
+    let jsReport = { info: ThermalEventInfo =>
+        let pageName = info.pageName ?? ""
+        let level = info.level ?? -1
+        let levelName = info.levelName ?? ""
+        let threshold = info.threshold ?? -1
+        let isForeground = info.isForeground ?? false
+        let durationMs = info.durationMs ?? 0
+        let timestamp = info.timestamp ?? 0
+
+        JSHelper.postJSTask {
+            let interopInfo = InteropThermalEventInfo()
+            interopInfo.pageName = pageName
+            interopInfo.level = level
+            interopInfo.levelName = levelName
+            interopInfo.threshold = threshold
+            interopInfo.isForeground = isForeground
+            interopInfo.durationMs = durationMs
+            interopInfo.timestamp = timestamp
+            reportThermalInfo(interopInfo)
+        }
     }
-    _initThermalHandler(getUptimeMs,thermalInterface,scheduler,hooks,jsReport,sampleInterval: sampleInterval,reportMinInterval: reportMinInterval,abnormalThreshold: abnormalThreshold)
+
+    _initThermalHandler(
+        getUptimeMs,
+        thermalInterface,
+        scheduler,
+        hooks,
+        jsReport,
+        sampleInterval: sampleInterval,
+        reportMinInterval: reportMinInterval,
+        abnormalThreshold: abnormalThreshold
+    )
 }
 
 @Interop[ArkTS]
