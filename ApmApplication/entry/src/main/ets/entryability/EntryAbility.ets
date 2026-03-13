@@ -53,17 +53,35 @@ export default class EntryAbility extends UIAbility {
             `threshold=${info.threshold}, isForeground=${info.isForeground}, durationMs=${info.durationMs}`
         );
       },
-      5* 1000,  // 1s，先把周期调短验证链路
-      30 * 1000,  // 1s
-      2
+      5000,  // 1s，先把周期调短验证链路
+      5000, // 1s
+      0
     );
     hilog.error(0x0000, 'thermal', 'initThermalHandler called in EntryAbility');
     initTrafficHandler(
       this.context,
       data => {
+        hilog.error(
+          0x0000,
+          'cangjie',
+          'traffic data: %{public}s',
+          `${data.systemInfo.total}`
+        );
       },
       data => {
-      });
+        hilog.error(
+          0x0000,
+          'cangjie',
+          'traffic data: %{public}s',
+          `data.systemInfo.total = ${data.total}
+           data.systemInfo.upTotal = ${data.upTotal}
+           data.systemInfo.downTotal = ${data.downTotal}
+          `
+        );
+      },
+      5000,
+      5
+    );
     initStorageHandler(
       data => {},
       1,
