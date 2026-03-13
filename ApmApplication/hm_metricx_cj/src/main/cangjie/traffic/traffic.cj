@@ -180,6 +180,11 @@ public class InteropSampleTrafficInfo {
     }
 }
 
+var globalContext: ?JSContext = None
+let _ = JSModule.registerModule { c, _ =>
+    globalContext = c
+}
+
 public class SampleTrafficInfo {
     private var systemInfoValue: SystemTrafficInfo = SystemTrafficInfo()
     private var pageInfoMapValue: HashMap<String, PageTrafficInfo> = HashMap<String, PageTrafficInfo>()
@@ -205,6 +210,7 @@ public class SampleTrafficInfo {
         }
     }
     func toInteropSampleTrafficInfo(): InteropSampleTrafficInfo {
+        JSCurrentJSContext.set(globalContext.getOrThrow())
         let pageInfos = JSHashMapEx<String, InteropPageTrafficInfo>()
         for (entry in this.pageInfoMap) {
             pageInfos.set(entry[0], entry[1].toInteropPageTrafficInfo())
