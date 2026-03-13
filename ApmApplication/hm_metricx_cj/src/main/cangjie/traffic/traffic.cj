@@ -139,7 +139,7 @@ public class PageTrafficInfo <: TrafficInfo {
     }
 
     func toInteropPageTrafficInfo(): InteropPageTrafficInfo {
-        InteropPageTrafficInfo(this.upTotal, downTotal, this.pageName)
+        InteropPageTrafficInfo(this.upTotal, this.downTotal, this.pageName)
     }
 }
 
@@ -166,7 +166,7 @@ public class DayTrafficInfo <: TrafficInfo {
     }
 
     func toInteropDayTrafficInfo(): InteropDayTrafficInfo {
-        InteropDayTrafficInfo(this.upTotal, downTotal, this.date)
+        InteropDayTrafficInfo(this.upTotal, this.downTotal, this.date)
     }
 }
 
