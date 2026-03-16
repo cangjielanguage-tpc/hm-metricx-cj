@@ -13,8 +13,6 @@
   [profile.build]
     lto = ""
     incremental = true
-  [profile.build.combined]
-    ohos_app_cangjie_hm_metricx_cj = "dynamic"
   [profile.customized-option]
     debug = "-g -Woff all"
     release = "--fast-math -O2 -s -Woff all"
