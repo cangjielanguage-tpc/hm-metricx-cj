@@ -311,6 +311,6 @@ export declare interface CustomLib {
     initPageEventHandler(onDisplay: DisplaySync, onNavDestinationSwitch: (funcArg0: (funcArgfuncArg0: string) => void) => void, onWindowEvent: (funcArg0: () => void, funcArg1: () => void) => void, reportFpsInfo: (funcArg0: FpsEventInfo) => void): void
     initLaggyHandler(onDisplay: DisplaySync, onAbilityBackground: (funcArg0: () => void) => void, onNavDestinationSwitch: (funcArg0: (funcArgfuncArg0: string) => void) => void, onDidClick: (funcArg0: (funcArgfuncArg0: ClickInfo) => void) => void, maxTime: number, maxArraySize: number, reportResponseEvent: (funcArg0: ResponseEvent) => void, reportPageResponseLaggyModel: (funcArg0: InteropPageResponseLaggyModel) => void): void
     initLogger(logger: Logger): void
-    initThermalHandler(getUptimeMs: () => number, thermalInterface: ThermalInfoInterface, scheduler: Scheduler, hooks: AppHooks, reportThermalInfo: (funcArg0: InteropThermalEventInfo) => void, sampleInterval: number, reportMinInterval: number, abnormalThreshold: number): void
+    initThermalHandler(getUptimeMs: () => number, thermalInterface: ThermalInfoInterface, hooks: AppHooks, repeatSampleThermal: (funcArg0: () => void) => void, stopSampleThermal: () => void, reportThermalInfo: (funcArg0: InteropThermalEventInfo) => void, sampleInterval: number, reportMinInterval: number, abnormalThreshold: number): void
     destroyThermalHandler(): void
 }
