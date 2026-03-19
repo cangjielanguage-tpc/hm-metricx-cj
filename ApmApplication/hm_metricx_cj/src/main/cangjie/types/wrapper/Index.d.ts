@@ -59,6 +59,6 @@ export declare function initPageEventHandler(onDisplay: DisplaySync, onNavDestin
 
 export declare function initLaggyHandler(onDisplay: DisplaySync, onAbilityBackground: (funcArg0: () => void) => void, onNavDestinationSwitch: (funcArg0: (funcArgfuncArg0: string) => void) => void, onDidClick: (funcArg0: (funcArgfuncArg0: ClickInfo) => void) => void, maxTime: number, maxArraySize: number, reportResponseEvent: (funcArg0: ResponseEvent) => void, reportPageResponseLaggyModel: (funcArg0: InteropPageResponseLaggyModel) => void): void
 
-export declare function initThermalHandler(scheduler: Scheduler, hooks: AppHooks, thermalInterface: ThermalInfoInterface, reportThermalInfo: (funcArg0: ThermalEventInfo) => void, sampleInterval: number, reportMinInterval: number, abnormalThreshold: number): void
+export declare function initThermalHandler(getUptimeMs: () => number, thermalInterface: ThermalInfoInterface, hooks: AppHooks, repeatSampleThermal: (funcArg0: () => void) => void, stopSampleThermal: () => void, reportThermalInfo: (funcArg0: InteropThermalEventInfo) => void, sampleInterval: number, reportMinInterval: number, abnormalThreshold: number): void
 
 export declare function destroyThermalHandler(): void
