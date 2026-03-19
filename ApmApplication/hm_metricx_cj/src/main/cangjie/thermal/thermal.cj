@@ -26,88 +26,9 @@ public class InteropThermalEventInfo {
     public init() {}
 }
 
-public class ThermalEventInfo {
-    private var pageNameValue: ?String = None
-    private var levelValue: ?Int32 = None
-    private var levelNameValue: ?String = None
-    private var thresholdValue: ?Int32 = None
-    private var isForegroundValue: ?Bool = None
-    private var durationMsValue: ?Int64 = None
-    private var timestampValue: ?Int64 = None
-
-    public mut prop pageName: ?String {
-        get() {
-            pageNameValue
-        }
-        set(value) {
-            pageNameValue = value
-        }
-    }
-
-    public mut prop level: ?Int32 {
-        get() {
-            levelValue
-        }
-        set(value) {
-            levelValue = value
-        }
-    }
-
-    public mut prop levelName: ?String {
-        get() {
-            levelNameValue
-        }
-        set(value) {
-            levelNameValue = value
-        }
-    }
-
-    public mut prop threshold: ?Int32 {
-        get() {
-            thresholdValue
-        }
-        set(value) {
-            thresholdValue = value
-        }
-    }
-
-    public mut prop isForeground: ?Bool {
-        get() {
-            isForegroundValue
-        }
-        set(value) {
-            isForegroundValue = value
-        }
-    }
-
-    public mut prop durationMs: ?Int64 {
-        get() {
-            durationMsValue
-        }
-        set(value) {
-            durationMsValue = value
-        }
-    }
-
-    public mut prop timestamp: ?Int64 {
-        get() {
-            timestampValue
-        }
-        set(value) {
-            timestampValue = value
-        }
-    }
-}
-
 @Interop[ArkTS]
 public interface ThermalInfoInterface {
     func getThermalLevel(): Int32
-}
-
-@Interop[ArkTS]
-public interface Scheduler {
-    func setInterval(cb: () -> Unit, intervalMs: Int64): Int64
-    func clearInterval(id: Int64): Unit
 }
 
 @Interop[ArkTS]
@@ -117,21 +38,24 @@ public interface AppHooks {
 }
 
 var _thermalInterface: Option<ThermalInfoInterface> = None
-var _scheduler: Option<Scheduler> = None
 var _hooks: Option<AppHooks> = None
 var _getUptimeMs: () -> Int64 = {=> DateTime.now().toUnixTimeStamp().toMilliseconds()}
-var _reportThermalCallback: (info: ThermalEventInfo) -> Unit = {_ =>}
+var _reportThermalCallback: (info: InteropThermalEventInfo) -> Unit = {_ =>}
+var _stopSampleThermal: () -> Unit = {=>}
+
 var currentPageName: String = defaultPageName
 var isForeground: Bool = true
 var sampleIntervalMs: Int64 = DEFAULT_SAMPLE_INTERVAL_MS
 var reportMinIntervalMs: Int64 = DEFAULT_REPORT_MIN_INTERVAL_MS
 var abnormalThresholdLevel: Int32 = DEFAULT_ABNORMAL_LEVEL
 
-var monitorId: Int64 = -1
 var lastLevelInt: Int32 = -1
 var levelStartTime: Int64 = 0
 var lastReportTime: Int64 = 0
 var lastAbnormalState: Bool = false
+
+var started: Bool = false
+var destroyed: Bool = false
 
 private func levelIntToName(level: Int32): String {
     match (level) {
@@ -147,8 +71,8 @@ private func levelIntToName(level: Int32): String {
     }
 }
 
-private func buildEvent(levelInt: Int32, now: Int64): ThermalEventInfo {
-    let info = ThermalEventInfo()
+private func buildEvent(levelInt: Int32, now: Int64): InteropThermalEventInfo {
+    let info = InteropThermalEventInfo()
     info.pageName = currentPageName
     info.level = levelInt
     info.levelName = levelIntToName(levelInt)
@@ -159,7 +83,17 @@ private func buildEvent(levelInt: Int32, now: Int64): ThermalEventInfo {
     info
 }
 
-private func sampleThermal(force!: Bool = false): Unit {
+private func resetThermalState(): Unit {
+    lastLevelInt = -1
+    levelStartTime = _getUptimeMs()
+    lastReportTime = 0
+    lastAbnormalState = false
+}
+
+public func sampleThermal(force!: Bool = false): Unit {
+    if (destroyed || !started) {
+        return
+    }
     if (!force && !isForeground) {
         return
     }
@@ -175,7 +109,6 @@ private func sampleThermal(force!: Bool = false): Unit {
         }
 
         let prevLevel = lastLevelInt
-
         if (prevLevel != levelInt) {
             levelStartTime = now
             lastLevelInt = levelInt
@@ -186,9 +119,12 @@ private func sampleThermal(force!: Bool = false): Unit {
 
         let shouldReport =
             abnormalNow &&
-            (!lastAbnormalState ||
-             levelIncreased ||
-             (now - lastReportTime) >= reportMinIntervalMs)
+            isForeground &&
+            (
+                !lastAbnormalState ||
+                levelIncreased ||
+                (now - lastReportTime) >= reportMinIntervalMs
+            )
 
         if (shouldReport) {
             let event = buildEvent(levelInt, now)
@@ -202,43 +138,38 @@ private func sampleThermal(force!: Bool = false): Unit {
     }
 }
 
-private func startThermalMonitor(): Unit {
-    if (monitorId != -1) {
-        if (let Some(s) <- _scheduler) {
-            s.clearInterval(monitorId)
-        }
-        monitorId = -1
-    }
+private func startThermalMonitor(repeatSampleThermal: (() -> Unit) -> Unit): Unit {
+    started = true
+    destroyed = false
+    resetThermalState()
 
-    lastLevelInt = -1
-    levelStartTime = _getUptimeMs()
-    lastReportTime = 0
-    lastAbnormalState = false
-
-    if (let Some(s) <- _scheduler) {
-        monitorId = s.setInterval({=> sampleThermal()}, sampleIntervalMs)
-    }
+    repeatSampleThermal({=> sampleThermal()})
     sampleThermal(force: true)
 }
 
 private func stopThermalMonitor(): Unit {
-    if (monitorId != -1) {
-        if (let Some(s) <- _scheduler) {
-            s.clearInterval(monitorId)
-        }
-        monitorId = -1
+    started = false
+    try {
+        _stopSampleThermal()
+    } catch (e: Exception) {
+        AppLog.warn("hm-metricx-cj thermal stop sample failed: ${e.toString()}")
     }
 }
 
 public func onAppForegroundCallBack(): Unit {
+    if (destroyed) {
+        return
+    }
     isForeground = true
-    startThermalMonitor()
+    resetThermalState()
+    sampleThermal(force: true)
 }
 
 public func onAppBackgroundCallBack(): Unit {
-    sampleThermal(force: true)
+    if (destroyed) {
+        return
+    }
     isForeground = false
-    stopThermalMonitor()
 }
 
 public func onNavDestinationSwitchCallBack(targetPageName: String): Unit {
@@ -250,18 +181,22 @@ public func onNavDestinationSwitchCallBack(targetPageName: String): Unit {
 public func initThermalHandler(
     getUptimeMs: () -> Int64,
     thermalInterface: ThermalInfoInterface,
-    scheduler: Scheduler,
     hooks: AppHooks,
-    reportThermalInfo: (info: ThermalEventInfo) -> Unit,
+    repeatSampleThermal: (() -> Unit) -> Unit,
+    stopSampleThermal: () -> Unit,
+    reportThermalInfo: (info: InteropThermalEventInfo) -> Unit,
     sampleInterval!: Int64 = DEFAULT_SAMPLE_INTERVAL_MS,
     reportMinInterval!: Int64 = DEFAULT_REPORT_MIN_INTERVAL_MS,
     abnormalThreshold!: Int32 = DEFAULT_ABNORMAL_LEVEL
 ): Unit {
+    destroyed = false
+    started = false
+
     _getUptimeMs = getUptimeMs
-    _thermalInterface = thermalInterface
-    _scheduler = Some(scheduler)
+    _thermalInterface = Some(thermalInterface)
     _hooks = Some(hooks)
     _reportThermalCallback = reportThermalInfo
+    _stopSampleThermal = stopSampleThermal
 
     sampleIntervalMs = sampleInterval
     reportMinIntervalMs = reportMinInterval
@@ -271,10 +206,12 @@ public func initThermalHandler(
     hooks.onNavDestinationSwitch(onNavDestinationSwitchCallBack)
 
     isForeground = true
-    startThermalMonitor()
+    startThermalMonitor(repeatSampleThermal)
 }
 
 public func destroyThermalHandler(): Unit {
+    destroyed = true
+    started = false
     _reportThermalCallback = {_ =>}
     stopThermalMonitor()
 }
