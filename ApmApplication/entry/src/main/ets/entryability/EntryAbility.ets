@@ -53,8 +53,8 @@ export default class EntryAbility extends UIAbility {
             `threshold=${info.threshold}, isForeground=${info.isForeground}, durationMs=${info.durationMs}`
         );
       },
-      5000,  // 1s，先把周期调短验证链路
-      5000, // 1s
+      1000,  // 1s，先把周期调短验证链路
+      1000, // 1s
       0
     );
     hilog.error(0x0000, 'thermal', 'initThermalHandler called in EntryAbility');
