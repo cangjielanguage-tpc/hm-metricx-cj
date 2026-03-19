@@ -18,9 +18,8 @@ import {
   InteropBatteryUsageInfo as BatteryUsageInfo,
   BatteryInfoInterface,
   InteropAllThreadCpuUsageInfo as AllThreadCpuUsageInfo,
-  InteropThermalEventInfo as ThermalEventInfo,
+  InteropThermalEventInfo ,
   ThermalInfoInterface,
-  Scheduler,
   AppHooks,
   FpsEventInfo,
   ScrollHitchInfo,
@@ -604,22 +603,32 @@ export function initPageEventHandler(
 let offThermalHandlerCallback = () => {
 };
 
+let offThermalAppStateCallback = () => {
+};
 
+let clearSampleThermal = () => {
+};
+
+let thermalInited = false;
 
 export function initThermalHandler(
   context: common.UIAbilityContext,
-  reportThermalInfo: (info: ThermalEventInfo) => void,
+  reportThermalInfo: (info: InteropThermalEventInfo) => void,
   sampleInterval: number = 5 * 1000,
   reportMinInterval: number = 30 * 1000,
   abnormalThreshold: number = 2
 ): void {
+  if (thermalInited) {
+    return;
+  }
+  thermalInited = true;
+
+  const normalizedSampleInterval = Math.max(sampleInterval, 1000);
+  const normalizedReportMinInterval = Math.max(reportMinInterval, 5000);
+  const normalizedAbnormalThreshold = Math.min(Math.max(abnormalThreshold, 0), 7);
+
   const getUptimeMs = (): number =>
   systemDateTime.getUptime(systemDateTime.TimeType.STARTUP);
-
-  const scheduler: Scheduler = {
-    setInterval: (cb: () => void, intervalMs: number): number => setInterval(cb, intervalMs),
-    clearInterval: (id: number): void => clearInterval(id),
-  };
 
   const thermalInterface: ThermalInfoInterface = {
     getThermalLevel: (): number => {
@@ -633,13 +642,25 @@ export function initThermalHandler(
 
   const hooks: AppHooks = {
     onAppStateChange: (onFg: () => void, onBg: () => void): void => {
-      const cb: ApplicationStateChangeCallback = {
-        onApplicationForeground() { onFg(); },
-        onApplicationBackground() { onBg(); },
+      const applicationStateChangeCallback: ApplicationStateChangeCallback = {
+        onApplicationForeground() {
+          onFg();
+        },
+        onApplicationBackground() {
+          onBg();
+        },
       };
-      context.getApplicationContext().on('applicationStateChange', cb);
-      // 如果有 off 能力就记录；没有就只能不解绑
+
+      context.getApplicationContext().on('applicationStateChange', applicationStateChangeCallback);
+
+      offThermalAppStateCallback = () => {
+        try {
+          context.getApplicationContext().off('applicationStateChange', applicationStateChangeCallback);
+        } catch (e) {
+        }
+      };
     },
+
     onNavDestinationSwitch: (cb: (targetPageName: string) => void): void => {
       const callback = (info: uiObserver.NavDestinationSwitchInfo) => cb(getTargetPageName(info));
       uiObserver.on('navDestinationSwitch', context, callback);
@@ -647,11 +668,40 @@ export function initThermalHandler(
     },
   };
 
-  cjLib.initThermalHandler(getUptimeMs, thermalInterface, scheduler, hooks, reportThermalInfo, sampleInterval, reportMinInterval, abnormalThreshold);
+  const repeatSampleThermal = (sample: () => void): void => {
+    clearSampleThermal();
+
+    const sampleId = setInterval(() => {
+      sample();
+    }, normalizedSampleInterval);
+
+    clearSampleThermal = () => {
+      clearInterval(sampleId);
+    };
+  };
+
+  const stopSampleThermal = (): void => {
+    clearSampleThermal();
+  };
+
+  cjLib.initThermalHandler(
+    getUptimeMs,
+    thermalInterface,
+    hooks,
+    repeatSampleThermal,
+    stopSampleThermal,
+    reportThermalInfo,
+    normalizedSampleInterval,
+    normalizedReportMinInterval,
+    normalizedAbnormalThreshold
+  );
 }
 
 export function destroyThermalHandler(): void {
+  thermalInited = false;
+  clearSampleThermal();
   offThermalHandlerCallback();
+  offThermalAppStateCallback();
   cjLib.destroyThermalHandler();
 }
 
