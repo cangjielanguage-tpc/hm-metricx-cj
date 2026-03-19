@@ -1,21 +1,16 @@
 export declare interface InteropThermalEventInfo {
-    pageName: string | undefined
-    level: number | undefined
-    levelName: string | undefined
-    threshold: number | undefined
-    isForeground: boolean | undefined
-    durationMs: number | undefined
-    timestamp: number | undefined
-    constructor (c: string | undefined, l: number | undefined, ln: string | undefined, th: number | undefined, fg: boolean | undefined, dMs: number | undefined, ts: number | undefined)
+    pageName: string
+    level: number
+    levelName: string
+    threshold: number
+    isForeground: boolean
+    durationMs: number
+    timestamp: number
+    constructor ()
 }
 
 export declare interface ThermalInfoInterface {
     getThermalLevel: () => number
-}
-
-export declare interface Scheduler {
-    setInterval: (cb: () => void, intervalMs: number) => number
-    clearInterval: (id: number) => void
 }
 
 export declare interface AppHooks {
