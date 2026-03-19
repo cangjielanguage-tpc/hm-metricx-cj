@@ -65,7 +65,7 @@ export default class EntryAbility extends UIAbility {
           0x0000,
           'cangjie',
           'traffic data: %{public}s',
-          `${data.systemInfo.total}`
+          `current_total = ${data.systemInfo.total}, current_upTotal = ${data.systemInfo.upTotal}, current_downTotal = ${data.systemInfo.downTotal}`
         );
       },
       data => {
