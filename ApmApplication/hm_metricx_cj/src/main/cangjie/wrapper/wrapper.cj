@@ -50,9 +50,7 @@ import ohos_app_cangjie_hm_metricx_cj.util.Logger
 import ohos_app_cangjie_hm_metricx_cj.util.initLogger as _initLogger
 import ohos_app_cangjie_hm_metricx_cj.util.JSHelper
 import ohos_app_cangjie_hm_metricx_cj.thermal.InteropThermalEventInfo
-import ohos_app_cangjie_hm_metricx_cj.thermal.ThermalEventInfo
 import ohos_app_cangjie_hm_metricx_cj.thermal.ThermalInfoInterface
-import ohos_app_cangjie_hm_metricx_cj.thermal.Scheduler
 import ohos_app_cangjie_hm_metricx_cj.thermal.AppHooks
 import ohos_app_cangjie_hm_metricx_cj.thermal.initThermalHandler as _initThermalHandler
 import ohos_app_cangjie_hm_metricx_cj.thermal.destroyThermalHandler as _destroyThermalHandler
@@ -241,44 +239,33 @@ public func initLogger(logger: Logger): Unit {
     _initLogger(logger)
 }
 
+var thermalWrapperDestroyed: Bool = false
+
 @Interop[ArkTS]
 public func initThermalHandler(
     getUptimeMs: () -> Int64,
     thermalInterface: ThermalInfoInterface,
-    scheduler: Scheduler,
     hooks: AppHooks,
+    repeatSampleThermal: (() -> Unit) -> Unit,
+    stopSampleThermal: () -> Unit,
     reportThermalInfo: (InteropThermalEventInfo) -> Unit,
     sampleInterval: Int64,
     reportMinInterval: Int64,
     abnormalThreshold: Int32
 ): Unit {
-    let jsReport = { info: ThermalEventInfo =>
-        let pageName = info.pageName ?? ""
-        let level = info.level ?? -1
-        let levelName = info.levelName ?? ""
-        let threshold = info.threshold ?? -1
-        let isForeground = info.isForeground ?? false
-        let durationMs = info.durationMs ?? 0
-        let timestamp = info.timestamp ?? 0
-
+    thermalWrapperDestroyed = false
+    let jsReport = { info: InteropThermalEventInfo =>
         JSHelper.postJSTask {
-            let interopInfo = InteropThermalEventInfo()
-            interopInfo.pageName = pageName
-            interopInfo.level = level
-            interopInfo.levelName = levelName
-            interopInfo.threshold = threshold
-            interopInfo.isForeground = isForeground
-            interopInfo.durationMs = durationMs
-            interopInfo.timestamp = timestamp
-            reportThermalInfo(interopInfo)
+            reportThermalInfo(info)
         }
     }
 
     _initThermalHandler(
         getUptimeMs,
         thermalInterface,
-        scheduler,
         hooks,
+        repeatSampleThermal,
+        stopSampleThermal,
         jsReport,
         sampleInterval: sampleInterval,
         reportMinInterval: reportMinInterval,
@@ -288,5 +275,6 @@ public func initThermalHandler(
 
 @Interop[ArkTS]
 public func destroyThermalHandler(): Unit {
+    thermalWrapperDestroyed = true
     _destroyThermalHandler()
 }
