@@ -14,3 +14,8 @@ export declare class InteropPageCpuInfo {
     constructor (a: number, m: number, s: number, p: string)
 }
 
+export declare function getPageCpuInfoInterop(): InteropPageCpuInfo
+
+export declare function getProcessCpuInfoInterop(): InteropProcessCpuInfo
+
+export declare function initCpuHandlerInterop(getCpuUsage: () => number, onNavDestinationSwitch: (funcArg0: (funcArgfuncArg0: string) => void) => void, repeatSampleAndReportCpu: (funcArg0: () => void, funcArg1: () => void) => void, reporPageCpuInfo: (funcArg0: InteropPageCpuInfo) => void, reporProcessCpuInfo: (funcArg0: InteropProcessCpuInfo) => void): void

@@ -4,3 +4,7 @@ export declare class ExitInfo {
     constructor (exitMessage: string, exitReason: string)
 }
 
+
+export declare function getExitInfoInterop(lastExitMessage: string, lastExitReason: number): void
+
+export declare function getExitInfoInterop(lastExitMessage: string, lastExitReason: number): ExitInfo

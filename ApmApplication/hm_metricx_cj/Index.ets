@@ -46,7 +46,31 @@ import {
 } from '@kit.BasicServicesKit';
 import { displaySync } from '@kit.ArkGraphics2D';
 
+// ==================== 仓颉库动态加载 ====================
+
 const cjLib = requireCJLib('libohos_app_cangjie_hm_metricx_cj.wrapper.so') as CustomLib;
+
+// 动态加载功能库：如果库不存在则返回 null
+function loadCJLibSafe(feature: string): CustomLib | null {
+  try {
+    return requireCJLib(`libohos_app_cangjie_hm_metricx_cj.${feature}.so`) as CustomLib;
+  } catch (e) {
+    return null;
+  }
+}
+
+// 按需加载各功能库（自动判空）
+const cjLibBattery = loadCJLibSafe('battery');
+const cjLibCpu = loadCJLibSafe('cpu');
+const cjLibCrash = loadCJLibSafe('crash');
+const cjLibExitInfo = loadCJLibSafe('exitInfo');
+const cjLibFps = loadCJLibSafe('fps');
+const cjLibFreeze = loadCJLibSafe('freeze');
+const cjLibLaggy = loadCJLibSafe('laggy');
+const cjLibMemory = loadCJLibSafe('memory');
+const cjLibStorage = loadCJLibSafe('storage');
+const cjLibThermal = loadCJLibSafe('thermal');
+const cjLibTraffic = loadCJLibSafe('traffic');
 
 const DOMAIN = 0x0021;
 const TAG = 'hm_metricx_cj';
@@ -86,6 +110,10 @@ export function initTrafficHandler(
   sampleTime: number = 10 * 60 * 1000,
   sampleThreshold: number = 50 * 1024 * 1024
 ): void {
+  if (!cjLibTraffic) {
+    hilog.warn(DOMAIN, TAG, 'initTrafficHandler called but traffic module is disabled');
+    return;
+  }
   let preference = preferences.getPreferencesSync(context, { name: 'hm_metricx_cj:Traffic' });
   let p: TrafficPreference = {
     put: (key: string, value: string): void => {
@@ -104,14 +132,15 @@ export function initTrafficHandler(
     let id = setInterval(sample, sampleTime);
     clearSampleTraffic = () => clearInterval(id);
   };
-  cjLib.initTrafficHandler(p, onNavDestinationSwitch, repeatSampleTraffic, getUidRxAndTxBytes, reportTraffic,
+  cjLibTraffic.initTrafficHandlerInterop(p, onNavDestinationSwitch, repeatSampleTraffic, getUidRxAndTxBytes, reportTraffic,
     reportYesterdayTraffic, sampleThreshold);
 }
 
 export function destroyTrafficHandler(): void {
+  if (!cjLibTraffic) return;
   clearSampleTraffic();
   offTraffic();
-  cjLib.destroyTrafficHandler((cb: (rxBytes: number, txBytes: number) => void) => {
+  cjLibTraffic.destroyTrafficHandlerInterop((cb: (rxBytes: number, txBytes: number) => void) => {
     getUidRxAndTxBytes(cb, '');
   });
 }
@@ -121,10 +150,18 @@ export function initStorageHandler(
   sizeLimit: number,
   dirSizeLimit: number,
   reportTopNum: number = 5): void {
-  cjLib.initStorageHandler(reportStorageInfo, sizeLimit, dirSizeLimit, reportTopNum);
+  if (!cjLibStorage) {
+    hilog.warn(DOMAIN, TAG, 'initStorageHandler called but storage module is disabled');
+    return;
+  }
+  cjLibStorage.initStorageHandlerInterop(reportStorageInfo, sizeLimit, dirSizeLimit, reportTopNum);
 }
 
 export function reportAppStorageInfo(): void {
+  if (!cjLibStorage) {
+    hilog.warn(DOMAIN, TAG, 'reportAppStorageInfo called but storage module is disabled');
+    return;
+  }
   let getCurrentBundleStats = (onData: (appSize: number, dataSize: number, cacheSize: number) => void) => {
     storageStatistics.getCurrentBundleStats((err: BusinessError, bundleStats: storageStatistics.BundleStats) => {
       if (err) {
@@ -134,15 +171,23 @@ export function reportAppStorageInfo(): void {
       }
     });
   }
-  cjLib.reportAppStorageInfo(getCurrentBundleStats);
+  cjLibStorage.reportAppStorageInfoInterop(getCurrentBundleStats);
 }
 
 export function getPageCpuInfo(): PageCpuInfo {
-  return cjLib.getPageCpuInfo();
+  if (!cjLibCpu) {
+    hilog.warn(DOMAIN, TAG, 'getPageCpuInfo called but cpu module is disabled');
+    return {} as PageCpuInfo;
+  }
+  return cjLibCpu.getPageCpuInfoInterop();
 }
 
 export function getProcessCpuInfo(): ProcessCpuInfo {
-  return cjLib.getProcessCpuInfo();
+  if (!cjLibCpu) {
+    hilog.warn(DOMAIN, TAG, 'getProcessCpuInfo called but cpu module is disabled');
+    return {} as ProcessCpuInfo;
+  }
+  return cjLibCpu.getProcessCpuInfoInterop();
 }
 
 let offCpu = () => {
@@ -155,6 +200,10 @@ export function initCpuHandler(
   reportPageCpuInfo: (data: PageCpuInfo) => void,
   reportProcessCpuInfo: (data: ProcessCpuInfo) => void
 ): void {
+  if (!cjLibCpu) {
+    hilog.warn(DOMAIN, TAG, 'initCpuHandler called but cpu module is disabled');
+    return;
+  }
   let onNavDestinationSwitch = (cb: (targetPageName: string) => void) => {
     let callback = (info: uiObserver.NavDestinationSwitchInfo) => cb(getTargetPageName(info));
     uiObserver.on('navDestinationSwitch', context, callback);
@@ -170,11 +219,12 @@ export function initCpuHandler(
       }
     }, 2 * 1000);
   };
-  cjLib.initCpuHandler(hidebug.getCpuUsage, onNavDestinationSwitch, repeatSampleAndReportCpu, reportPageCpuInfo,
+  cjLibCpu.initCpuHandlerInterop(hidebug.getCpuUsage, onNavDestinationSwitch, repeatSampleAndReportCpu, reportPageCpuInfo,
     reportProcessCpuInfo);
 }
 
 export function destroyCpuHandler(): void {
+  if (!cjLibCpu) return;
   offCpu();
   clearSampleCpu();
 }
@@ -208,6 +258,10 @@ export function initCrashHandler(
   systemLogNumber: number,
   enableMemMonitor?: CMemMonitorConfig
 ): void {
+  if (!cjLibCrash) {
+    hilog.warn(DOMAIN, TAG, 'initCrashHandler called but crash module is disabled');
+    return;
+  }
   let exit = () => {
     applicationContext.killAllProcesses().catch(() => {
       hilog.warn(DOMAIN, 'hm_metricx_cj', 'killAllProcesses failed');
@@ -222,7 +276,6 @@ export function initCrashHandler(
       }
     });
     if (index !== 0) {
-      // TODO Once ErrorManager supports "freeze" handler, this condition may need to be tweaked.
       hilog.warn(DOMAIN, 'hm_metricx_cj',
         'There are other error observers registered before crash obsverver, which may interfere with its behavior.');
     }
@@ -264,16 +317,20 @@ export function initCrashHandler(
       });
     };
   let memMonitor =
-    enableMemMonitor !== undefined ? new cjLib.CMemMonitorConfig(enableMemMonitor!.shouldBeClusteredToThisSo) :
+    enableMemMonitor !== undefined ? new cjLibCrash.CMemMonitorConfig(enableMemMonitor!.shouldBeClusteredToThisSo) :
       undefined;
-  cjLib.initCrashHandler(addCrashWatcher, onCrash, exit, collectCrashInfo, reportCrashInfo, persistentDir,
+  cjLibCrash.initCrashHandlerInterop(addCrashWatcher, onCrash, exit, collectCrashInfo, reportCrashInfo, persistentDir,
     enableDumpOnOOM,
     lastNHilogNumber,
     systemLogNumber, memMonitor);
 }
 
 export function getExitInfo(launchParam: AbilityConstant.LaunchParam): ExitInfo {
-  return cjLib.getExitInfo(launchParam.lastExitMessage, launchParam.lastExitReason);
+  if (!cjLibExitInfo) {
+    hilog.warn(DOMAIN, TAG, 'getExitInfo called but exitInfo module is disabled');
+    return {} as ExitInfo;
+  }
+  return cjLibExitInfo.getExitInfoInterop(launchParam.lastExitMessage, launchParam.lastExitReason);
 }
 
 export function initFreezeHandler(
@@ -281,6 +338,10 @@ export function initFreezeHandler(
   reportFreezeInfo: (freezeInfo: FreezeInfo) => void,
   persistentDir: string
 ): void {
+  if (!cjLibFreeze) {
+    hilog.warn(DOMAIN, TAG, 'initFreezeHandler called but freeze module is disabled');
+    return;
+  }
   let onFreeze = (cb: () => void) => {
     errorManager.on('freeze', cb);
   };
@@ -317,7 +378,7 @@ export function initFreezeHandler(
         }
       });
     };
-  cjLib.initFreezeHandler(deviceInfo.sdkApiVersion, addFreezeWatcher, onFreeze, collectFreezeInfo, reportFreezeInfo,
+  cjLibFreeze.initFreezeHandlerInterop(deviceInfo.sdkApiVersion, addFreezeWatcher, onFreeze, collectFreezeInfo, reportFreezeInfo,
     persistentDir);
 }
 
@@ -336,6 +397,10 @@ export function initMemoryHandler(
   reportProcessMemoryInfo: (data: ProcessMemoryInfo) => void,
   memoryThreshold: number
 ): void {
+  if (!cjLibMemory) {
+    hilog.warn(DOMAIN, TAG, 'initMemoryHandler called but memory module is disabled');
+    return;
+  }
   let preference = preferences.getPreferencesSync(context, { name: 'hm_metricx_cj:Memory' });
   let p: MemoryPreference = {
     put: (key: string, value: number): void => {
@@ -363,22 +428,31 @@ export function initMemoryHandler(
       }
     }, 2 * 1000);
   };
-  cjLib.initMemoryHandler(p, getMemoryUsage, onNavDestinationSwitch, repeatSampleAndReportMemory, reportPageMemoryInfo,
+  cjLibMemory.initMemoryHandlerInterop(p, getMemoryUsage, onNavDestinationSwitch, repeatSampleAndReportMemory, reportPageMemoryInfo,
     reportProcessMemoryInfo, memoryThreshold);
 }
 
 export function destroyMemoryHandler(): void {
+  if (!cjLibMemory) return;
   offMemory();
   clearSampleMemory();
-  cjLib.destroyMemoryHandler();
+  cjLibMemory.destroyMemoryHandlerInterop();
 }
 
 export function getPageMemoryInfo(): PageMemoryInfo {
-  return cjLib.getPageMemoryInfo();
+  if (!cjLibMemory) {
+    hilog.warn(DOMAIN, TAG, 'getPageMemoryInfo called but memory module is disabled');
+    return {} as PageMemoryInfo;
+  }
+  return cjLibMemory.getPageMemoryInfoInterop();
 }
 
 export function getProcessMemoryInfo(): ProcessMemoryInfo {
-  return cjLib.getProcessMemoryInfo();
+  if (!cjLibMemory) {
+    hilog.warn(DOMAIN, TAG, 'getProcessMemoryInfo called but memory module is disabled');
+    return {} as ProcessMemoryInfo;
+  }
+  return cjLibMemory.getProcessMemoryInfoInterop();
 }
 
 let offBatteryHandlerCallback = () => {
@@ -394,6 +468,10 @@ export function initBatteryHandler(
   reportThreadCpuUsageInfo: (data: AllThreadCpuUsageInfo) => void,
   limit: number = 1
 ): void {
+  if (!cjLibBattery) {
+    hilog.warn(DOMAIN, TAG, 'initBatteryHandler called but battery module is disabled');
+    return;
+  }
   let onApplicationStateChange = (onForeground: () => void, onBackground: () => void) => {
     let applicationStateChageCallback: ApplicationStateChangeCallback = {
       onApplicationForeground() {
@@ -546,13 +624,14 @@ export function initBatteryHandler(
   unsubscribe = () => {
     commonEventManager.unsubscribe(subscriber);
   };
-  cjLib.initBatteryHandler(subscribe, getUptime, batteryInterface, getBrightness, onApplicationStateChange,
+  cjLibBattery.initBatteryHandlerInterop(subscribe, getUptime, batteryInterface, getBrightness, onApplicationStateChange,
     onAbilityForeGround,
     onNavDestinationSwitch,
     getRunningProcessInfo, repeatHandlerCpuUsage, reportBatterInfo, reportThreadCpuUsageInfo, limit);
 }
 
 export function destroyBatteryHandler(): void {
+  if (!cjLibBattery) return;
   offBatteryHandlerCallback();
   clearCpuUsageHandler();
   unsubscribe();
@@ -562,6 +641,10 @@ export function initScrollEventHandler(
   context: common.UIAbilityContext,
   reportPageScrollInfo: (info: ScrollHitchInfo) => void
 ): void {
+  if (!cjLibFps) {
+    hilog.warn(DOMAIN, TAG, 'initScrollEventHandler called but fps module is disabled');
+    return;
+  }
   let onScrollEvent = (onScrollStart: () => void, onScrollStop: () => void) => {
     uiObserver.on('scrollEvent', (info) => {
       if (info.scrollEvent === uiObserver.ScrollEventType.SCROLL_START) {
@@ -576,7 +659,7 @@ export function initScrollEventHandler(
     uiObserver.on('navDestinationSwitch', context, callback);
     offBatteryHandlerCallback = () => uiObserver.off('navDestinationSwitch', context, callback);
   };
-  cjLib.initScrollEventHandler(getDisplaySync(), onScrollEvent, onNavDestinationSwitch, reportPageScrollInfo);
+  cjLibFps.initScrollEventHandlerInterop(getDisplaySync(), onScrollEvent, onNavDestinationSwitch, reportPageScrollInfo);
 }
 
 export function initPageEventHandler(
@@ -584,6 +667,10 @@ export function initPageEventHandler(
   windowStage: window.WindowStage,
   reportFpsInfo: (info: FpsEventInfo) => void
 ): void {
+  if (!cjLibFps) {
+    hilog.warn(DOMAIN, TAG, 'initPageEventHandler called but fps module is disabled');
+    return;
+  }
   let onNavDestinationSwitch = (cb: (targetPageName: string) => void) => {
     let callback = (info: uiObserver.NavDestinationSwitchInfo) => cb(getTargetPageName(info));
     uiObserver.on('navDestinationSwitch', context, callback);
@@ -597,7 +684,7 @@ export function initPageEventHandler(
       }
     });
   };
-  cjLib.initPageEventHandler(getDisplaySync(), onNavDestinationSwitch, onWindowEvent, reportFpsInfo);
+  cjLibFps.initPageEventHandlerInterop(getDisplaySync(), onNavDestinationSwitch, onWindowEvent, reportFpsInfo);
 }
 
 let offThermalHandlerCallback = () => {
@@ -618,6 +705,10 @@ export function initThermalHandler(
   reportMinInterval: number = 30 * 1000,
   abnormalThreshold: number = 2
 ): void {
+  if (!cjLibThermal) {
+    hilog.warn(DOMAIN, TAG, 'initThermalHandler called but thermal module is disabled');
+    return;
+  }
   if (thermalInited) {
     return;
   }
@@ -684,7 +775,7 @@ export function initThermalHandler(
     clearSampleThermal();
   };
 
-  cjLib.initThermalHandler(
+  cjLibThermal.initThermalHandlerInterop(
     getUptimeMs,
     thermalInterface,
     hooks,
@@ -698,11 +789,12 @@ export function initThermalHandler(
 }
 
 export function destroyThermalHandler(): void {
+  if (!cjLibThermal) return;
   thermalInited = false;
   clearSampleThermal();
   offThermalHandlerCallback();
   offThermalAppStateCallback();
-  cjLib.destroyThermalHandler();
+  cjLibThermal.destroyThermalHandlerInterop();
 }
 
 export function initLaggyHandler(
@@ -713,6 +805,10 @@ export function initLaggyHandler(
   reportResponseEvent: (info: ResponseEvent) => void,
   reportPageResponseLaggyModel: (info: PageResponseLaggyModel) => void
 ): void {
+  if (!cjLibLaggy) {
+    hilog.warn(DOMAIN, TAG, 'initLaggyHandler called but laggy module is disabled');
+    return;
+  }
   let onAbilityBackGround = (cb: () => void) => {
     context.getApplicationContext().on('abilityLifecycle', {
       onAbilityCreate() {
@@ -747,7 +843,7 @@ export function initLaggyHandler(
     windowStage.getMainWindow().then(win => {
       win.getUIContext().getUIObserver().on('didClick', (event: ClickEvent, frameNode?: FrameNode) => {
         let info =
-          new cjLib.ClickInfo(event.timestamp, win.getUIContext().vp2px(event.windowX),
+          new cjLibLaggy.ClickInfo(event.timestamp, win.getUIContext().vp2px(event.windowX),
             win.getUIContext().vp2px(event.windowY), frameNode?.getId() ?? '',
             frameNode?.getNodeType() ?? '', win.getUIContext().vp2px(frameNode?.getPositionToWindow().x ?? 0),
             win.getUIContext().vp2px(frameNode?.getPositionToWindow().y ?? 0), frameNode?.getMeasuredSize().height ?? 0,
@@ -756,7 +852,7 @@ export function initLaggyHandler(
       });
     });
   };
-  cjLib.initLaggyHandler(getDisplaySync(), onAbilityBackGround, onNavDestinationSwitch,
+  cjLibLaggy.initLaggyHandlerInterop(getDisplaySync(), onAbilityBackGround, onNavDestinationSwitch,
     onDidClick, maxTime, maxArraySize, reportResponseEvent, reportPageResponseLaggyModel);
 }
 
