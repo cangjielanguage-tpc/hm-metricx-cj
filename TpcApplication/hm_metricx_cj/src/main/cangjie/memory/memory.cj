@@ -1,5 +1,6 @@
 /*
  * Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
+ * 支持仓颉 (CJ) 和 ArkTS (JS) 堆内存监控
  */
 package ohos_app_cangjie_hm_metricx_cj.memory
 
@@ -21,6 +22,9 @@ public open class MemoryInfo {
     private var maxMemoryValue: Int64 = 0
     private var avgCJMemoryValue: Int64 = 0
     private var maxCJMemoryValue: Int64 = 0
+    private var avgArkTsMemoryValue: Int64 = 0
+    private var maxArkTsMemoryValue: Int64 = 0
+    private var totalHeapValue: Int64 = 0
     private var sampleCountValue: Int64 = 0
 
     mut prop avgMemory: Int64 {
@@ -59,6 +63,33 @@ public open class MemoryInfo {
         }
     }
 
+    mut prop avgArkTsMemory: Int64 {
+        get() {
+            avgArkTsMemoryValue
+        }
+        set(value) {
+            avgArkTsMemoryValue = value
+        }
+    }
+
+    mut prop maxArkTsMemory: Int64 {
+        get() {
+            maxArkTsMemoryValue
+        }
+        set(value) {
+            maxArkTsMemoryValue = value
+        }
+    }
+
+    mut prop totalHeap: Int64 {
+        get() {
+            totalHeapValue
+        }
+        set(value) {
+            totalHeapValue = value
+        }
+    }
+
     mut prop sampleCount: Int64 {
         get() {
             sampleCountValue
@@ -73,21 +104,46 @@ public open class MemoryInfo {
         maxMemoryValue = 0
         avgCJMemoryValue = 0
         maxCJMemoryValue = 0
+        avgArkTsMemoryValue = 0
+        maxArkTsMemoryValue = 0
+        totalHeapValue = 0
         sampleCountValue = 0
     }
 
-    func computeAvg(currrentMemoryValue: Int64, currrentCJMemoryValue: Int64): Unit {
+    func computeAvg(currrentMemoryValue: Int64, currrentCJMemoryValue: Int64, currrentArkTsMemoryValue: Int64, currentTotalHeap: Int64): Unit {
+        // 系统内存 (PSS)
         this.avgMemoryValue = this.avgMemoryValue + (currrentMemoryValue - this.avgMemoryValue) / (sampleCountValue + 1)
         if (maxMemoryValue < currrentMemoryValue) {
             maxMemoryValue = currrentMemoryValue
         }
 
+        // 仓颉堆内存
         this.avgCJMemoryValue = this.avgCJMemoryValue + (currrentCJMemoryValue - this.avgCJMemoryValue) / (sampleCountValue + 1)
         if (maxCJMemoryValue < currrentCJMemoryValue) {
             maxCJMemoryValue = currrentCJMemoryValue
         }
 
+        // ArkTS 堆内存
+        this.avgArkTsMemoryValue = this.avgArkTsMemoryValue + (currrentArkTsMemoryValue - this.avgArkTsMemoryValue) / (sampleCountValue + 1)
+        if (maxArkTsMemoryValue < currrentArkTsMemoryValue) {
+            maxArkTsMemoryValue = currrentArkTsMemoryValue
+        }
+
+        // 总堆内存 (取最新值)
+        this.totalHeapValue = currentTotalHeap
+
         sampleCountValue++
+    }
+
+    /**
+     * 计算 ArkTS 内存使用率 (heapUsed / totalHeap)
+     * @return 使用率 0.0-1.0+，超过 0.8 表示高风险，超过 1.0 会触发 OOM
+     */
+    public func getArkTsMemoryUsageRate(): Float64 {
+        if (totalHeapValue <= 0) {
+            return 0.0
+        }
+        Float64(avgArkTsMemoryValue) / Float64(totalHeapValue)
     }
 
     public func getAvgMemory(): Int64 {
@@ -106,6 +162,18 @@ public open class MemoryInfo {
         this.maxCJMemoryValue
     }
 
+    public func getAvgArkTsMemory(): Int64 {
+        this.avgArkTsMemoryValue
+    }
+
+    public func getMaxArkTsMemory(): Int64 {
+        this.maxArkTsMemoryValue
+    }
+
+    public func getTotalHeap(): Int64 {
+        this.totalHeapValue
+    }
+
     public func getSampleCount(): Int64 {
         this.sampleCountValue
     }
@@ -115,6 +183,9 @@ public open class MemoryInfo {
         this.maxMemoryValue = 0
         this.avgCJMemoryValue = 0
         this.maxCJMemoryValue = 0
+        this.avgArkTsMemoryValue = 0
+        this.maxArkTsMemoryValue = 0
+        this.totalHeapValue = 0
         this.sampleCountValue = 0
     }
 }
@@ -153,6 +224,9 @@ public class PageMemoryInfo <: MemoryInfo {
         jsonObj.put("maxMemory", JsonString(maxMemory.toString()))
         jsonObj.put("avgCJMemory", JsonString(avgCJMemory.toString()))
         jsonObj.put("maxCJMemory", JsonString(maxCJMemory.toString()))
+        jsonObj.put("avgArkTsMemory", JsonString(avgArkTsMemory.toString()))
+        jsonObj.put("maxArkTsMemory", JsonString(maxArkTsMemory.toString()))
+        jsonObj.put("totalHeap", JsonString(totalHeap.toString()))
         jsonObj.put("sampleCount", JsonString(sampleCount.toString()))
         jsonObj.put("pageName", JsonString(pageNameValue.toString()))
         jsonObj.toString()
@@ -194,6 +268,9 @@ public class ProcessMemoryInfo <: MemoryInfo {
         jsonObj.put("maxMemory", JsonString(maxMemory.toString()))
         jsonObj.put("avgCJMemory", JsonString(avgCJMemory.toString()))
         jsonObj.put("maxCJMemory", JsonString(maxCJMemory.toString()))
+        jsonObj.put("avgArkTsMemory", JsonString(avgArkTsMemory.toString()))
+        jsonObj.put("maxArkTsMemory", JsonString(maxArkTsMemory.toString()))
+        jsonObj.put("totalHeap", JsonString(totalHeap.toString()))
         jsonObj.put("sampleCount", JsonString(sampleCount.toString()))
         jsonObj.put("pid", JsonString(pidValue.toString()))
         jsonObj.toString()
@@ -212,6 +289,15 @@ public class ProcessMemoryInfo <: MemoryInfo {
         }
         if (let Some(v) <-  jsonObject.get("maxCJMemory")) {
             processMemoryInfo.maxCJMemory = Int64.parse(JsonValueToString(v))
+        }
+        if (let Some(v) <-  jsonObject.get("avgArkTsMemory")) {
+            processMemoryInfo.avgArkTsMemory = Int64.parse(JsonValueToString(v))
+        }
+        if (let Some(v) <-  jsonObject.get("maxArkTsMemory")) {
+            processMemoryInfo.maxArkTsMemory = Int64.parse(JsonValueToString(v))
+        }
+        if (let Some(v) <-  jsonObject.get("totalHeap")) {
+            processMemoryInfo.totalHeap = Int64.parse(JsonValueToString(v))
         }
         if (let Some(v) <-  jsonObject.get("sampleCount")) {
             processMemoryInfo.sampleCount = Int64.parse(JsonValueToString(v))
@@ -232,12 +318,44 @@ var processMemoryInfo = ProcessMemoryInfo()
 var uiContext: Option<UIAbilityContext> = None
 var reportPageMemory: (memoryInfo: PageMemoryInfo) -> Unit = {info: PageMemoryInfo =>}
 var reportProcessMemory: (memoryInfo: ProcessMemoryInfo) -> Unit = {info: ProcessMemoryInfo =>}
+
+/**
+ * 获取 ArkTS (JS) 堆内存信息
+ * 使用 hidebug.getAppVMMemoryInfo() 获取虚拟机内存信息
+ * @return VMMemoryInfo 包含 heapUsed, totalHeap, allArraySize
+ */
+public func getArkTsHeapSize(): Int64 {
+    try {
+        let vmMemoryInfo: VMMemoryInfo = getAppVMMemoryInfo()
+        return vmMemoryInfo.heapUsed.toInt64()
+    } catch (e: Exception) {
+        AppLog.warn("hm-metricx-cj error: getArkTsHeapSize failed - " + e.toString())
+    }
+    return 0
+}
+
+/**
+ * 获取 ArkTS 堆总大小
+ * @return totalHeap 虚拟机堆总大小 (KB)
+ */
+public func getArkTsTotalHeap(): Int64 {
+    try {
+        let vmMemoryInfo: VMMemoryInfo = getAppVMMemoryInfo()
+        return vmMemoryInfo.totalHeap.toInt64()
+    } catch (e: Exception) {
+        AppLog.warn("hm-metricx-cj error: getArkTsTotalHeap failed - " + e.toString())
+    }
+    return 0
+}
+
 let doMemorySample: (param: Array<String>) -> Unit = {
     param: Array<String> =>
     spawn {
         =>
             let memoryUsage = getPss().toInt64()
-            let cjMemoryUsage = getAllocatedHeapSize()
+            let cjMemoryUsage = getAllocatedHeapSize() / 1024
+            let arkTsMemoryUsage = getArkTsHeapSize()
+            let arkTsTotalHeap = getArkTsTotalHeap()
             if (!thresholdReported) {
                 if (memoryUsage >= MEMOMRY_THRESHOLD) {
                     processMemoryInfo.maxMemory = memoryUsage
@@ -245,8 +363,8 @@ let doMemorySample: (param: Array<String>) -> Unit = {
                     thresholdReported = true
                 }
             }
-            pageMemoryInfo.computeAvg(memoryUsage, cjMemoryUsage)
-            processMemoryInfo.computeAvg(memoryUsage, cjMemoryUsage)
+            pageMemoryInfo.computeAvg(memoryUsage, cjMemoryUsage, arkTsMemoryUsage, arkTsTotalHeap)
+            processMemoryInfo.computeAvg(memoryUsage, cjMemoryUsage, arkTsMemoryUsage, arkTsTotalHeap)
     }
 }
 let handleProcessMemoryReport: (param: Array<String>) -> Unit = {
