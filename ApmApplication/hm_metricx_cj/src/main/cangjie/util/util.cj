@@ -67,9 +67,20 @@ public func readFile(path: Path, isReturnException!: Bool = false) {
             return ""
         }
     }
-    let content = File.readFrom(path)
+
+    var content = Array<UInt8>()
     try {
-        unsafe { return String.fromUtf8Unchecked(File.readFrom(path)) }
+        content = File.readFrom(path)
+    } catch (e: FSException) {
+        if (isReturnException) {
+            return "hm-metricx-cj error: read file path ${path} does not exist, exception ${e.toString()}"
+        } else {
+            return ""
+        }
+    }
+
+    try {
+        unsafe { return String.fromUtf8Unchecked(content) }
     } catch (e: Exception) {
         metricx_warn(
             "hm-metricx-cj error: reading ${path} failed due to error occured in fromUtf8Unchecked: ${e.toString()}")

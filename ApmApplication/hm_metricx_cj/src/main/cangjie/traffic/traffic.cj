@@ -8,6 +8,7 @@ import std.collection.HashMap
 import ohos_app_cangjie_hm_metricx_cj.util.*
 import ohos.ark_interop_macro.*
 import ohos.ark_interop.*
+import ohos.hilog.Hilog
 
 let pageTrafficMap: HashMap<String, PageTrafficInfo> = HashMap<String, PageTrafficInfo>()
 var pageRxStart: Int64 = 0
@@ -180,9 +181,24 @@ public class InteropSampleTrafficInfo {
     }
 }
 
+foreign func gettid(): Int32
+foreign func getpid(): Int32
+
 var globalContext: ?JSContext = None
 let _ = JSModule.registerModule { c, _ =>
-    globalContext = c
+    if (unsafe{ getpid() != gettid()}) {
+        let error_report = Exception()
+        for (element in error_report.getStackTrace()) {
+            Hilog.error(0, "test", "    at ${element.declaringClass}.${element.methodName}(${element.fileName}:${element.lineNumber})")
+        }
+        let errCls = c.global["Error"].asClass()
+        let errObJ = errCls.new().asObject()
+        let stack = errObJ["stack"].toString()
+        Hilog.error(0, "test", "should never import that at worker\n${stack}")
+    }
+    if (globalContext.isNone()){
+        globalContext = c
+    }
 }
 
 public class SampleTrafficInfo {

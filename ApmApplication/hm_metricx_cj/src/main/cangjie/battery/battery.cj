@@ -421,6 +421,9 @@ private func parseThreadInfo(pid: Int64, tid: UInt32, threadJiffiesSnapshot: Thr
         return
     }
     let originText = readFile(Path(path))
+    // this indicates that the callee raises an FSException
+    if (originText == "") { return }
+
     let splitText = originText.split(" ")
     threadJiffiesSnapshot.name = splitText[1]
         .replace("(", "")

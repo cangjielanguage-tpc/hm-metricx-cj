@@ -88,6 +88,7 @@ private func resetThermalState(): Unit {
     levelStartTime = _getUptimeMs()
     lastReportTime = 0
     lastAbnormalState = false
+
 }
 
 public func sampleThermal(force!: Bool = false): Unit {

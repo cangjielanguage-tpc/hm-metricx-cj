@@ -21,11 +21,6 @@ public func initThermalHandlerInterop(
     abnormalThreshold: Int32
 ): Unit {
     thermalWrapperDestroyed = false
-    let jsReport = { info: InteropThermalEventInfo =>
-        JSHelper.postJSTask {
-            reportThermalInfo(info)
-        }
-    }
 
     initThermalHandler(
         getUptimeMs,
@@ -33,7 +28,7 @@ public func initThermalHandlerInterop(
         hooks,
         repeatSampleThermal,
         stopSampleThermal,
-        jsReport,
+        reportThermalInfo,
         sampleInterval: sampleInterval,
         reportMinInterval: reportMinInterval,
         abnormalThreshold: abnormalThreshold

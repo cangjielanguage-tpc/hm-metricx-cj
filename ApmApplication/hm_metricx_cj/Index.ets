@@ -2,6 +2,7 @@ import { AbilityConstant, bundleManager, common, errorManager } from '@kit.Abili
 import { ApplicationStateChangeCallback, appManager } from '@kit.AbilityKit';
 import {thermal} from '@kit.BasicServicesKit';
 import { requireCJLib } from 'libark_interop_loader.so';
+import { process } from '@kit.ArkTS';
 
 import {
   CustomLib,
@@ -46,7 +47,11 @@ import {
 } from '@kit.BasicServicesKit';
 import { displaySync } from '@kit.ArkGraphics2D';
 
+
 // ==================== 仓颉库动态加载 ====================
+if (process.pid != process.tid) {
+  throw new Error("Does not work on worker")
+}
 
 const cjLib = requireCJLib('libohos_app_cangjie_hm_metricx_cj.wrapper.so') as CustomLib;
 
@@ -71,6 +76,7 @@ const cjLibMemory = loadCJLibSafe('memory');
 const cjLibStorage = loadCJLibSafe('storage');
 const cjLibThermal = loadCJLibSafe('thermal');
 const cjLibTraffic = loadCJLibSafe('traffic');
+
 
 const DOMAIN = 0x0021;
 const TAG = 'hm_metricx_cj';
@@ -103,6 +109,17 @@ let offTraffic = () => {
 let clearSampleTraffic = () => {
 };
 
+// @Concurrent function worker(){
+//   requireCJLib(`libohos_app_cangjie_hm_metricx_cj.traffic.so`) as CustomLib;
+//   return
+// }
+
+// async function run_worker ():Promise <void>{
+//   await taskpool.execute(worker)
+//   return
+// }
+//export async function initTrafficHandler(
+
 export function initTrafficHandler(
   context: common.UIAbilityContext,
   reportTraffic: (data: SampleTrafficInfo) => void,
@@ -132,6 +149,7 @@ export function initTrafficHandler(
     let id = setInterval(sample, sampleTime);
     clearSampleTraffic = () => clearInterval(id);
   };
+  //await run_worker()
   cjLibTraffic.initTrafficHandlerInterop(p, onNavDestinationSwitch, repeatSampleTraffic, getUidRxAndTxBytes, reportTraffic,
     reportYesterdayTraffic, sampleThreshold);
 }

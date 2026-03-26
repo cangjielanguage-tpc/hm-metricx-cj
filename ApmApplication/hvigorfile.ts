@@ -17,9 +17,12 @@ const FINAL_HAP_MODULE = 'entry';
 
 // 不要的功能（黑名单）——空数组表示不禁用任何功能
 const DISABLE_FEATURES: string[] = [
-  // 'fps',
-  // 'freeze',
-  // 'traffic',
+  //'fps',
+  //'freeze',
+  //'traffic',
+  //'cpu',
+  //'crash',
+  //'thermal',
   // 'util.zlib',
 ];
 

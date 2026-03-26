@@ -5,13 +5,13 @@
         "name": "default",
         "type": "HarmonyOS",
         "material": {
-          "certpath": "/Users/liuzheng/.ohos/config/default_ApmApplication_9uZak-6yaZVdP8xki1ii-l-a-koClU6cl4awKDDSsgI=.cer",
+          "certpath": "/Users/liuzheng/.ohos/config/default_ApmApplication_ntMZ1CVSMsO_rJ89V7MYrEXQAnzKboCJHD-lkPOzBFk=.cer",
           "keyAlias": "debugKey",
-          "keyPassword": "0000001B3230B16BD43AB5D5994439E517772E422098E2B56B206DD600E5F018D41CA35A820CB67C41E6D7",
-          "profile": "/Users/liuzheng/.ohos/config/default_ApmApplication_9uZak-6yaZVdP8xki1ii-l-a-koClU6cl4awKDDSsgI=.p7b",
+          "keyPassword": "0000001AC66889D0CDDA44AD77735AF8645E4DD64E529BD01F46DD8205178D234347447F9CD4D3A5FEFA",
+          "profile": "/Users/liuzheng/.ohos/config/default_ApmApplication_ntMZ1CVSMsO_rJ89V7MYrEXQAnzKboCJHD-lkPOzBFk=.p7b",
           "signAlg": "SHA256withECDSA",
-          "storeFile": "/Users/liuzheng/.ohos/config/default_ApmApplication_9uZak-6yaZVdP8xki1ii-l-a-koClU6cl4awKDDSsgI=.p12",
-          "storePassword": "0000001B4DF9A3DE4EAC32F5235DC298F969492D30ED2B7A99325BA0959112B314B55FA9D5EB34C3542926"
+          "storeFile": "/Users/liuzheng/.ohos/config/default_ApmApplication_ntMZ1CVSMsO_rJ89V7MYrEXQAnzKboCJHD-lkPOzBFk=.p12",
+          "storePassword": "0000001A01158EA688080A23DE3E2DBDB337621B90816257F663837B5DB4390CD20B12E6B0EB8D4C2BE6"
         }
       }
     ],
@@ -20,7 +20,7 @@
         "name": "default",
         "signingConfig": "default",
         "targetSdkVersion": "6.0.0(20)",
-        "compatibleSdkVersion": "6.0.0(20)",
+        "compatibleSdkVersion": "5.0.5(17)",
         "runtimeOS": "HarmonyOS",
         "buildOption": {
           "strictMode": {

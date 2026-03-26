@@ -1,3 +1,18 @@
+export declare class InteropAppStateInfo {
+    appState: string
+    stateChangeTime: number
+    timestamp: number
+}
+
+export declare class InteropExitInfo {
+    exitMessage: string
+    exitReason: string
+    isBackground: boolean
+    appState: string
+    stateChangeTime: number
+    timestamp: number
+}
+
 export declare class CMemMonitorConfig {
     shouldBeClusteredToThisSo: (varArg0: string) => boolean
 }
@@ -313,4 +328,29 @@ export declare interface CustomLib {
     initLogger(logger: Logger): void
     initThermalHandler(getUptimeMs: () => number, thermalInterface: ThermalInfoInterface, hooks: AppHooks, repeatSampleThermal: (funcArg0: () => void) => void, stopSampleThermal: () => void, reportThermalInfo: (funcArg0: InteropThermalEventInfo) => void, sampleInterval: number, reportMinInterval: number, abnormalThreshold: number): void
     destroyThermalHandler(): void
+    getExitInfoInterop(lastExitMessage: string, lastExitReason: number): ExitInfo
+    initStorageHandlerInterop(reportStorageInfo: (funcArg0: InteropStorageInfo) => void, sizeLimit: number, dirSizeLimit: number, reportTopNum: number): void
+    reportAppStorageInfoInterop(getCurrentBundleStats: (funcArg0: (funcArgfuncArg0: number, funcArgfuncArg1: number, funcArgfuncArg2: number) => void) => void): void
+    initPageEventHandlerInterop(onDisplay: DisplaySync, onNavDestinationSwitch: (funcArg0: (funcArgfuncArg0: string) => void) => void, onWindowEvent: (funcArg0: () => void, funcArg1: () => void) => void, reportFpsInfo: (funcArg0: FpsEventInfo) => void): void
+    initScrollEventHandlerInterop(onDisplay: DisplaySync, onScrollEvect: (funcArg0: () => void, funcArg1: () => void) => void, onNavDestinationSwitch: (funcArg0: (funcArgfuncArg0: string) => void) => void, reportPageScrollInfo: (funcArg0: ScrollHitchInfo) => void): void
+    initBatteryHandlerInterop(subscribe: (funcArg0: () => void, funcArg1: () => void, funcArg2: () => void) => void, getUptime: () => number, batteryInterface: BatteryInfoInterface, getBrightness: () => number, onApplicationStateChange: (funcArg0: () => void, funcArg1: () => void) => void, onAbilityForeground: (funcArg0: () => void) => void, onNavDestinationSwitch: (funcArg0: (funcArgfuncArg0: string) => void) => void, getRunningProcessInfo: (funcArg0: (funcArgfuncArg0: boolean) => void) => void, repeatHandleCpuUsage: (funcArg0: () => void) => void, reportBatteryInfo: (funcArg0: InteropBatteryUsageInfo) => void, reportThreadCpuUsageInfo: (funcArg0: InteropAllThreadCpuUsageInfo) => void, limit: number): void
+    initFreezeHandlerInterop(sdkApiVersion: number, addFreezeWatcher: (funcArg0: (funcArgfuncArg0: string, funcArgfuncArg1: string, funcArgfuncArg2: string, funcArgfuncArg3: string, funcArgfuncArg4: string) => void) => void, onFreeze: (funcArg0: () => void) => void, collectFreezeInfo: () => string, reportFreezeInfo: (funcArg0: InteropFreezeInfo) => void, persistentDir: string): void
+    initThermalHandlerInterop(getUptimeMs: () => number, thermalInterface: ThermalInfoInterface, hooks: AppHooks, repeatSampleThermal: (funcArg0: () => void) => void, stopSampleThermal: () => void, reportThermalInfo: (funcArg0: InteropThermalEventInfo) => void, sampleInterval: number, reportMinInterval: number, abnormalThreshold: number): void
+    destroyThermalHandlerInterop(): void
+    initLaggyHandlerInterop(onDisplay: DisplaySync, onAbilityBackground: (funcArg0: () => void) => void, onNavDestinationSwitch: (funcArg0: (funcArgfuncArg0: string) => void) => void, onDidClick: (funcArg0: (funcArgfuncArg0: ClickInfo) => void) => void, maxTime: number, maxArraySize: number, reportResponseEvent: (funcArg0: ResponseEvent) => void, reportPageResponseLaggyModel: (funcArg0: InteropPageResponseLaggyModel) => void): void
+    getPageCpuInfoInterop(): InteropPageCpuInfo
+    getProcessCpuInfoInterop(): InteropProcessCpuInfo
+    initCpuHandlerInterop(getCpuUsage: () => number, onNavDestinationSwitch: (funcArg0: (funcArgfuncArg0: string) => void) => void, repeatSampleAndReportCpu: (funcArg0: () => void, funcArg1: () => void) => void, reporPageCpuInfo: (funcArg0: InteropPageCpuInfo) => void, reporProcessCpuInfo: (funcArg0: InteropProcessCpuInfo) => void): void
+    getPageMemoryInfoInterop(): InteropPageMemoryInfo
+    getProcessMemoryInfoInterop(): InteropProcessMemoryInfo
+    initMemoryHandlerInterop(memoryPreference: MemoryPreference, getMemoryUsage: () => number, onNavDestinationSwitch: (funcArg0: (funcArgfuncArg0: string) => void) => void, repeatSampleAndReportMemory: (funcArg0: () => void, funcArg1: () => void, funcArg2: () => void) => void, reporPageMemoryInfo: (funcArg0: InteropPageMemoryInfo) => void, reporProcessMemoryInfo: (funcArg0: InteropProcessMemoryInfo) => void, memoryThreshold: number): void
+    destroyMemoryHandlerInterop(): void
+    initTrafficHandlerInterop(preference: TrafficPreference, onNavDestinationSwitch: (funcArg0: (funcArgfuncArg0: string) => void) => void, repeatSampleTraffic: (funcArg0: () => void) => void, getUidRxAndTxBytes: (funcArg0: (funcArgfuncArg0: number, funcArgfuncArg1: number, funcArgfuncArg2: string) => void, funcArg1: string) => void, reportTraffic: (funcArg0: InteropSampleTrafficInfo) => void, reportYesterdayTraffic: (funcArg0: InteropDayTrafficInfo) => void, sampleThreshold: number): void
+    destroyTrafficHandlerInterop(getUidRxAndTxBytes: (funcArg0: (funcArgfuncArg0: number, funcArgfuncArg1: number) => void) => void): void
+    initCrashHandlerInterop(addCrashWatcher: (funcArg0: (funcArgfuncArg0: string, funcArgfuncArg1: string, funcArgfuncArg2: string, funcArgfuncArg3: string, funcArgfuncArg4: string, funcArgfuncArg5: string, funcArgfuncArg6: string) => void) => void, onCrash: (funcArg0: () => void) => void, exit: () => void, collectCrashInfo: () => string, reportCrashInfo: (funcArg0: InteropCrashInfo) => void, persistentDir: string, enableDumpOnOOM: number, lastNHilogNumber: number, systemLogNumber: number, enableMemMonitor: CMemMonitorConfig | undefined): void
+    InteropExitInfo: {new (exitMessage: string, exitReason: string, isBackground: boolean, appState: string, stateChangeTime: number, timestamp: number): InteropExitInfo}
+    InteropAppStateInfo: {new (appState: string, stateChangeTime: number, timestamp: number): InteropAppStateInfo}
+    initExitInfoHandler(lastExitMessage: string, lastExitReason: string, reportExitInfoHandler: (funcArg0: InteropExitInfo) => void, reportAppStateHandler: (funcArg0: InteropAppStateInfo) => void): void
+    destroyExitInfoHandler(): void
+    destroyExitInfoHandlerWrapper(): void
 }
