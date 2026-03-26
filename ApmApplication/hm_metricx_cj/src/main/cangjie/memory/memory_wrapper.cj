@@ -18,13 +18,16 @@ public func getProcessMemoryInfoInterop(): InteropProcessMemoryInfo {
 public func initMemoryHandlerInterop(
     memoryPreference: MemoryPreference,
     getMemoryUsage: () -> Int64,
+    getArkTsMemoryUsage: () -> Int64,
+    getArkTsTotalHeap: () -> Int64,
     onNavDestinationSwitch: ((String) -> Unit) -> Unit,
     repeatSampleAndReportMemory: (() -> Unit, () -> Unit, () -> Unit) -> Unit,
     reporPageMemoryInfo: (InteropPageMemoryInfo) -> Unit,
     reporProcessMemoryInfo: (InteropProcessMemoryInfo) -> Unit,
     memoryThreshold: Int64
 ): Unit {
-    initMemoryHandler(memoryPreference, getMemoryUsage, onNavDestinationSwitch, repeatSampleAndReportMemory,
+    initMemoryHandler(memoryPreference, getMemoryUsage, getArkTsMemoryUsage, getArkTsTotalHeap,
+        onNavDestinationSwitch, repeatSampleAndReportMemory,
         reporPageMemoryInfo, reporProcessMemoryInfo, memoryThreshold: memoryThreshold)
 }
 

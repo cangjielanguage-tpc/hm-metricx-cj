@@ -410,6 +410,26 @@ function getMemoryUsage(): number {
   return Number(hidebug.getPss());
 }
 
+function getArkTsMemoryUsage(): number {
+  try {
+    const vmMemoryInfo = hidebug.getAppVMMemoryInfo();
+    return Number(vmMemoryInfo.heapUsed);
+  } catch (e) {
+    hilog.warn(DOMAIN, TAG, 'getArkTsMemoryUsage failed: ' + JSON.stringify(e));
+    return 0;
+  }
+}
+
+function getArkTsTotalHeap(): number {
+  try {
+    const vmMemoryInfo = hidebug.getAppVMMemoryInfo();
+    return Number(vmMemoryInfo.totalHeap);
+  } catch (e) {
+    hilog.warn(DOMAIN, TAG, 'getArkTsTotalHeap failed: ' + JSON.stringify(e));
+    return 0;
+  }
+}
+
 export function initMemoryHandler(
   context: common.UIAbilityContext,
   reportPageMemoryInfo: (data: PageMemoryInfo) => void,
@@ -447,7 +467,8 @@ export function initMemoryHandler(
       }
     }, 2 * 1000);
   };
-  cjLibMemory.initMemoryHandlerInterop(p, getMemoryUsage, onNavDestinationSwitch, repeatSampleAndReportMemory, reportPageMemoryInfo,
+  cjLibMemory.initMemoryHandlerInterop(p, getMemoryUsage, getArkTsMemoryUsage, getArkTsTotalHeap,
+    onNavDestinationSwitch, repeatSampleAndReportMemory, reportPageMemoryInfo,
     reportProcessMemoryInfo, memoryThreshold);
 }
 

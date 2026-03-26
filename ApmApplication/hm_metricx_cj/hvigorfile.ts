@@ -10,7 +10,7 @@ import * as path from 'path';
  * 不修改源码目录，不提前删中间产物，只在 PackageHar 完成后重写 HAR 内容。
  */
 const INCLUDE_FEATURES: string[] = [
-  'thermal', 'traffic', 'battery',
+  'thermal', 'traffic', 'battery', 'memory',
 ];
 
 const VALID_FEATURES = new Set([
