@@ -21,7 +21,11 @@ import {
   destroyCpuHandler,
   destroyTrafficHandler,
   initThermalHandler,
-  destroyThermalHandler
+  destroyThermalHandler,
+  initHighCpuMonitorHandler,
+  destroyHighCpuMonitorHandler,
+  HighCpuMonitorConfig,
+  HighCpuReportInfo
 } from '@cangjie-tpc/hm_metricx_cj_hybrid';
 
 const DOMAIN = 0x0000;
@@ -104,10 +108,47 @@ export default class EntryAbility extends UIAbility {
       },
       data => {
       });
+
+    // 高 CPU 占用监控初始化
+    initHighCpuMonitorHandler(
+      this.context,
+      new HighCpuMonitorConfig(
+        0.05,        // cpuThreshold: 5% CPU 阈值
+        1000,        // foregroundIntervalMs: 前台 1 秒采样
+        2000,        // backgroundIntervalMs: 后台 2 秒采样
+        33000,       // monitorDurationMs: 33000 毫秒 (33 秒) 上报一次
+        60000,       // threadCooldownMs: 线程 60 秒 cooldown
+        3000,        // globalCooldownMs: 全局 3 秒 cooldown
+        0.85,        // highSampleRatioThreshold: 85% 高采样比例阈值
+        10           // topNThreads: 保留 Top10 线程
+      ),
+      (reportInfo: HighCpuReportInfo) => {
+        hilog.warn(DOMAIN, 'HighCpuMonitor', '===== 高 CPU 占用上报 =====');
+        hilog.warn(DOMAIN, 'HighCpuMonitor', `时间：${reportInfo.timestamp}`);
+        hilog.warn(DOMAIN, 'HighCpuMonitor', `进程：${reportInfo.processName} (PID: ${reportInfo.pid})`);
+        hilog.warn(DOMAIN, 'HighCpuMonitor', `页面：${reportInfo.pageName}`);
+        hilog.warn(DOMAIN, 'HighCpuMonitor', `进程平均 CPU: ${reportInfo.avgProcessCpu}`);
+        hilog.warn(DOMAIN, 'HighCpuMonitor', `监控时长：${reportInfo.monitorDuration}毫秒`);
+        hilog.warn(DOMAIN, 'HighCpuMonitor', `高占用线程数：${reportInfo.highCpuThreads.length}`);
+
+        for (const threadInfo of reportInfo.highCpuThreads) {
+          hilog.warn(DOMAIN, 'HighCpuMonitor', '--- 线程信息 ---');
+          hilog.warn(DOMAIN, 'HighCpuMonitor', `  TID: ${threadInfo.tid}`);
+          hilog.warn(DOMAIN, 'HighCpuMonitor', `  线程名：${threadInfo.threadName}`);
+          hilog.warn(DOMAIN, 'HighCpuMonitor', `  平均 CPU: ${threadInfo.avgCpuUsage}`);
+          hilog.warn(DOMAIN, 'HighCpuMonitor', `  最大 CPU: ${threadInfo.maxCpuUsage}`);
+          hilog.warn(DOMAIN, 'HighCpuMonitor', `  采样次数：${threadInfo.sampleCount}`);
+          hilog.warn(DOMAIN, 'HighCpuMonitor', `  高采样比例：${threadInfo.highSampleCount / threadInfo.sampleCount}`);
+          hilog.warn(DOMAIN, 'HighCpuMonitor', `  首次检测时间：${threadInfo.firstDetectedTime}`);
+        }
+      }
+    );
+    hilog.info(DOMAIN, 'HighCpuMonitor', '高 CPU 监控已启动（生产模式：33 秒上报，5% 阈值，85% 高采样比例）');
   }
 
   onDestroy(): void {
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onDestroy');
+    destroyHighCpuMonitorHandler();
     destroyMemoryHandler();
     destroyCpuHandler();
     destroyBatteryHandler();

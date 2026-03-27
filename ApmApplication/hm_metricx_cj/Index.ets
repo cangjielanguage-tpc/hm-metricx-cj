@@ -30,7 +30,8 @@ import {
   DisplaySync,
   Logger,
   ExitInfo,
-  InteropDayTrafficInfo as DayTrafficInfo
+  InteropDayTrafficInfo as DayTrafficInfo,
+  InteropHighCpuMonitorConfig
 } from 'libark_interop_api.so';
 import { preferences } from '@kit.ArkData';
 import { uiObserver, window } from '@kit.ArkUI';
@@ -893,4 +894,242 @@ function getDisplaySync() {
     }
   }
   return dSync;
+}
+
+// ==================== High CPU Monitor 互操作接口 ====================
+
+let clearHighCpuSample = () => {
+};
+let clearHighCpuReport = () => {
+};
+
+/**
+ * 高 CPU 监控配置（ArkTS 版本）
+ */
+export class HighCpuMonitorConfig {
+  cpuThreshold: number = 0.5;
+  foregroundIntervalMs: number = 1000;
+  backgroundIntervalMs: number = 2000;
+  monitorDurationMs: number = 180000;  // 3 分钟
+  threadCooldownMs: number = 600000;   // 10 分钟
+  globalCooldownMs: number = 180000;    // 3 分钟
+  highSampleRatioThreshold: number = 0.85;
+  topNThreads: number = 10;
+
+  // 边界值常量
+  private MAX_MONITOR_DURATION_MS = 15000000;  // 15 分钟
+  private MAX_TOP_N_THREADS = 50;
+
+  constructor(
+    cpuThreshold?: number,
+    foregroundIntervalMs?: number,
+    backgroundIntervalMs?: number,
+    monitorDurationMs?: number,
+    threadCooldownMs?: number,
+    globalCooldownMs?: number,
+    highSampleRatioThreshold?: number,
+    topNThreads?: number
+  ) {
+    // 校验 cpuThreshold: 必须在 (0, 1] 范围内
+    if (cpuThreshold !== undefined && cpuThreshold > 0 && cpuThreshold <= 1) {
+      this.cpuThreshold = cpuThreshold;
+    }
+    // 校验 foregroundIntervalMs: 必须在 (0, MAX_MONITOR_DURATION_MS] 范围内
+    if (foregroundIntervalMs !== undefined && foregroundIntervalMs > 0 && foregroundIntervalMs <= this.MAX_MONITOR_DURATION_MS) {
+      this.foregroundIntervalMs = foregroundIntervalMs;
+    }
+    // 校验 backgroundIntervalMs: 必须在 (0, MAX_MONITOR_DURATION_MS] 范围内
+    if (backgroundIntervalMs !== undefined && backgroundIntervalMs > 0 && backgroundIntervalMs <= this.MAX_MONITOR_DURATION_MS) {
+      this.backgroundIntervalMs = backgroundIntervalMs;
+    }
+    // 校验 monitorDurationMs: 必须在 (0, MAX_MONITOR_DURATION_MS] 范围内
+    if (monitorDurationMs !== undefined && monitorDurationMs > 0 && monitorDurationMs <= this.MAX_MONITOR_DURATION_MS) {
+      this.monitorDurationMs = monitorDurationMs;
+    }
+    // 校验 threadCooldownMs: 必须在 (0, MAX_MONITOR_DURATION_MS] 范围内
+    if (threadCooldownMs !== undefined && threadCooldownMs > 0 && threadCooldownMs <= this.MAX_MONITOR_DURATION_MS) {
+      this.threadCooldownMs = threadCooldownMs;
+    }
+    // 校验 globalCooldownMs: 必须在 (0, MAX_MONITOR_DURATION_MS] 范围内
+    if (globalCooldownMs !== undefined && globalCooldownMs > 0 && globalCooldownMs <= this.MAX_MONITOR_DURATION_MS) {
+      this.globalCooldownMs = globalCooldownMs;
+    }
+    // 校验 highSampleRatioThreshold: 必须在 (0, 1] 范围内
+    if (highSampleRatioThreshold !== undefined && highSampleRatioThreshold > 0 && highSampleRatioThreshold <= 1) {
+      this.highSampleRatioThreshold = highSampleRatioThreshold;
+    }
+    // 校验 topNThreads: 必须在 (0, MAX_TOP_N_THREADS] 范围内
+    if (topNThreads !== undefined && topNThreads > 0 && topNThreads <= this.MAX_TOP_N_THREADS) {
+      this.topNThreads = topNThreads;
+    }
+  }
+
+  toInteropConfig(): InteropHighCpuMonitorConfig {
+    if (!cjLibCpu) {
+      throw new Error('cjLibCpu is not available');
+    }
+    return new cjLibCpu.InteropHighCpuMonitorConfig(
+      this.cpuThreshold,
+      this.foregroundIntervalMs,
+      this.backgroundIntervalMs,
+      this.monitorDurationMs,
+      this.threadCooldownMs,
+      this.globalCooldownMs,
+      this.highSampleRatioThreshold,
+      this.topNThreads
+    );
+  }
+}
+
+/**
+ * 线程栈信息（ArkTS 版本）
+ */
+export interface ThreadStackInfo {
+  tid: number;
+  threadName: string;
+  avgCpuUsage: number;
+  maxCpuUsage: number;
+  sampleCount: number;
+  stackTrace: string;
+  moduleName: string;
+  firstDetectedTime: number;
+  highSampleCount: number;
+}
+
+/**
+ * 高 CPU 占用上报信息（ArkTS 版本）
+ */
+export interface HighCpuReportInfo {
+  timestamp: number;
+  pid: number;
+  processName: string;
+  pageName: string;
+  highCpuThreads: ThreadStackInfo[];
+  avgProcessCpu: number;
+  monitorDuration: number;
+}
+
+/**
+ * 初始化高 CPU 监控
+ */
+export function initHighCpuMonitorHandler(
+  context: common.UIAbilityContext,
+  config: HighCpuMonitorConfig,
+  reportHighCpuInfo: (data: HighCpuReportInfo) => void
+): void {
+  if (!cjLibCpu) {
+    hilog.warn(DOMAIN, TAG, 'initHighCpuMonitorHandler called but high_cpu module is disabled');
+    return;
+  }
+
+  const applicationStateChangeCallback: ApplicationStateChangeCallback = {
+    onApplicationForeground() {
+      cjLibCpu.onAppForegroundInterop();
+    },
+    onApplicationBackground() {
+      cjLibCpu.onAppBackgroundInterop();
+    }
+  };
+  context.getApplicationContext().on('applicationStateChange', applicationStateChangeCallback);
+
+  const repeatHighCpuSample = (sample: () => void) => {
+    const sampleId = setInterval(sample, config.foregroundIntervalMs);
+    clearHighCpuSample = () => clearInterval(sampleId);
+  };
+
+  const repeatHighCpuReport = (report: () => void) => {
+    const reportIntervalMs = config.monitorDurationMs;
+    const reportId = setInterval(report, reportIntervalMs);
+    clearHighCpuReport = () => clearInterval(reportId);
+  };
+
+  const reportHighCpuInfoJson = (jsonStr: string) => {
+    try {
+      const jsonObj: Record<string, Object> = JSON.parse(jsonStr) as Record<string, Object>;
+      const highCpuThreadsRaw: Object[] = (jsonObj.highCpuThreads as Object[]) || [];
+      const threads: ThreadStackInfo[] = highCpuThreadsRaw.map((threadRaw) => {
+        const t = threadRaw as Record<string, number | string>;
+        const threadInfo: ThreadStackInfo = {
+          tid: t.tid as number,
+          threadName: t.threadName as string,
+          avgCpuUsage: t.avgCpuUsage as number,
+          maxCpuUsage: t.maxCpuUsage as number,
+          sampleCount: t.sampleCount as number,
+          stackTrace: t.stackTrace as string,
+          moduleName: t.moduleName as string,
+          firstDetectedTime: t.firstDetectedTime as number,
+          highSampleCount: t.highSampleCount as number
+        };
+        return threadInfo;
+      });
+
+      const info: HighCpuReportInfo = {
+        timestamp: jsonObj.timestamp as number,
+        pid: jsonObj.pid as number,
+        processName: jsonObj.processName as string,
+        pageName: jsonObj.pageName as string,
+        highCpuThreads: threads,
+        avgProcessCpu: jsonObj.avgProcessCpu as number,
+        monitorDuration: jsonObj.monitorDuration as number
+      };
+      reportHighCpuInfo(info);
+    } catch {
+      hilog.error(DOMAIN, TAG, 'Failed to parse HighCpuReportInfo JSON');
+    }
+  };
+
+  // 获取线程 CPU 使用率 JSON
+  // 格式：[{"threadId":123,"cpuUsage":0.5}, ...]
+  const getAppThreadCpuUsageJson = (): string => {
+    try {
+      const threadCpuArray = hidebug.getAppThreadCpuUsage();
+      // 将 ThreadCpuUsage[] 转换为 JSON 字符串
+      const jsonStr = JSON.stringify(threadCpuArray);
+      hilog.info(DOMAIN, TAG, 'getAppThreadCpuUsageJson: ' + jsonStr);
+      return jsonStr;
+    } catch (e) {
+      hilog.error(DOMAIN, TAG, 'getAppThreadCpuUsageJson failed: ' + JSON.stringify(e));
+      return '[]';
+    }
+  };
+
+  cjLibCpu.initHighCpuMonitorHandlerInterop(
+    hidebug.getCpuUsage,
+    getAppThreadCpuUsageJson,
+    repeatHighCpuSample,
+    repeatHighCpuReport,
+    reportHighCpuInfoJson
+  );
+
+  let interopConfig: InteropHighCpuMonitorConfig = config.toInteropConfig();
+  cjLibCpu.startHighCpuMonitorInterop(interopConfig);
+
+  hilog.info(DOMAIN, TAG, 'High CPU monitor initialized');
+}
+
+/**
+ * 销毁高 CPU 监控
+ */
+export function destroyHighCpuMonitorHandler(): void {
+  if (!cjLibCpu) return;
+  clearHighCpuSample();
+  clearHighCpuReport();
+  cjLibCpu.stopHighCpuMonitorInterop();
+  hilog.info(DOMAIN, TAG, 'High CPU monitor destroyed');
+}
+
+/**
+ * 手动触发高 CPU 上报
+ */
+export function triggerHighCpuReport(): void {
+  if (!cjLibCpu) return;
+  cjLibCpu.triggerHighCpuReportInterop();
+}
+
+/**
+ * 检查高 CPU 监控是否正在运行
+ */
+export function isHighCpuMonitoringActive(): boolean {
+  if (!cjLibCpu) return false;
+  return cjLibCpu.isHighCpuMonitoringActiveInterop();
 }
