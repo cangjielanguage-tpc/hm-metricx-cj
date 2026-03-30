@@ -111,7 +111,11 @@ class EntryAbility <: UIAbility {
         initStorageHandler({data: StorageInfo =>}, sizeLimit: 100000000, dirSizeLimit: 1000, reportTopNum: 5)
         initBatteryHandler(this.context, {data =>}, {data =>})
         initCpuHandler(this.context, {data =>}, {data =>})
-        initMemoryHandler(this.context, {data =>}, {data=>})
+        initMemoryHandler(this.context, {data =>
+            AppLog.info("initMemoryHandler : ${data.toString()}")
+        }, {data=>
+             AppLog.info("initMemoryHandler2 : ${data.toString()}")
+        })
         initMemLeakHandler(this.context, Path(this
             .context
             .cacheDir), {pageInfo, typeInfos => true}, {typeInfos => false},
