@@ -4,7 +4,7 @@
 
 `hm-metricx-cj` 是一款适用于鸿蒙应用的线上性能监控框架。 `hm-metricx-cj` 系统性地采集和分析监控指标数据，帮助开发团队及时发现性能瓶颈和异常，持续优化应用质量，提升用户体验。
 
-`hm-metricx-cj` 目前支持的监控范围包括：Crash、Freeze、异常退出原因、FPS、滑动掉帧率、交互响应延迟、内存、CPU、电量、流量、存储。
+`hm-metricx-cj` 目前支持的监控范围包括：Crash、Freeze、异常退出原因、FPS、滑动掉帧率、交互响应延迟、内存、CPU、热量，电量、流量、存储。
 
 ## 使用说明
 
@@ -212,6 +212,65 @@ class EntryAbility <: UIAbility {
 > ** 注意: **
 > 
 > 和监控Crash类似，如果应用编译开启了 `O2` 级别优化，在部分场景，freeze调用栈会出现漏栈、行号不准的问题。
+
+### 热量监控
+`hm_metricx_cj` 提供
+```text
+public func initThermalHandler(
+    context: UIAbilityContext,
+    reportThermalInfo: (info: ThermalEventInfo) -> Unit,
+    sampleInterval!: Int64 = DEFAULT_SAMPLE_INTERVAL_MS,
+    reportMinInterval!: Int64 = DEFAULT_REPORT_MIN_INTERVAL_MS,
+    abnormalThreshold!: Int32 = DEFAULT_ABNORMAL_LEVEL
+): Unit
+```
+
+接口对电池热量异常事件进行监控。
+
+`initThermalHandler` 需要的入参说明如下：
+- `applicationContext: ApplicationContext` 指定应用上下文。
+- `creportThermalInfo: (info: ThermalEventInfo) -> Unit` 用于在APP发生异常发热事件时，收集若干自定义的业务/系统信息，以 `JsonValue` 形式返回。
+- `sampleInterval!: Int64 = DEFAULT_SAMPLE_INTERVAL_MS` 用于热量监控sample采用频率（ms）。
+- `reportMinInterval!: Int64 = DEFAULT_REPORT_MIN_INTERVAL_MS` 用于热量监控异常上报频率（ms）。
+- `abnormalThreshold!: Int32 = DEFAULT_ABNORMAL_LEVEL` 指定异常的阈值。
+
+`ThermalEventInfo` 包含以下信息：
+
+- `pageName` 热量异常时发生的当前页面
+- `level` 当前热量异常的系统热level值
+- `levelName` 当前热量异常的系统热level值对应的状态
+- `threshold` 所指定异常的阈值
+- `isForeground` 是否在前台
+- `durationMs` 异常持续时长
+
+使用示例：
+
+i.
+在主模块的 `main_ability.cj` 的 `onCreate` 回调中调用 `initThermalHandler`：
+```text
+class EntryAbility <: UIAbility {
+    public override func onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): Unit {
+        AppLog.info("Ability OnCreated.${want.abilityName}")
+        match (launchParam.launchReason) {
+            case AbilityConstant.LaunchReason.START_ABILITY => AppLog.info("START_ABILITY")
+            case _ => ()
+        }
+        initThermalHandler(
+            context,
+            { info: ThermalEventInfo =>
+                AppLog.error("[MetricX][Thermal] ${info.toString()}")
+            },
+            abnormalThreshold: 2
+        )
+        match (launchParam.launchReason) {
+            case AbilityConstant
+                .LaunchReason
+                .START_ABILITY => AppLog.info("START_ABILITY")
+            case _ => ()
+        }
+    }
+}
+```
 
 ### 监控异常退出原因
 
@@ -487,17 +546,17 @@ class EntryAbility <: UIAbility {
 
 ```text
 // 注册CPU监控
-public func initCpuHandler(
-    ability: UIAbility,
-    reportPageCpuInfo: (info: PageCpuInfo) -> Unit,
-    reportProcessCpuInfo: (info: ProcessCpuInfo) -> Unit
-): Unit
+public func initHighCpuMonitorHandler(
+    context: UIAbilityContext,
+    config: HighCpuMonitorConfig,
+    reportHighCpuInfo: (info: HighCpuReportInfo) -> Unit
+): unit
 // 取消CPU监控
 public func destroyCpuHandler(): Unit
 // 获取页面CPU信息
-public func getPageCpuInfo(): PageCpuInfo
+public func HighCpuMonitorConfig(): PageCpuInfo
 // 获取进程CPU信息
-public func getProcessCpuInfo(): ProcessCpuInfo
+public func reportHighCpuInfo(): ProcessCpuInfo
 ```
 
 接口对应用的CPU使用情况进行监控。
@@ -505,20 +564,37 @@ public func getProcessCpuInfo(): ProcessCpuInfo
 `initCpuHandler` 需要的入参说明如下：
 
 - `context: UIAbilityContext` 指定UIAbility上下文。
-- `reportPageCpuInfo: (info: PageCpuInfo) -> Unit` 将当前页面的CPU的使用情况进行上报，入参为 `PageCpuInfo` 类型对象。
-- `reportProcessCpuInfo: (info: ProcessCpuInfo) -> Unit` 将进程的CPU的使用情况进行上报，入参为 `ProcessCpuInfo` 类型对象。
+- `config: HighCpuMonitorConfig` 将当前页面的CPU的使用入参为 `HighCpuMonitorConfig` 类型对象。
+- `reportHighCpuInfo: (info: HighCpuReportInfo) -> Unit` 将进程的CPU的使用情况进行上报，入参为 `reportHighCpuInfo` 类型对象。
 
-`PageCpuInfo` 包含以下信息：
-- `avgCpu` CPU使用率平均值，以比例值表示（如使用率50%，则返回0.5）
-- `maxCpu` CPU使用率最大值，以比例值表示
-- `sampleCount` CPU采样次数
-- `pageName` 当前页面名称
+`HighCpuMonitorConfig` 的入参包含信息：
+- `cpuThreshold` CPU使用率平均值，以比例值表示（如使用率50%，则返回0.5），范围是0-1，如果是负数或者超过1，会调用系统设置的默认值
+- `foregroundIntervalMs` 前台采样频率（ms，如果1s则设置为1000），如果是负数，会调用系统设置的默认值
+- `backgroundIntervalMsleCount` 后台采样频率（ms，如果1s则设置为1000），如果是负数，会调用系统设置的默认值
+- `monitorDurationMS` 异常上报频率（ms，如果1s则设置为1000），如果是负数，会调用系统设置的默认值
+- `threadCoolDownMs` 安全限流设置（ms，如果1s则设置为1000），如果是负数，会调用系统设置的默认值，针对本模块内的冷却限限流，假如时间是60s，在threadCoolDownMs时间内，如果有异常汇报过同线程，这个threadCoolDownMs会开启，在这个冷却时间内，不会重复上报已有的异常信息。
+- `globalCooldownMs` 安全限流设置（ms，如果1s则设置为1000），如果是负数，会调用系统设置的默认值，针对全局APM的冷却限限流，假如时间是180s，在globalCooldownMs时间内，如果有异常汇报过同线程，这个globalCooldownMs会开启，在这个冷却时间内，不会重复上报已有的异常信息。
+- `highSampleRatioThreshold` 高采样比例阈值，在3分钟内所有采样个数内，需要保证整体采样sample异常比例超过设定阈值，且CPU使用率平均值大于cpuThreshold，最后异常事件才会上报，范围是0-1，如果是负数或者超过1，会调用系统设置的默认值
+- `topNthreads` 每次采用异常线程数，0 - 200，如果在范围外，会调用系统设置的默认值
 
-`ProcessCpuInfo` 包含以下信息：
-- `avgCpu` CPU使用率平均值，以比例值表示（如使用率50%，则返回0.5）
-- `maxCpu` CPU使用率最大值，以比例值表示
-- `sampleCount` CPU采样次数
+`HighCpuReportInfo` 包含以下信息：
+- `timestamp` timestamp
+- `processName` 进程
 - `pid` 进程ID
+- `pageName` 当前页面
+- `avgProcessCpu` CPU平均值
+- `montorDuration` 监控时长
+- `highCpuThreads.length` 高占用线程数
+
+`HighCpuThreads` 包含以下信息：
+- `tid` 进程TID
+- `threadName` 异常线程名
+- `avgCpuUsage` 平均CPU
+- `maxCpuUsage` 最大CPU
+- `sampleCount` 采样次数
+- `hightSampleCount/sampleCount` 高采样比例
+- `moduleBane` 模块名
+- `firstDetectedTime` 首次检测时间
 
 使用示例：
 
@@ -531,20 +607,38 @@ ii.
 在主模块的 `main_ability.cj` 的 `onDestroy` 回调中调用 `destroyCpuHandler` ：
 
 ```text
-class EntryAbility <: UIAbility {
-    public override func onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): Unit {
-        AppLog.info("Ability OnCreated.${want.abilityName}")
-        match (launchParam.launchReason) {
-            case AbilityConstant.LaunchReason.START_ABILITY => AppLog.info("START_ABILITY")
-            case _ => ()
-        }
-        initCpuHandler(this.context, {data =>}, {data =>})
-    }
-    public override func onDestroy(): Unit {
-        destroyCpuHandler()
-        AppLog.info("myAbility onDestroy.")
-    }
-}
+initHighCpuMonitorHandler(
+            this.context,
+            HighCpuMonitorConfig(
+                cpuThreshold: 0.05,
+                foregroundIntervalMs: 1000,
+                backgroundIntervalMs: 2000,
+                monitorDurationMs: 330000,
+                threadCooldownMs: 60000,
+                globalCooldownMs: 3000,
+                highSampleRatioThreshold: 0.85,
+                topNThreads: 10
+            ),
+            { reportInfo =>
+                AppLog.warn("===== 高 CPU 占用上报 =====")
+                AppLog.warn("时间：${reportInfo.timestamp}")
+                AppLog.warn("进程：${reportInfo.processName} (PID: ${reportInfo.pid})")
+                AppLog.warn("页面：${reportInfo.pageName}")
+                AppLog.warn("进程平均 CPU: ${reportInfo.avgProcessCpu}")
+                AppLog.warn("监控时长：${reportInfo.monitorDuration}毫秒")
+                AppLog.warn("高占用线程数：${reportInfo.highCpuThreads.size}")
+
+                for (threadInfo in reportInfo.highCpuThreads) {
+                    AppLog.warn("--- 线程信息 ---")
+                    AppLog.warn("  TID: ${threadInfo.tid}")
+                    AppLog.warn("  线程名：${threadInfo.threadName}")
+                    AppLog.warn("  平均 CPU: ${threadInfo.avgCpuUsage}")
+                    AppLog.warn("  最大 CPU: ${threadInfo.maxCpuUsage}")
+                    AppLog.warn("  采样次数：${threadInfo.sampleCount}")
+                    AppLog.warn("  高采样比例：${threadInfo.getHighSampleRatio()}")
+                }
+            }
+        )；
 ```
 
 ### 监控电量
