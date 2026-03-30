@@ -321,7 +321,8 @@ public class HighCpuReportInfo {
     private var processNameValue: String = ""         // 进程名称（包名）
     private var pageNameValue: String = ""            // 当前页面名称（发生高 CPU 占用时的页面）
     private var highCpuThreadsValue: ArrayList<ThreadStackInfo> = ArrayList()  // 高占用线程列表（所有符合条件的线程）
-    private var avgProcessCpuValue: Float64 = 0.0     // 3 分钟内进程平均 CPU 使用率（0-1 之间）
+    private var avgProcessCpuValue: Float64 = 0.0     // 监控时长内进程平均 CPU 使用率（0-1 之间）
+    private var maxProcessCpuValue: Float64 = 0.0     // 监控时长内进程最大 CPU 使用率（0-1 之间）
     private var monitorDurationValue: Int64 = 180000     // 监控时长（毫秒），用于上报显示
 
     public mut prop timestamp: Int64 {
@@ -348,6 +349,10 @@ public class HighCpuReportInfo {
         get() { avgProcessCpuValue }
         set(value) { avgProcessCpuValue = value }
     }
+    public mut prop maxProcessCpu: Float64 {
+        get() { maxProcessCpuValue }
+        set(value) { maxProcessCpuValue = value }
+    }
     public mut prop monitorDuration: Int64 {
         get() { monitorDurationValue }
         set(value) { monitorDurationValue = value }
@@ -360,6 +365,7 @@ public class HighCpuReportInfo {
         jsonObj.put("processName", JsonString(processNameValue.toString()))
         jsonObj.put("pageName", JsonString(pageNameValue.toString()))
         jsonObj.put("avgProcessCpu", JsonString(avgProcessCpuValue.toString()))
+        jsonObj.put("maxProcessCpu", JsonString(maxProcessCpuValue.toString()))
         jsonObj.put("monitorDuration", JsonString(monitorDurationValue.toString()))
 
         let threadsArray = JsonArray()
@@ -918,12 +924,16 @@ private func doHighCpuReport(): Unit {
         captureStackForHighCpuThreads()
     }
 
-    // 计算进程平均 CPU 使用率
+    // 计算进程平均 CPU 使用率和最大 CPU 使用率
     var avgProcessCpu: Float64 = 0.0
+    var maxProcessCpu: Float64 = 0.0
     if (!processCpuSamples.isEmpty()) {
         var sum: Float64 = 0.0
         for (sample in processCpuSamples) {
             sum += sample
+            if (sample > maxProcessCpu) {
+                maxProcessCpu = sample
+            }
         }
         avgProcessCpu = sum / Float64(processCpuSamples.size)
     }
@@ -950,6 +960,7 @@ private func doHighCpuReport(): Unit {
         reportInfo.processName = getpid().toString()
         reportInfo.pageName = currentPageName
         reportInfo.avgProcessCpu = avgProcessCpu
+        reportInfo.maxProcessCpu = maxProcessCpu
         reportInfo.monitorDuration = currentCycleMs
         reportInfo.highCpuThreads = highCpuThreads
 

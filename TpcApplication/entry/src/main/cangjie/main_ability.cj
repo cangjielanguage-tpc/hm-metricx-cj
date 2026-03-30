@@ -91,6 +91,7 @@ class EntryAbility <: UIAbility {
                 AppLog.warn("进程：${reportInfo.processName} (PID: ${reportInfo.pid})")
                 AppLog.warn("页面：${reportInfo.pageName}")
                 AppLog.warn("进程平均 CPU: ${reportInfo.avgProcessCpu}")
+                AppLog.warn("进程最大 CPU: ${reportInfo.maxProcessCpu}")
                 AppLog.warn("监控时长：${reportInfo.monitorDuration}毫秒")
                 AppLog.warn("高占用线程数：${reportInfo.highCpuThreads.size}")
 
