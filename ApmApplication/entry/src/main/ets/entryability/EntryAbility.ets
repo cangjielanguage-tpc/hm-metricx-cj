@@ -98,10 +98,29 @@ export default class EntryAbility extends UIAbility {
     initMemoryHandler(
       this.context,
       data => {
+        hilog.error(
+          0x0000,
+          'memory',
+          'memory page data: %{public}s',
+          `pageName = ${data.pageName}, avgMemory = ${data.avgMemory}, maxMemory = ${data.maxMemory}, ` +
+          `avgCJMemory = ${data.avgCJMemory}, maxCJMemory = ${data.maxCJMemory}, ` +
+          `avgArkTsMemory = ${data.avgArkTsMemory}, maxArkTsMemory = ${data.maxArkTsMemory}, ` +
+          `totalHeap = ${data.totalHeap}, sampleCount = ${data.sampleCount}`
+        );
       },
       data => {
+        hilog.error(
+          0x0000,
+          'memory',
+          'memory process data: %{public}s',
+          `pid = ${data.pid}, avgMemory = ${data.avgMemory}, maxMemory = ${data.maxMemory}, ` +
+          `avgCJMemory = ${data.avgCJMemory}, maxCJMemory = ${data.maxCJMemory}, ` +
+          `avgArkTsMemory = ${data.avgArkTsMemory}, maxArkTsMemory = ${data.maxArkTsMemory}, ` +
+          `totalHeap = ${data.totalHeap}, sampleCount = ${data.sampleCount}`
+        );
       },
-      100 * 1024);
+      100 * 1024
+    );
     initBatteryHandler(
       this.context,
       data => {
