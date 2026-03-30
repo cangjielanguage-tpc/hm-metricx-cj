@@ -250,6 +250,22 @@ export declare class InteropSystemTrafficInfo {
     timeStamp: string
 }
 
+// ==================== High CPU Monitor 互操作类型定义 ====================
+
+/**
+ * 高 CPU 监控配置
+ */
+export declare class InteropHighCpuMonitorConfig {
+    cpuThreshold: number
+    foregroundIntervalMs: number
+    backgroundIntervalMs: number
+    monitorDurationMs: number
+    threadCooldownMs: number
+    globalCooldownMs: number
+    highSampleRatioThreshold: number
+    topNThreads: number
+}
+
 export declare interface DisplaySync {
     start: () => void
     stop: () => void
@@ -353,4 +369,13 @@ export declare interface CustomLib {
     initExitInfoHandler(lastExitMessage: string, lastExitReason: string, reportExitInfoHandler: (funcArg0: InteropExitInfo) => void, reportAppStateHandler: (funcArg0: InteropAppStateInfo) => void): void
     destroyExitInfoHandler(): void
     destroyExitInfoHandlerWrapper(): void
+    // ==================== High CPU Monitor 互操作方法 ====================
+    initHighCpuMonitorHandlerInterop(getCpuUsage: () => number, getAppThreadCpuUsageJson: () => string, repeatHighCpuSample: (funcArg0: () => void) => void, repeatHighCpuReport: (funcArg0: () => void) => void, reportHighCpuInfoJson: (funcArg0: string) => void): void
+    onAppForegroundInterop(): void
+    onAppBackgroundInterop(): void
+    startHighCpuMonitorInterop(config: InteropHighCpuMonitorConfig): void
+    stopHighCpuMonitorInterop(): void
+    triggerHighCpuReportInterop(): void
+    isHighCpuMonitoringActiveInterop(): boolean
+    InteropHighCpuMonitorConfig: {new (cpuThreshold: number, foregroundIntervalMs: number, backgroundIntervalMs: number, monitorDurationMs: number, threadCooldownMs: number, globalCooldownMs: number, highSampleRatioThreshold: number, topNThreads: number): InteropHighCpuMonitorConfig}
 }
