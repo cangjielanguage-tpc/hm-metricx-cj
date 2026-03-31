@@ -147,6 +147,7 @@ export default class EntryAbility extends UIAbility {
         hilog.warn(DOMAIN, 'HighCpuMonitor', `进程：${reportInfo.processName} (PID: ${reportInfo.pid})`);
         hilog.warn(DOMAIN, 'HighCpuMonitor', `页面：${reportInfo.pageName}`);
         hilog.warn(DOMAIN, 'HighCpuMonitor', `进程平均 CPU: ${reportInfo.avgProcessCpu}`);
+        hilog.warn(DOMAIN, 'HighCpuMonitor', `进程最大 CPU: ${reportInfo.maxProcessCpu}`);
         hilog.warn(DOMAIN, 'HighCpuMonitor', `监控时长：${reportInfo.monitorDuration}毫秒`);
         hilog.warn(DOMAIN, 'HighCpuMonitor', `高占用线程数：${reportInfo.highCpuThreads.length}`);
 

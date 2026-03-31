@@ -1027,6 +1027,7 @@ export interface HighCpuReportInfo {
   pageName: string;
   highCpuThreads: ThreadStackInfo[];
   avgProcessCpu: number;
+  maxProcessCpu: number;
   monitorDuration: number;
 }
 
@@ -1091,6 +1092,7 @@ export function initHighCpuMonitorHandler(
         pageName: jsonObj.pageName as string,
         highCpuThreads: threads,
         avgProcessCpu: jsonObj.avgProcessCpu as number,
+        maxProcessCpu: jsonObj.maxProcessCpu as number,
         monitorDuration: jsonObj.monitorDuration as number
       };
       reportHighCpuInfo(info);
