@@ -220,7 +220,7 @@ export default class EntryAbility extends UIAbility {
 > 
 > 和监控Crash类似，如果应用编译开启了 `O2` 级别优化，在部分场景，freeze调用栈会出现漏栈、行号不准的问题。
 
-### 监控电池热量
+### 监控热量
 `hm_metricx_cj` 提供
 ```arkts
 export function initThermalHandler(
