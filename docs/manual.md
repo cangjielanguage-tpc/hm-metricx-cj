@@ -22,6 +22,25 @@
    import { initCrashHandler } from '@cangjie-tpc/hm_metricx_cj_hybrid'
    ```
 
+### 按需打包
+
+如需使用按需打包功能，请修改以下目录中的 `hvigorfile.ts` 文件第 12-14 行配置：
+
+```text
+hm-metricx-cj/
+└── ApmApplication/
+    └── hm_metricx_cj/
+        └── hvigorfile.ts
+```
+
+```ts
+const INCLUDE_FEATURES: string[] = [
+  'thermal', 'traffic', 'battery',
+];
+```
+
+`INCLUDE_FEATURES` 中填写需要保留的功能项即可，最终打包结果将按该配置生效。
+
 ### 监控Crash
 
 `hm_metricx_cj` 提供
@@ -859,4 +878,3 @@ ii.
 ```arkts
 reportAppStorageInfo();
 ```
-
