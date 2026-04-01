@@ -176,6 +176,9 @@ let handleCpuReport: () -> Unit = {
     => _reporProcessCpuInfo(processCpuInfo.toInteropProcessCpuInfo())
 }
 
+var cpu_init_flag = false
+var high_cpu_init_flag = false
+
 public func getPageCpuInfo(): InteropPageCpuInfo {
     pageCpuInfo.toInteropPageCpuInfo()
 }
@@ -191,6 +194,10 @@ public func initCpuHandler(
     reporPageCpuInfo: (info: InteropPageCpuInfo) -> Unit,
     reporProcessCpuInfo: (info: InteropProcessCpuInfo) -> Unit
 ): Unit {
+    if (cpu_init_flag) {
+    	return
+    }
+    cpu_init_flag = true
     _getCpuUsage = getCpuUsage
     _reporProcessCpuInfo = reporProcessCpuInfo
     repeatSampleAndReportCpu(doCpuSample, handleCpuReport)
@@ -1158,6 +1165,10 @@ public func initHighCpuMonitorHandlerInternal(
     repeatHighCpuReport: (() -> Unit) -> Unit,
     reportHighCpuInfo: (info: HighCpuReportInfo) -> Unit
 ): Unit {
+    if (high_cpu_init_flag) {
+    	return
+    }
+    high_cpu_init_flag = true
     if (highCpuMonitorInited) {
         AppLog.warn("hm-metricx-cj: High CPU monitor already initialized")
         return
@@ -1252,7 +1263,8 @@ public func stopHighCpuMonitorInternal(): Unit {
     threadCooldownMap.clear()
     globalLastCaptureTime = 0
     isCapturingStack = false
-
+    cpu_init_flag = false
+    high_cpu_init_flag = false
     AppLog.info("hm-metricx-cj: High CPU monitor destroyed")
 }
 

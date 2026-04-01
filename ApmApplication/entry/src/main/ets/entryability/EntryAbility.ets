@@ -103,9 +103,9 @@ export default class EntryAbility extends UIAbility {
           'memory',
           'memory page data: %{public}s',
           `pageName = ${data.pageName}, avgMemory = ${data.avgMemory}, maxMemory = ${data.maxMemory}, ` +
-          `avgCJMemory = ${data.avgCJMemory}, maxCJMemory = ${data.maxCJMemory}, ` +
-          `avgArkTsMemory = ${data.avgArkTsMemory}, maxArkTsMemory = ${data.maxArkTsMemory}, ` +
-          `totalHeap = ${data.totalHeap}, sampleCount = ${data.sampleCount}`
+            `avgCJMemory = ${data.avgCJMemory}, maxCJMemory = ${data.maxCJMemory}, ` +
+            `avgArkTsMemory = ${data.avgArkTsMemory}, maxArkTsMemory = ${data.maxArkTsMemory}, ` +
+            `totalHeap = ${data.totalHeap}, sampleCount = ${data.sampleCount}`
         );
       },
       data => {
@@ -114,9 +114,9 @@ export default class EntryAbility extends UIAbility {
           'memory',
           'memory process data: %{public}s',
           `pid = ${data.pid}, avgMemory = ${data.avgMemory}, maxMemory = ${data.maxMemory}, ` +
-          `avgCJMemory = ${data.avgCJMemory}, maxCJMemory = ${data.maxCJMemory}, ` +
-          `avgArkTsMemory = ${data.avgArkTsMemory}, maxArkTsMemory = ${data.maxArkTsMemory}, ` +
-          `totalHeap = ${data.totalHeap}, sampleCount = ${data.sampleCount}`
+            `avgCJMemory = ${data.avgCJMemory}, maxCJMemory = ${data.maxCJMemory}, ` +
+            `avgArkTsMemory = ${data.avgArkTsMemory}, maxArkTsMemory = ${data.maxArkTsMemory}, ` +
+            `totalHeap = ${data.totalHeap}, sampleCount = ${data.sampleCount}`
         );
       },
       100 * 1024

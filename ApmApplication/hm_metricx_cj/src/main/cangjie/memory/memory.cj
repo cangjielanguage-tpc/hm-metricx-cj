@@ -304,6 +304,7 @@ var _getMemoryUsage: () -> Int64 = {=> 0}
 var _getArkTsMemoryUsage: () -> Int64 = {=> 0}
 var _getArkTsTotalHeap: () -> Int64 = {=> 0}
 var _memoryPreference: Option<MemoryPreference> = None
+var memory_init_flag = false
 
 /**
  * 仓颉侧直接获取 CJ 堆内存大小
@@ -393,6 +394,10 @@ public func initMemoryHandler(
     reporProcessMemoryInfo: (info: InteropProcessMemoryInfo) -> Unit,
     memoryThreshold!: Int64 = 100 * 1024
 ): Unit {
+    if (memory_init_flag) {
+    	return
+    }
+    memory_init_flag = true
     _memoryPreference = memoryPreference
     _getMemoryUsage = getMemoryUsage
     _getArkTsMemoryUsage = getArkTsMemoryUsage
@@ -420,4 +425,5 @@ public func initMemoryHandler(
 
 public func destroyMemoryHandler(): Unit {
     saveProcessMemory()
+    memory_init_flag = false
 }
