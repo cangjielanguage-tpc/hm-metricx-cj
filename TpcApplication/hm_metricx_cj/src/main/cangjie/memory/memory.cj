@@ -319,6 +319,8 @@ var uiContext: Option<UIAbilityContext> = None
 var reportPageMemory: (memoryInfo: PageMemoryInfo) -> Unit = {info: PageMemoryInfo =>}
 var reportProcessMemory: (memoryInfo: ProcessMemoryInfo) -> Unit = {info: ProcessMemoryInfo =>}
 
+var memory_init_flag = false
+
 /**
  * 获取 ArkTS (JS) 堆内存信息
  * 使用 hidebug.getAppVMMemoryInfo() 获取虚拟机内存信息
@@ -436,6 +438,10 @@ public func initMemoryHandler(
     memoryThreshold!: Int64 = 100 * 1024,
     sampleInterval!: Int64 = 30
 ): Unit {
+    if (memory_init_flag) {
+    	return
+    }
+    memory_init_flag = true
     uiContext = context
     reportPageMemory = reportPageMemoryInfo
     reportProcessMemory = reportProcessMemoryInfo
@@ -451,5 +457,6 @@ public func initMemoryHandler(
 
 public func destroyMemoryHandler(): Unit {
     off(navDestinationSwitch, uiContext.getOrThrow(), pageSwitchCallback)
+    memory_init_flag = false
     // todo clearInterval
 }

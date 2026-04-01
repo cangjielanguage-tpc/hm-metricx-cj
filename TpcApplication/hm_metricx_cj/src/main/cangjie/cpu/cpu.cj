@@ -180,6 +180,9 @@ let handleCpuReport: (param: Array<String>) -> Unit = {
     param: Array<String> => reportProcessCpu(processCpuInfo)
 }
 
+var cpu_init_flag = false
+var high_cpu_init_flag = false
+
 private func handleCpu(param: Array<String>): Unit {
     setInterval(doCpuSample, 2000, Array<String>())
     setInterval(handleCpuReport, 30 * 60 * 1000, Array<String>())
@@ -198,6 +201,10 @@ public func initCpuHandler(
     reportPageCpuInfo: (info: PageCpuInfo) -> Unit,
     reportProcessCpuInfo: (info: ProcessCpuInfo) -> Unit
 ): Unit {
+    if (cpu_init_flag) {
+    	return
+    }
+    cpu_init_flag = true
     uiContext = context
     reportPageCpu = reportPageCpuInfo
     reportProcessCpu = reportProcessCpuInfo
@@ -208,6 +215,7 @@ public func initCpuHandler(
 public func destroyCpuHandler(): Unit {
     off(navDestinationSwitch, uiContext.getOrThrow(), pageSwitchCallback)
     destroyHighCpuMonitorHandler()
+    cpu_init_flag = false
 }
 
 // 线程栈信息（用于上报）
@@ -1114,6 +1122,10 @@ public func initHighCpuMonitorHandler(
     config: HighCpuMonitorConfig,
     reportHighCpuInfo: (info: HighCpuReportInfo) -> Unit
 ): Unit {
+    if (high_cpu_init_flag) {
+    	return
+    }
+    high_cpu_init_flag = true
     if (highCpuMonitorInited) {
         AppLog.warn("hm-metricx-cj: High CPU monitor already initialized")
         return
@@ -1173,7 +1185,7 @@ public func destroyHighCpuMonitorHandler(): Unit {
     threadCooldownMap.clear()
     globalLastCaptureTime = 0
     isCapturingStack = false
-
+    high_cpu_init_flag = false
     AppLog.info("hm-metricx-cj: High CPU monitor destroyed")
 }
 
