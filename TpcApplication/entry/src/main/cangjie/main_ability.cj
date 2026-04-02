@@ -113,14 +113,14 @@ class EntryAbility <: UIAbility {
         initBatteryHandler(this.context, {data =>}, {data =>})
         initCpuHandler(this.context, {data =>}, {data =>})
 
-        // 测试自定义报告间隔和保存间隔
+        // 测试自定义报告间隔和保存间隔（参数单位：毫秒）
         initMemoryHandler(
-            this.context, 
+            this.context,
             {data => AppLog.info("initMemoryHandler : ${data.toString()}")},
             {data => AppLog.info("initMemoryHandler2 : ${data.toString()}")},
-            sampleInterval : 5,
-            reportInterval : 6,
-            saveInterval : 30
+            sampleInterval : 5 * 1000,
+            reportInterval : 6 * 1000,
+            saveInterval : 30 * 1000
         )
         initMemLeakHandler(this.context, Path(this
             .context
