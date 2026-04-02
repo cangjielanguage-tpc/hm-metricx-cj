@@ -311,9 +311,11 @@ public class ProcessMemoryInfo <: MemoryInfo {
 
 let preferenceOptionName: String = "hm-metric-cj-memory"
 var MEMOMRY_THRESHOLD: Int64 = 1024 * 100
-var SAMPLE_INTERVAL: Int64 = 30
-var REPORT_INTERVAL: Int64 = 30 * 60  // 30 分钟
-var SAVE_INTERVAL: Int64 = 60  // 60 秒
+var SAMPLE_INTERVAL: Int64 = 30 * 1000  // 30 秒（毫秒）
+var REPORT_INTERVAL: Int64 = 30 * 60 * 1000  // 30 分钟（毫秒）
+var SAVE_INTERVAL: Int64 = 60 * 1000  // 60 秒（毫秒）
+let MAX_INTERVAL: Int64 = 60 * 60 * 1000  // 1 小时（毫秒）
+let MIN_INTERVAL: Int64 = 0  // 最小值（毫秒）
 var thresholdReported: Bool = false
 var pageMemoryInfo = PageMemoryInfo(defaultPageName)
 var processMemoryInfo = ProcessMemoryInfo()
@@ -399,9 +401,9 @@ let saveProcessMemory: (param: Array<String>) -> Unit = {
 }
 
 private func handleMemory(array: Array<String>): Unit {
-    setInterval(doMemorySample, SAMPLE_INTERVAL * 1000, Array<String>())
-    setInterval(handleProcessMemoryReport, REPORT_INTERVAL * 1000, Array<String>())
-    setInterval(saveProcessMemory, SAVE_INTERVAL * 1000, Array<String>())
+    setInterval(doMemorySample, SAMPLE_INTERVAL, Array<String>())
+    setInterval(handleProcessMemoryReport, REPORT_INTERVAL, Array<String>())
+    setInterval(saveProcessMemory, SAVE_INTERVAL, Array<String>())
 }
 
 public func getPageMemoryInfo(): PageMemoryInfo {
@@ -438,26 +440,28 @@ public func initMemoryHandler(
     reportPageMemoryInfo: (info: PageMemoryInfo) -> Unit,
     reportProcessMemoryInfo: (info: ProcessMemoryInfo) -> Unit,
     memoryThreshold!: Int64 = 100 * 1024,
-    sampleInterval!: Int64 = 30,
-    reportInterval!: Int64 = 30 * 60,
-    saveInterval!: Int64 = 60
+    sampleInterval!: Int64 = 30 * 1000,
+    reportInterval!: Int64 = 30 * 60 * 1000,
+    saveInterval!: Int64 = 60 * 1000
 ): Unit {
     if (memory_init_flag) {
     	return
     }
     memory_init_flag = true
+
     uiContext = context
     reportPageMemory = reportPageMemoryInfo
     reportProcessMemory = reportProcessMemoryInfo
     MEMOMRY_THRESHOLD = memoryThreshold
-    SAMPLE_INTERVAL = sampleInterval
-    REPORT_INTERVAL = reportInterval
-    SAVE_INTERVAL = saveInterval
+    // 边界值判断：超出范围使用默认值
+    SAMPLE_INTERVAL = if (sampleInterval < MIN_INTERVAL || sampleInterval > MAX_INTERVAL) {30 * 1000} else {sampleInterval}
+    REPORT_INTERVAL = if (reportInterval < MIN_INTERVAL || reportInterval > MAX_INTERVAL) {30 * 60 * 1000} else {reportInterval}
+    SAVE_INTERVAL = if (saveInterval < MIN_INTERVAL || saveInterval > MAX_INTERVAL) {60 * 1000} else {saveInterval}
     let lastProcessMemory = getStoragedProcessMemory()
     if (let Some(v) <- lastProcessMemory) {
         reportProcessMemoryInfo(v)
     }
-    setTimeout(handleMemory, SAMPLE_INTERVAL * 1000, Array<String>())
+    setTimeout(handleMemory, SAMPLE_INTERVAL, Array<String>())
     on(navDestinationSwitch, uiContext.getOrThrow(), pageSwitchCallback)
 }
 
