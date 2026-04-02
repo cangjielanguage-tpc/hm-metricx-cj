@@ -430,19 +430,47 @@ function getArkTsTotalHeap(): number {
   }
 }
 
+// 时间间隔边界值常量（毫秒）
+const MIN_INTERVAL = 0;           // 最小间隔：0ms
+const MAX_INTERVAL = 60 * 60 * 1000; // 最大间隔：1 小时
+
+// 默认时间间隔（毫秒）
+const DEFAULT_SAMPLE_INTERVAL = 2 * 1000;    // 2 秒
+const DEFAULT_REPORT_INTERVAL = 30 * 60 * 1000; // 30 分钟
+const DEFAULT_SAVE_INTERVAL = 60 * 1000;     // 1 分钟
+
+/**
+ * 校验时间间隔是否在合法范围内
+ * @param value 待校验的时间间隔值
+ * @param defaultValue 默认值
+ * @returns 合法的值或默认值
+ */
+function validateInterval(value: number | undefined, defaultValue: number): number {
+  if (value === undefined || value < MIN_INTERVAL || value > MAX_INTERVAL) {
+    return defaultValue;
+  }
+  return value;
+}
+
 export function initMemoryHandler(
   context: common.UIAbilityContext,
   reportPageMemoryInfo: (data: PageMemoryInfo) => void,
   reportProcessMemoryInfo: (data: ProcessMemoryInfo) => void,
   memoryThreshold: number,
-  sampleInterval: number = 2 * 1000,
-  reportInterval: number = 30 * 60 * 1000,
-  saveInterval: number = 60 * 1000
+  sampleInterval?: number,
+  reportInterval?: number,
+  saveInterval?: number
 ): void {
   if (!cjLibMemory) {
     hilog.warn(DOMAIN, TAG, 'initMemoryHandler called but memory module is disabled');
     return;
   }
+  
+  // 边界值校验，超出范围则使用默认值
+  const validSampleInterval = validateInterval(sampleInterval, DEFAULT_SAMPLE_INTERVAL);
+  const validReportInterval = validateInterval(reportInterval, DEFAULT_REPORT_INTERVAL);
+  const validSaveInterval = validateInterval(saveInterval, DEFAULT_SAVE_INTERVAL);
+  
   let preference = preferences.getPreferencesSync(context, { name: 'hm_metricx_cj:Memory' });
   let p: MemoryPreference = {
     put: (key: string, value: number): void => {
@@ -460,15 +488,15 @@ export function initMemoryHandler(
   };
   let repeatSampleAndReportMemory = (sample: () => void, report: () => void, save: () => void) => {
     setTimeout(() => {
-      let sampleId = setInterval(sample, sampleInterval);
-      let reportId = setInterval(report, reportInterval);
-      let saveId = setInterval(save, saveInterval);
+      let sampleId = setInterval(sample, validSampleInterval);
+      let reportId = setInterval(report, validReportInterval);
+      let saveId = setInterval(save, validSaveInterval);
       clearSampleMemory = () => {
         clearInterval(sampleId);
         clearInterval(reportId);
         clearInterval(saveId);
       }
-    }, sampleInterval);
+    }, validSampleInterval);
   };
   cjLibMemory.initMemoryHandlerInterop(p, getMemoryUsage, getArkTsMemoryUsage, getArkTsTotalHeap,
     onNavDestinationSwitch, repeatSampleAndReportMemory, reportPageMemoryInfo,
