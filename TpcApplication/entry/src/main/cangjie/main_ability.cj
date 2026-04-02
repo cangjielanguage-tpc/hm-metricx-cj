@@ -112,18 +112,15 @@ class EntryAbility <: UIAbility {
         initStorageHandler({data: StorageInfo =>}, sizeLimit: 100000000, dirSizeLimit: 1000, reportTopNum: 5)
         initBatteryHandler(this.context, {data =>}, {data =>})
         initCpuHandler(this.context, {data =>}, {data =>})
-        initMemoryHandler(this.context, {data =>
-            AppLog.info("initMemoryHandler : ${data.toString()}")
-        }, {data=>
-             AppLog.info("initMemoryHandler2 : ${data.toString()}")
-        })
+
         // 测试自定义报告间隔和保存间隔
         initMemoryHandler(
             this.context, 
-            {data => AppLog.info("[TEST] 页面内存：${data.toString()}")}, 
-            {data => AppLog.info("[TEST] 进程内存：${data.toString()}")},
-            reportInterval = 6,
-            saveInterval = 30
+            {data => AppLog.info("initMemoryHandler : ${data.toString()}")},
+            {data => AppLog.info("initMemoryHandler2 : ${data.toString()}")},
+            sampleInterval : 5,
+            reportInterval : 6,
+            saveInterval : 30
         )
         initMemLeakHandler(this.context, Path(this
             .context
