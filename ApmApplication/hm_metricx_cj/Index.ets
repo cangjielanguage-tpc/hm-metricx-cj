@@ -434,7 +434,10 @@ export function initMemoryHandler(
   context: common.UIAbilityContext,
   reportPageMemoryInfo: (data: PageMemoryInfo) => void,
   reportProcessMemoryInfo: (data: ProcessMemoryInfo) => void,
-  memoryThreshold: number
+  memoryThreshold: number,
+  sampleInterval: number = 2 * 1000,
+  reportInterval: number = 30 * 60 * 1000,
+  saveInterval: number = 60 * 1000
 ): void {
   if (!cjLibMemory) {
     hilog.warn(DOMAIN, TAG, 'initMemoryHandler called but memory module is disabled');
@@ -457,15 +460,15 @@ export function initMemoryHandler(
   };
   let repeatSampleAndReportMemory = (sample: () => void, report: () => void, save: () => void) => {
     setTimeout(() => {
-      let sampleId = setInterval(sample, 2 * 1000);
-      let reportId = setInterval(report, 30 * 60 * 1000);
-      let saveId = setInterval(save, 60 * 1000);
+      let sampleId = setInterval(sample, sampleInterval);
+      let reportId = setInterval(report, reportInterval);
+      let saveId = setInterval(save, saveInterval);
       clearSampleMemory = () => {
         clearInterval(sampleId);
         clearInterval(reportId);
         clearInterval(saveId);
       }
-    }, 2 * 1000);
+    }, sampleInterval);
   };
   cjLibMemory.initMemoryHandlerInterop(p, getMemoryUsage, getArkTsMemoryUsage, getArkTsTotalHeap,
     onNavDestinationSwitch, repeatSampleAndReportMemory, reportPageMemoryInfo,
