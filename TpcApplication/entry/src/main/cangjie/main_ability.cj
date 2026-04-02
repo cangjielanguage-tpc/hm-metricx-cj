@@ -117,6 +117,14 @@ class EntryAbility <: UIAbility {
         }, {data=>
              AppLog.info("initMemoryHandler2 : ${data.toString()}")
         })
+        // 测试自定义报告间隔和保存间隔
+        initMemoryHandler(
+            this.context, 
+            {data => AppLog.info("[TEST] 页面内存：${data.toString()}")}, 
+            {data => AppLog.info("[TEST] 进程内存：${data.toString()}")},
+            reportInterval = 6,
+            saveInterval = 30
+        )
         initMemLeakHandler(this.context, Path(this
             .context
             .cacheDir), {pageInfo, typeInfos => true}, {typeInfos => false},
