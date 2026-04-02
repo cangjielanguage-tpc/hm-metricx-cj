@@ -205,7 +205,7 @@ public func initLaggyHandler(applicationcontext: ApplicationContext, uiContext: 
 }
 
 // 回调函数warper
-public class DidClickCallBack <: ClickEventListenerCallback<ClickEventEnhanced, ?FrameNode> {
+public class DidClickCallBack <: ClickEventListenerCallback {
     let elementInfoCallBack: (event: ClickEventEnhanced, context: UIContext, node: ?FrameNode) -> Unit
     let context: UIContext
     public init(elementInfoCallBack: (event: ClickEventEnhanced, context: UIContext, node: ?FrameNode) -> Unit, context: UIContext) {
