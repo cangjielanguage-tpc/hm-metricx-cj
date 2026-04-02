@@ -95,6 +95,9 @@ export default class EntryAbility extends UIAbility {
     },
       data => {
       });
+    // 测试：自定义更短的间隔用于验证（5 秒采样，15 秒上报，10 秒保存）
+    // 注意：生产环境请注释掉以下测试代码，使用上述默认值
+
     initMemoryHandler(
       this.context,
       data => {
@@ -117,33 +120,6 @@ export default class EntryAbility extends UIAbility {
             `avgCJMemory = ${data.avgCJMemory}, maxCJMemory = ${data.maxCJMemory}, ` +
             `avgArkTsMemory = ${data.avgArkTsMemory}, maxArkTsMemory = ${data.maxArkTsMemory}, ` +
             `totalHeap = ${data.totalHeap}, sampleCount = ${data.sampleCount}`
-        );
-      },
-      100 * 1024,
-      2 * 1000,      // sampleInterval: 2 秒采样间隔
-      30 * 60 * 1000, // reportInterval: 30 分钟上报间隔
-      60 * 1000      // saveInterval: 1 分钟保存间隔
-    );
-
-    // 测试：自定义更短的间隔用于验证（5 秒采样，15 秒上报，10 秒保存）
-    // 注意：生产环境请注释掉以下测试代码，使用上述默认值
-
-    initMemoryHandler(
-      this.context,
-      data => {
-        hilog.error(
-          0x0000,
-          'memory',
-          '[TEST] memory page data: %{public}s',
-          `pageName = ${data.pageName}, avgMemory = ${data.avgMemory}, maxMemory = ${data.maxMemory}`
-        );
-      },
-      data => {
-        hilog.error(
-          0x0000,
-          'memory',
-          '[TEST] memory process data: %{public}s',
-          `pid = ${data.pid}, avgMemory = ${data.avgMemory}, maxMemory = ${data.maxMemory}`
         );
       },
       100 * 1024,
