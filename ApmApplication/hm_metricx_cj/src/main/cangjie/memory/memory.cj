@@ -15,8 +15,16 @@ public open class MemoryInfo {
     private var maxCJMemoryValue: Int64 = 0
     private var avgArkTsMemoryValue: Int64 = 0
     private var maxArkTsMemoryValue: Int64 = 0
-    private var totalHeapValue: Int64 = 0
     private var sampleCountValue: Int64 = 0
+    private var totalMemoryLimitValue: Int64 = 0
+    private var cjMemoryLimitValue: Int64 = 0
+    private var arkTsMemoryLimitValue: Int64 = 0
+    private var isTotalTopValue: Bool = false
+    private var isCJTopValue: Bool = false
+    private var isArkTsTopValue: Bool = false
+    private var totalRatioThresholdValue: Float64 = 0.8
+    private var cjRatioThresholdValue: Float64 = 0.8
+    private var arkTsRatioThresholdValue: Float64 = 0.8
 
     mut prop avgMemory: Int64 {
         get() {
@@ -72,15 +80,6 @@ public open class MemoryInfo {
         }
     }
 
-    mut prop totalHeap: Int64 {
-        get() {
-            totalHeapValue
-        }
-        set(value) {
-            totalHeapValue = value
-        }
-    }
-
     mut prop sampleCount: Int64 {
         get() {
             sampleCountValue
@@ -97,11 +96,20 @@ public open class MemoryInfo {
         maxCJMemoryValue = 0
         avgArkTsMemoryValue = 0
         maxArkTsMemoryValue = 0
-        totalHeapValue = 0
         sampleCountValue = 0
+        totalMemoryLimitValue = 0
+        cjMemoryLimitValue = 0
+        arkTsMemoryLimitValue = 0
+        isTotalTopValue = false
+        isCJTopValue = false
+        isArkTsTopValue = false
+        totalRatioThresholdValue = 0.8
+        cjRatioThresholdValue = 0.8
+        arkTsRatioThresholdValue = 0.8
     }
 
-    func computeAvg(currrentMemoryValue: Int64, currrentCJMemoryValue: Int64, currrentArkTsMemoryValue: Int64, currentTotalHeap: Int64): Unit {
+    func computeAvg(currrentMemoryValue: Int64, currrentCJMemoryValue: Int64, currrentArkTsMemoryValue: Int64, 
+                    currentArkTsMemoryLimit: Int64, currentTotalMemoryLimit: Int64): Unit {
         // 系统内存 (PSS)
         this.avgMemoryValue = this.avgMemoryValue + (currrentMemoryValue - this.avgMemoryValue) / (sampleCountValue + 1)
         if (maxMemoryValue < currrentMemoryValue) {
@@ -120,21 +128,188 @@ public open class MemoryInfo {
             maxArkTsMemoryValue = currrentArkTsMemoryValue
         }
 
-        // 总堆内存 (取最新值)
-        this.totalHeapValue = currentTotalHeap
+        // 系统总内存限制 (只设置一次)
+        if (totalMemoryLimitValue <= 0) {
+            this.totalMemoryLimitValue = currentTotalMemoryLimit
+        }
+
+        // CJ 最大堆内存 (只设置一次，getMaxHeapSize 返回 byte，转 KB)
+        if (cjMemoryLimitValue <= 0) {
+            this.cjMemoryLimitValue = getMaxHeapSize() / 1024
+        }
+
+        // ArkTS 最大堆内存 (只设置一次)
+        if (arkTsMemoryLimitValue <= 0) {
+            this.arkTsMemoryLimitValue = currentArkTsMemoryLimit
+        }
+
+        // 判断是否触顶
+        if (totalMemoryLimitValue > 0) {
+            let totalUsageRate = Float64(currrentMemoryValue) / Float64(totalMemoryLimitValue)
+            this.isTotalTopValue = totalUsageRate >= totalRatioThresholdValue
+        }
+
+        if (cjMemoryLimitValue > 0) {
+            let cjUsageRate = Float64(currrentCJMemoryValue) / Float64(cjMemoryLimitValue)
+            this.isCJTopValue = cjUsageRate >= cjRatioThresholdValue
+        }
+
+        if (arkTsMemoryLimitValue > 0) {
+            let arkTsUsageRate = Float64(currrentArkTsMemoryValue) / Float64(arkTsMemoryLimitValue)
+            this.isArkTsTopValue = arkTsUsageRate >= arkTsRatioThresholdValue
+        }
 
         sampleCountValue++
     }
 
     /**
-     * 计算 ArkTS 内存使用率 (heapUsed / totalHeap)
-     * @return 使用率 0.0-1.0+，超过 0.8 表示高风险，超过 1.0 会触发 OOM
+     * 获取系统总内存限制
+     * @return 系统总内存限制 (KB)
      */
-    public func getArkTsMemoryUsageRate(): Float64 {
-        if (totalHeapValue <= 0) {
+    public func getTotalMemoryLimit(): Int64 {
+        this.totalMemoryLimitValue
+    }
+
+    /**
+     * 获取 CJ 最大堆内存
+     * @return CJ 最大堆内存 (KB)
+     */
+    public func getCJMemoryLimit(): Int64 {
+        this.cjMemoryLimitValue
+    }
+
+    /**
+     * 获取 ArkTS 最大堆内存
+     * @return ArkTS 最大堆内存 (KB)
+     */
+    public func getArkTsMemoryLimit(): Int64 {
+        this.arkTsMemoryLimitValue
+    }
+
+    /**
+     * 获取系统总内存是否触顶
+     * @return true 表示系统总内存使用率已达到阈值
+     */
+    public func isTotalTop(): Bool {
+        this.isTotalTopValue
+    }
+
+    /**
+     * 获取 CJ 是否触顶
+     * @return true 表示 CJ 内存使用率已达到阈值
+     */
+    public func isCJTop(): Bool {
+        this.isCJTopValue
+    }
+
+    /**
+     * 获取 ArkTS 是否触顶
+     * @return true 表示 ArkTS 内存使用率已达到阈值
+     */
+    public func isArkTsTop(): Bool {
+        this.isArkTsTopValue
+    }
+
+    /**
+     * 设置系统总内存触顶阈值
+     * @param ratio 阈值 (0.0-1.0)，默认 0.8
+     */
+    public func setTotalRatioThreshold(ratio: Float64): Unit {
+        if (ratio >= 0.0 && ratio <= 1.0) {
+            this.totalRatioThresholdValue = ratio
+        } else {
+            this.totalRatioThresholdValue = 0.8
+        }
+    }
+
+    /**
+     * 设置 CJ 内存触顶阈值
+     * @param ratio 阈值 (0.0-1.0)，默认 0.8
+     */
+    public func setCJRatioThreshold(ratio: Float64): Unit {
+        if (ratio >= 0.0 && ratio <= 1.0) {
+            this.cjRatioThresholdValue = ratio
+        } else {
+            this.cjRatioThresholdValue = 0.8
+        }
+    }
+
+    /**
+     * 设置 ArkTS 内存触顶阈值
+     * @param ratio 阈值 (0.0-1.0)，默认 0.8
+     */
+    public func setArkTsRatioThreshold(ratio: Float64): Unit {
+        if (ratio >= 0.0 && ratio <= 1.0) {
+            this.arkTsRatioThresholdValue = ratio
+        } else {
+            this.arkTsRatioThresholdValue = 0.8
+        }
+    }
+
+    /**
+     * 计算系统内存平均使用率 (avgMemory / totalMemoryLimit)
+     * @return 使用率 0.0-1.0+，超过 0.8 表示高风险
+     */
+    public func getMemoryAvgUsageRate(): Float64 {
+        if (totalMemoryLimitValue <= 0) {
             return 0.0
         }
-        Float64(avgArkTsMemoryValue) / Float64(totalHeapValue)
+        Float64(avgMemoryValue) / Float64(totalMemoryLimitValue)
+    }
+
+    /**
+     * 计算系统内存峰值使用率 (maxMemory / totalMemoryLimit)
+     * @return 使用率 0.0-1.0+，超过 0.8 表示高风险
+     */
+    public func getMemoryMaxUsageRate(): Float64 {
+        if (totalMemoryLimitValue <= 0) {
+            return 0.0
+        }
+        Float64(maxMemoryValue) / Float64(totalMemoryLimitValue)
+    }
+
+    /**
+     * 计算 CJ 内存平均使用率 (avgCJMemory / cjMemoryLimit)
+     * @return 使用率 0.0-1.0+
+     */
+    public func getCJMemoryAvgUsageRate(): Float64 {
+        if (cjMemoryLimitValue <= 0) {
+            return 0.0
+        }
+        Float64(avgCJMemoryValue) / Float64(cjMemoryLimitValue)
+    }
+
+    /**
+     * 计算 CJ 内存峰值使用率 (maxCJMemory / cjMemoryLimit)
+     * @return 使用率 0.0-1.0+
+     */
+    public func getCJMemoryMaxUsageRate(): Float64 {
+        if (cjMemoryLimitValue <= 0) {
+            return 0.0
+        }
+        Float64(maxCJMemoryValue) / Float64(cjMemoryLimitValue)
+    }
+
+    /**
+     * 计算 ArkTS 内存平均使用率 (avgArkTsMemory / arkTsMemoryLimit)
+     * @return 使用率 0.0-1.0+，超过 0.8 表示高风险
+     */
+    public func getArkTsMemoryAvgUsageRate(): Float64 {
+        if (arkTsMemoryLimitValue <= 0) {
+            return 0.0
+        }
+        Float64(avgArkTsMemoryValue) / Float64(arkTsMemoryLimitValue)
+    }
+
+    /**
+     * 计算 ArkTS 内存峰值使用率 (maxArkTsMemory / arkTsMemoryLimit)
+     * @return 使用率 0.0-1.0+，超过 0.8 表示高风险
+     */
+    public func getArkTsMemoryMaxUsageRate(): Float64 {
+        if (arkTsMemoryLimitValue <= 0) {
+            return 0.0
+        }
+        Float64(maxArkTsMemoryValue) / Float64(arkTsMemoryLimitValue)
     }
 
     public func getAvgMemory(): Int64 {
@@ -161,10 +336,6 @@ public open class MemoryInfo {
         this.maxArkTsMemoryValue
     }
 
-    public func getTotalHeap(): Int64 {
-        this.totalHeapValue
-    }
-
     public func getSampleCount(): Int64 {
         this.sampleCountValue
     }
@@ -176,8 +347,13 @@ public open class MemoryInfo {
         this.maxCJMemoryValue = 0
         this.avgArkTsMemoryValue = 0
         this.maxArkTsMemoryValue = 0
-        this.totalHeapValue = 0
         this.sampleCountValue = 0
+        this.totalMemoryLimitValue = 0
+        this.cjMemoryLimitValue = 0
+        this.arkTsMemoryLimitValue = 0
+        this.isTotalTopValue = false
+        this.isCJTopValue = false
+        this.isArkTsTopValue = false
     }
 }
 
@@ -189,19 +365,43 @@ public class InteropPageMemoryInfo {
     public let maxCJMemory: Int64
     public let avgArkTsMemory: Int64
     public let maxArkTsMemory: Int64
-    public let totalHeap: Int64
     public let sampleCount: Int64
     public let pageName: String
-    public init(a: Int64, m: Int64, acj: Int64, mcj: Int64, aark: Int64, mark: Int64, th: Int64, s: Int64, p: String) {
+    public let totalMemoryLimit: Int64
+    public let cjMemoryLimit: Int64
+    public let arkTsMemoryLimit: Int64
+    public let isTotalTop: Bool
+    public let isCJTop: Bool
+    public let isArkTsTop: Bool
+    public let memoryAvgUsageRate: Float64
+    public let memoryMaxUsageRate: Float64
+    public let cjMemoryAvgUsageRate: Float64
+    public let cjMemoryMaxUsageRate: Float64
+    public let arkTsMemoryAvgUsageRate: Float64
+    public let arkTsMemoryMaxUsageRate: Float64
+    public init(a: Int64, m: Int64, acj: Int64, mcj: Int64, aark: Int64, mark: Int64, s: Int64, p: String,
+                tml: Int64, cjl: Int64, atl: Int64, itt: Bool, ict: Bool, iat: Bool,
+                maur: Float64, mmur: Float64, cmaur: Float64, cmmur: Float64, atmaur: Float64, atmmur: Float64) {
         this.avgMemory = a
         this.maxMemory = m
         this.avgCJMemory = acj
         this.maxCJMemory = mcj
         this.avgArkTsMemory = aark
         this.maxArkTsMemory = mark
-        this.totalHeap = th
         this.sampleCount = s
         this.pageName = p
+        this.totalMemoryLimit = tml
+        this.cjMemoryLimit = cjl
+        this.arkTsMemoryLimit = atl
+        this.isTotalTop = itt
+        this.isCJTop = ict
+        this.isArkTsTop = iat
+        this.memoryAvgUsageRate = maur
+        this.memoryMaxUsageRate = mmur
+        this.cjMemoryAvgUsageRate = cmaur
+        this.cjMemoryMaxUsageRate = cmmur
+        this.arkTsMemoryAvgUsageRate = atmaur
+        this.arkTsMemoryMaxUsageRate = atmmur
     }
 }
 
@@ -233,7 +433,15 @@ public class PageMemoryInfo <: MemoryInfo {
     }
 
     func toInteropPageMemoryInfo(): InteropPageMemoryInfo {
-        InteropPageMemoryInfo(this.avgMemory, this.maxMemory, this.avgCJMemory, this.maxCJMemory, this.avgArkTsMemory, this.maxArkTsMemory, this.totalHeap, this.sampleCount, this.pageName)
+        InteropPageMemoryInfo(
+            this.avgMemory, this.maxMemory, this.avgCJMemory, this.maxCJMemory,
+            this.avgArkTsMemory, this.maxArkTsMemory, this.sampleCount, this.pageName,
+            this.getTotalMemoryLimit(), this.getCJMemoryLimit(), this.getArkTsMemoryLimit(),
+            this.isTotalTop(), this.isCJTop(), this.isArkTsTop(),
+            this.getMemoryAvgUsageRate(), this.getMemoryMaxUsageRate(),
+            this.getCJMemoryAvgUsageRate(), this.getCJMemoryMaxUsageRate(),
+            this.getArkTsMemoryAvgUsageRate(), this.getArkTsMemoryMaxUsageRate()
+        )
     }
 }
 
@@ -245,19 +453,43 @@ public class InteropProcessMemoryInfo {
     public let maxCJMemory: Int64
     public let avgArkTsMemory: Int64
     public let maxArkTsMemory: Int64
-    public let totalHeap: Int64
     public let sampleCount: Int64
     public let pid: Int64
-    public init(a: Int64, m: Int64, acj: Int64, mcj: Int64, aark: Int64, mark: Int64, th: Int64, s: Int64, p: Int64) {
+    public let totalMemoryLimit: Int64
+    public let cjMemoryLimit: Int64
+    public let arkTsMemoryLimit: Int64
+    public let isTotalTop: Bool
+    public let isCJTop: Bool
+    public let isArkTsTop: Bool
+    public let memoryAvgUsageRate: Float64
+    public let memoryMaxUsageRate: Float64
+    public let cjMemoryAvgUsageRate: Float64
+    public let cjMemoryMaxUsageRate: Float64
+    public let arkTsMemoryAvgUsageRate: Float64
+    public let arkTsMemoryMaxUsageRate: Float64
+    public init(a: Int64, m: Int64, acj: Int64, mcj: Int64, aark: Int64, mark: Int64, s: Int64, p: Int64,
+                tml: Int64, cjl: Int64, atl: Int64, itt: Bool, ict: Bool, iat: Bool,
+                maur: Float64, mmur: Float64, cmaur: Float64, cmmur: Float64, atmaur: Float64, atmmur: Float64) {
         this.avgMemory = a
         this.maxMemory = m
         this.avgCJMemory = acj
         this.maxCJMemory = mcj
         this.avgArkTsMemory = aark
         this.maxArkTsMemory = mark
-        this.totalHeap = th
         this.sampleCount = s
         this.pid = p
+        this.totalMemoryLimit = tml
+        this.cjMemoryLimit = cjl
+        this.arkTsMemoryLimit = atl
+        this.isTotalTop = itt
+        this.isCJTop = ict
+        this.isArkTsTop = iat
+        this.memoryAvgUsageRate = maur
+        this.memoryMaxUsageRate = mmur
+        this.cjMemoryAvgUsageRate = cmaur
+        this.cjMemoryMaxUsageRate = cmmur
+        this.arkTsMemoryAvgUsageRate = atmaur
+        this.arkTsMemoryMaxUsageRate = atmmur
     }
 }
 
@@ -282,7 +514,15 @@ public class ProcessMemoryInfo <: MemoryInfo {
     }
 
     func toInteropProcessMemotyInfo(): InteropProcessMemoryInfo {
-        InteropProcessMemoryInfo(this.avgMemory, this.maxMemory, this.avgCJMemory, this.maxCJMemory, this.avgArkTsMemory, this.maxArkTsMemory, this.totalHeap, this.sampleCount, this.pid)
+        InteropProcessMemoryInfo(
+            this.avgMemory, this.maxMemory, this.avgCJMemory, this.maxCJMemory,
+            this.avgArkTsMemory, this.maxArkTsMemory, this.sampleCount, this.pid,
+            this.getTotalMemoryLimit(), this.getCJMemoryLimit(), this.getArkTsMemoryLimit(),
+            this.isTotalTop(), this.isCJTop(), this.isArkTsTop(),
+            this.getMemoryAvgUsageRate(), this.getMemoryMaxUsageRate(),
+            this.getCJMemoryAvgUsageRate(), this.getCJMemoryMaxUsageRate(),
+            this.getArkTsMemoryAvgUsageRate(), this.getArkTsMemoryMaxUsageRate()
+        )
     }
 }
 
@@ -302,7 +542,8 @@ var _reportPageMemoryInfo: (info: InteropPageMemoryInfo) -> Unit = {_ =>}
 var _reportProcessMemoryInfo: (info: InteropProcessMemoryInfo) -> Unit = {_ =>}
 var _getMemoryUsage: () -> Int64 = {=> 0}
 var _getArkTsMemoryUsage: () -> Int64 = {=> 0}
-var _getArkTsTotalHeap: () -> Int64 = {=> 0}
+var _getArkTsMemoryLimit: () -> Int64 = {=> 0}
+var _getTotalMemoryLimit: () -> Int64 = {=> 0}
 var _memoryPreference: Option<MemoryPreference> = None
 var memory_init_flag = false
 
@@ -321,7 +562,8 @@ let doMemorySample: () -> Unit = {
         let memoryUsage = _getMemoryUsage()
         let cjMemoryUsage = getCJMemoryUsageFromCJ()
         let arkTsMemoryUsage = _getArkTsMemoryUsage()
-        let arkTsTotalHeap = _getArkTsTotalHeap()
+        let arkTsMemoryLimit = _getArkTsMemoryLimit()
+        let totalMemoryLimit = _getTotalMemoryLimit()
         if (!thresholdReported) {
             if (memoryUsage >= MEMOMRY_THRESHOLD) {
                 processMemoryInfo.maxMemory = memoryUsage
@@ -329,8 +571,8 @@ let doMemorySample: () -> Unit = {
                 thresholdReported = true
             }
         }
-        pageMemoryInfo.computeAvg(memoryUsage, cjMemoryUsage, arkTsMemoryUsage, arkTsTotalHeap)
-        processMemoryInfo.computeAvg(memoryUsage, cjMemoryUsage, arkTsMemoryUsage, arkTsTotalHeap)
+        pageMemoryInfo.computeAvg(memoryUsage, cjMemoryUsage, arkTsMemoryUsage, arkTsMemoryLimit, totalMemoryLimit)
+        processMemoryInfo.computeAvg(memoryUsage, cjMemoryUsage, arkTsMemoryUsage, arkTsMemoryLimit, totalMemoryLimit)
 }
 let handleMemoryReport: () -> Unit = {
     => _reportProcessMemoryInfo(processMemoryInfo.toInteropProcessMemotyInfo())
@@ -346,7 +588,9 @@ let saveProcessMemory: () -> Unit = {
             preference.put("processMemory_avgCJMemory", processMemoryInfo.avgCJMemory)
             preference.put("processMemory_maxArkTsMemory", processMemoryInfo.maxArkTsMemory)
             preference.put("processMemory_avgArkTsMemory", processMemoryInfo.avgArkTsMemory)
-            preference.put("processMemory_totalHeap", processMemoryInfo.totalHeap)
+            preference.put("processMemory_totalMemoryLimit", processMemoryInfo.getTotalMemoryLimit())
+            preference.put("processMemory_cjMemoryLimit", processMemoryInfo.getCJMemoryLimit())
+            preference.put("processMemory_arkTsMemoryLimit", processMemoryInfo.getArkTsMemoryLimit())
             preference.put("processMemory_pid", processMemoryInfo.pid)
             preference.put("processMemory_sampleCount", processMemoryInfo.sampleCount)
         }
@@ -373,7 +617,6 @@ private func getStoragedProcessMemory(): ProcessMemoryInfo {
             processMemoryInfo.avgCJMemory = preference.get("processMemory_avgCJMemory", 0)
             processMemoryInfo.maxArkTsMemory = preference.get("processMemory_maxArkTsMemory", 0)
             processMemoryInfo.avgArkTsMemory = preference.get("processMemory_avgArkTsMemory", 0)
-            processMemoryInfo.totalHeap = preference.get("processMemory_totalHeap", 0)
             processMemoryInfo.pid = preference.get("processMemory_pid", 0)
             processMemoryInfo.sampleCount = preference.get("processMemory_sampleCount", 0)
         }
@@ -387,12 +630,16 @@ public func initMemoryHandler(
     memoryPreference: MemoryPreference,
     getMemoryUsage: () -> Int64,
     getArkTsMemoryUsage: () -> Int64,
-    getArkTsTotalHeap: () -> Int64,
+    getArkTsMemoryLimit: () -> Int64,
+    getTotalMemoryLimit: () -> Int64,
     onNavDestinationSwitch: (cb: (targetPageName: String) -> Unit) -> Unit,
     repeatSampleAndReportMemory: (sample: () -> Unit, report: () -> Unit, save: () -> Unit) -> Unit,
     reporPageMemoryInfo: (info: InteropPageMemoryInfo) -> Unit,
     reporProcessMemoryInfo: (info: InteropProcessMemoryInfo) -> Unit,
-    memoryThreshold!: Int64 = 100 * 1024
+    memoryThreshold!: Int64 = 100 * 1024,
+    totalRatio!: Float64 = 0.8,
+    cjRatio!: Float64 = 0.8,
+    arkTsRatio!: Float64 = 0.8
 ): Unit {
     if (memory_init_flag) {
     	return
@@ -401,10 +648,19 @@ public func initMemoryHandler(
     _memoryPreference = memoryPreference
     _getMemoryUsage = getMemoryUsage
     _getArkTsMemoryUsage = getArkTsMemoryUsage
-    _getArkTsTotalHeap = getArkTsTotalHeap
+    _getArkTsMemoryLimit = getArkTsMemoryLimit
+    _getTotalMemoryLimit = getTotalMemoryLimit
     _reportPageMemoryInfo = reporPageMemoryInfo
     _reportProcessMemoryInfo = reporProcessMemoryInfo
     MEMOMRY_THRESHOLD = memoryThreshold
+
+    // 设置触顶阈值
+    pageMemoryInfo.setTotalRatioThreshold(totalRatio)
+    pageMemoryInfo.setCJRatioThreshold(cjRatio)
+    pageMemoryInfo.setArkTsRatioThreshold(arkTsRatio)
+    processMemoryInfo.setTotalRatioThreshold(totalRatio)
+    processMemoryInfo.setCJRatioThreshold(cjRatio)
+    processMemoryInfo.setArkTsRatioThreshold(arkTsRatio)
 
     let lastProcessMemory = getStoragedProcessMemory()
     _reportProcessMemoryInfo(lastProcessMemory.toInteropProcessMemotyInfo())

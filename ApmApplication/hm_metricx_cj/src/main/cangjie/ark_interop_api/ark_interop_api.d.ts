@@ -163,9 +163,20 @@ export declare class InteropProcessMemoryInfo {
     maxCJMemory: number
     avgArkTsMemory: number
     maxArkTsMemory: number
-    totalHeap: number
     sampleCount: number
     pid: number
+    totalMemoryLimit: number
+    cjMemoryLimit: number
+    arkTsMemoryLimit: number
+    isTotalTop: boolean
+    isCJTop: boolean
+    isArkTsTop: boolean
+    memoryAvgUsageRate: number
+    memoryMaxUsageRate: number
+    cjMemoryAvgUsageRate: number
+    cjMemoryMaxUsageRate: number
+    arkTsMemoryAvgUsageRate: number
+    arkTsMemoryMaxUsageRate: number
 }
 
 export declare class InteropPageCpuInfo {
@@ -217,9 +228,20 @@ export declare class InteropPageMemoryInfo {
     maxCJMemory: number
     avgArkTsMemory: number
     maxArkTsMemory: number
-    totalHeap: number
     sampleCount: number
     pageName: string
+    totalMemoryLimit: number
+    cjMemoryLimit: number
+    arkTsMemoryLimit: number
+    isTotalTop: boolean
+    isCJTop: boolean
+    isArkTsTop: boolean
+    memoryAvgUsageRate: number
+    memoryMaxUsageRate: number
+    cjMemoryAvgUsageRate: number
+    cjMemoryMaxUsageRate: number
+    arkTsMemoryAvgUsageRate: number
+    arkTsMemoryMaxUsageRate: number
 }
 
 export declare class FpsEventInfo {
@@ -318,11 +340,11 @@ export declare interface CustomLib {
     InteropDayTrafficInfo: {new (u: number, d: number, date: string): InteropDayTrafficInfo}
     InteropSampleTrafficInfo: {new (s: InteropSystemTrafficInfo, p: Map<string, InteropPageTrafficInfo>): InteropSampleTrafficInfo}
     FpsEventInfo: {new (minFps: number, avgFps: number, pageName: string): FpsEventInfo}
-    InteropPageMemoryInfo: {new (a: number, m: number, acj: number, mcj: number, aark: number, mark: number, th: number, s: number, p: string): InteropPageMemoryInfo}
+    InteropPageMemoryInfo: {new (a: number, m: number, acj: number, mcj: number, aark: number, mark: number, s: number, p: string, tml: number, cjl: number, atl: number, itt: boolean, ict: boolean, iat: boolean, maur: number, mmur: number, cmaur: number, cmmur: number, atmaur: number, atmmur: number): InteropPageMemoryInfo}
     ScrollHitchInfo: {new (minFps: number, avgFps: number, frameDropRatio: number, jankRate: number, bigJankRate: number, htLessThan0: number, ht0To00001: number, ht00001To0001: number, ht0001To001: number, ht001To005: number, ht005To01: number, ht01To1: number, htBiggerThan1: number, targetFPS: number, longestLostFrame: number, totalFrameCount: number, pageName: string): ScrollHitchInfo}
     InteropFreezeInfo: {new (): InteropFreezeInfo}
     InteropPageCpuInfo: {new (a: number, m: number, s: number, p: string): InteropPageCpuInfo}
-    InteropProcessMemoryInfo: {new (a: number, m: number, acj: number, mcj: number, aark: number, mark: number, th: number, s: number, p: number): InteropProcessMemoryInfo}
+    InteropProcessMemoryInfo: {new (a: number, m: number, acj: number, mcj: number, aark: number, mark: number, s: number, p: number, tml: number, cjl: number, atl: number, itt: boolean, ict: boolean, iat: boolean, maur: number, mmur: number, cmaur: number, cmmur: number, atmaur: number, atmmur: number): InteropProcessMemoryInfo}
     InteropProcessCpuInfo: {new (a: number, m: number, s: number, p: number): InteropProcessCpuInfo}
     InteropThermalEventInfo: {new (): InteropThermalEventInfo}
     ResponseEvent: {new (): ResponseEvent}
@@ -369,8 +391,7 @@ export declare interface CustomLib {
     initCpuHandlerInterop(getCpuUsage: () => number, onNavDestinationSwitch: (funcArg0: (funcArgfuncArg0: string) => void) => void, repeatSampleAndReportCpu: (funcArg0: () => void, funcArg1: () => void) => void, reporPageCpuInfo: (funcArg0: InteropPageCpuInfo) => void, reporProcessCpuInfo: (funcArg0: InteropProcessCpuInfo) => void): void
     getPageMemoryInfoInterop(): InteropPageMemoryInfo
     getProcessMemoryInfoInterop(): InteropProcessMemoryInfo
-    initMemoryHandlerInterop(memoryPreference: MemoryPreference, getMemoryUsage: () => number, onNavDestinationSwitch: (funcArg0: (funcArgfuncArg0: string) => void) => void, repeatSampleAndReportMemory: (funcArg0: () => void, funcArg1: () => void, funcArg2: () => void) => void, reporPageMemoryInfo: (funcArg0: InteropPageMemoryInfo) => void, reporProcessMemoryInfo: (funcArg0: InteropProcessMemoryInfo) => void, memoryThreshold: number): void
-    initMemoryHandlerInterop(memoryPreference: MemoryPreference, getMemoryUsage: () => number, getArkTsMemoryUsage: () => number, getArkTsTotalHeap: () => number, onNavDestinationSwitch: (funcArg0: (funcArgfuncArg0: string) => void) => void, repeatSampleAndReportMemory: (funcArg0: () => void, funcArg1: () => void, funcArg2: () => void) => void, reporPageMemoryInfo: (funcArg0: InteropPageMemoryInfo) => void, reporProcessMemoryInfo: (funcArg0: InteropProcessMemoryInfo) => void, memoryThreshold: number): void
+    initMemoryHandlerInterop(memoryPreference: MemoryPreference, getMemoryUsage: () => number, getArkTsMemoryUsage: () => number, getArkTsMemoryLimit: () => number, getTotalMemoryLimit: () => number, onNavDestinationSwitch: (funcArg0: (funcArgfuncArg0: string) => void) => void, repeatSampleAndReportMemory: (funcArg0: () => void, funcArg1: () => void, funcArg2: () => void) => void, reporPageMemoryInfo: (funcArg0: InteropPageMemoryInfo) => void, reporProcessMemoryInfo: (funcArg0: InteropProcessMemoryInfo) => void, memoryThreshold: number, totalRatio: number, cjRatio: number, arkTsRatio: number): void
 
     destroyMemoryHandlerInterop(): void
     initTrafficHandlerInterop(preference: TrafficPreference, onNavDestinationSwitch: (funcArg0: (funcArgfuncArg0: string) => void) => void, repeatSampleTraffic: (funcArg0: () => void) => void, getUidRxAndTxBytes: (funcArg0: (funcArgfuncArg0: number, funcArgfuncArg1: number, funcArgfuncArg2: string) => void, funcArg1: string) => void, reportTraffic: (funcArg0: InteropSampleTrafficInfo) => void, reportYesterdayTraffic: (funcArg0: InteropDayTrafficInfo) => void, sampleThreshold: number): void
