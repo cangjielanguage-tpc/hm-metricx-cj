@@ -21,6 +21,7 @@ import ohos_app_cangjie_hm_metricx_cj.laggy.*
 import ohos_app_cangjie_hm_metricx_cj.traffic.*
 import ohos_app_cangjie_hm_metricx_cj.memLeak.*
 import ohos_app_cangjie_hm_metricx_cj.thermal.*
+import ohos_app_cangjie_hm_metricx_cj.exitInfo.*
 import stdx.encoding.json.*
 import std.fs.*
 import ohos.hilog.*
@@ -39,6 +40,17 @@ class EntryAbility <: UIAbility {
                     .START_ABILITY => AppLog.info("START_ABILITY")
             case _ => ()
         }
+        initExitInfoHandler(
+            this.context,
+            launchParam,
+            { data: ExitInfo =>
+                AppLog.error("[MetricX][ExitInfo] ${data.toString()}")
+            },
+            { data: AppStateInfo =>
+                AppLog.error("[MetricX][AppState] ${data.toString()}")
+            },
+            Path(this.context.cacheDir)
+        )
         initCrashHandler(this
             .context
             .getApplicationContext(), {=> JsonValue.fromStr("{}")}, {=> unsafe { LibC.mallocCString("{}") }}, {data => AppLog.error("xxx: " + data.rawFile.toString())},
@@ -134,6 +146,7 @@ class EntryAbility <: UIAbility {
         destroyCpuHandler()
         destroyMemoryHandler()
         destroyTrafficHandler()
+        destroyExitInfoHandler()
         AppLog.info("myAbility onDestroy.")
     }
 
