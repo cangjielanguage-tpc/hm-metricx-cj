@@ -111,6 +111,28 @@ struct Index {
         .fontSize(22)
         .fontWeight(FontWeight.Bold)
 
+      Button("模拟 Freeze")
+        .onClick(() => {
+          while(true) {}  // 阻塞事件循环
+        })
+      Button('模拟 Crash')
+        .fontSize($r('app.float.page_text_font_size'))
+        .fontWeight(FontWeight.Bold)
+        .alignRules({
+          center: { anchor: '__container__', align: VerticalAlign.Center },
+          middle: { anchor: '__container__', align: HorizontalAlign.Center }
+        })
+        .onClick(() => {
+          // 更新 UI 文本
+          this.message = '准备触发 Crash';
+
+          // 模拟 ArkTS crash：抛出异常
+          throw new Error("Simulated crash in ArkTS");
+
+          // 如果你想模拟 UI 卡死（Freeze），可以使用：
+          // while(true) {}
+        })
+
       Button('刷新显示')
         .onClick((): void => {
           this.syncFromStore()
