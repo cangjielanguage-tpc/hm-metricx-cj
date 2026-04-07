@@ -30,6 +30,7 @@ import {
   DisplaySync,
   Logger,
   ExitInfo,
+  AppStateInfo,
   InteropDayTrafficInfo as DayTrafficInfo,
   InteropHighCpuMonitorConfig
 } from 'libark_interop_api.so';
@@ -350,6 +351,50 @@ export function getExitInfo(launchParam: AbilityConstant.LaunchParam): ExitInfo 
     return {} as ExitInfo;
   }
   return cjLibExitInfo.getExitInfoInterop(launchParam.lastExitMessage, launchParam.lastExitReason);
+}
+
+/**
+ * 初始化 exitInfo Handler
+ */
+let exitInfoWrapperDestroyed = false;
+
+export function initExitInfoHandler(
+  lastExitMessage: string,
+  lastExitReason: number,
+  reportExitInfoHandler: (data: ExitInfo) => void,
+  reportAppStateHandler: (data: AppStateInfo) => void
+): void {
+  if (!cjLibExitInfo) {
+    hilog.warn(DOMAIN, TAG, 'initExitInfoHandler called but exitinfo module is disabled');
+    return;
+  }
+  exitInfoWrapperDestroyed = false;
+
+  const jsReportExitInfo = (data: ExitInfo) => {
+    if (exitInfoWrapperDestroyed) return;
+    reportExitInfoHandler(data);
+  };
+
+  const jsReportAppState = (data: AppStateInfo) => {
+    if (exitInfoWrapperDestroyed) return;
+    reportAppStateHandler(data);
+  };
+
+  // 调用仓颉实现的 initExitInfoHandler
+  cjLibExitInfo!.initExitInfoHandlerInterop(
+    lastExitMessage,
+    lastExitReason,
+    jsReportExitInfo,
+    jsReportAppState
+  );
+}
+
+/**
+ * 销毁 exitInfo Handler
+ */
+export function destroyExitInfoHandler(): void {
+  exitInfoWrapperDestroyed = true;
+  cjLibExitInfo!.destroyExitInfoHandlerInterop();
 }
 
 export function initFreezeHandler(
