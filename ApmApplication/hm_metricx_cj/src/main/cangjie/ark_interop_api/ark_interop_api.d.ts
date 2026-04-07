@@ -327,12 +327,23 @@ export declare class InteropStorageFileInfo {
 }
 
 export declare class ExitInfo {
-    lastExitMessage: string
-    lastExitReason: string
+    exitMessage: string
+    exitReason: string
+    isBackground: boolean
+    appState: string
+    stateChangeTime: number
+    timestamp: number
+}
+
+export declare class AppStateInfo {
+    appState: string
+    stateChangeTime: number
+    timestamp: number
 }
 
 export declare interface CustomLib {
-    ExitInfo: {new (exitMessage: string, exitReason: string): ExitInfo}
+    ExitInfo: {new (exitMessage: string, exitReason: string, isBackground: boolean, appState: string, stateChangeTime: number, timestamp: number): ExitInfo}
+    AppStateInfo: {new (appState: string, stateChangeTime: number, timestamp: number): AppStateInfo}
     InteropStorageFileInfo: {new (p: string, s: number, ss: Array<InteropStorageFileInfo>, i: boolean): InteropStorageFileInfo}
     InteropStorageInfo: {new (a: number, c: number, d: number, t: number, ts: Array<InteropStorageFileInfo>, es: Array<InteropStorageFileInfo>): InteropStorageInfo}
     InteropSystemTrafficInfo: {new (u: number, d: number, t: string): InteropSystemTrafficInfo}
@@ -411,4 +422,8 @@ export declare interface CustomLib {
     triggerHighCpuReportInterop(): void
     isHighCpuMonitoringActiveInterop(): boolean
     InteropHighCpuMonitorConfig: {new (cpuThreshold: number, foregroundIntervalMs: number, backgroundIntervalMs: number, monitorDurationMs: number, threadCooldownMs: number, globalCooldownMs: number, highSampleRatioThreshold: number, topNThreads: number): InteropHighCpuMonitorConfig}
+
+    initExitInfoHandlerInterop(lastExitMessage: string, lastExitReasonValue: number, reportExitInfoHandler: (funcArg0: ExitInfo) => void, reportAppStateHandler: (funcArg0: AppStateInfo) => void): void
+    destroyExitInfoHandlerInterop(): void
+    initMemoryHandlerInterop(memoryPreference: MemoryPreference, getMemoryUsage: () => number, getArkTsMemoryUsage: () => number, getArkTsTotalHeap: () => number, getTotalMemoryLimit: () => number, onNavDestinationSwitch: (funcArg0: (funcArgfuncArg0: string) => void) => void, repeatSampleAndReportMemory: (funcArg0: () => void, funcArg1: () => void, funcArg2: () => void) => void, reporPageMemoryInfo: (funcArg0: InteropPageMemoryInfo) => void, reporProcessMemoryInfo: (funcArg0: InteropProcessMemoryInfo) => void, memoryThreshold: number, totalRatio: number, cjRatio: number, arkTsRatio: number): void
 }
