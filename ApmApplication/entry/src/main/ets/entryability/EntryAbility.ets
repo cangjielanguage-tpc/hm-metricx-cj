@@ -9,7 +9,7 @@ import {
   initCrashHandler,
   initStorageHandler,
   initTrafficHandler,
-  getExitInfo,
+  initExitInfoHandler,
   initFreezeHandler,
   initMemoryHandler,
   destroyMemoryHandler,
@@ -21,7 +21,6 @@ import {
   destroyCpuHandler,
   destroyTrafficHandler,
   initThermalHandler,
-  destroyThermalHandler,
   initHighCpuMonitorHandler,
   destroyHighCpuMonitorHandler,
   HighCpuMonitorConfig,
@@ -33,7 +32,20 @@ const DOMAIN = 0x0000;
 export default class EntryAbility extends UIAbility {
   onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): void {
     hilog.error(DOMAIN, 'testTag', '%{public}s', 'Ability onCreate');
-    getExitInfo(launchParam);
+    const lastExitMessage = launchParam?.lastExitMessage ?? 'unknown';
+    const lastExitReasonValue = launchParam?.lastExitReason ?? 0; // 0 = UNKNOWN
+
+    initExitInfoHandler(
+      lastExitMessage,
+      lastExitReasonValue,
+      (exitInfo) => {
+        hilog.error(0x0000, 'exitInfo', `ExitInfo: message=${exitInfo.exitMessage}, reason=${exitInfo.exitReason}, appState=${exitInfo.appState}, isBackground=${exitInfo.isBackground}`);
+      },
+      (appStateInfo) => {
+        hilog.error(0x0000, 'exitInfo', `AppStateInfo: state=${appStateInfo.appState}, timestamp=${appStateInfo.timestamp}`);
+      }
+    );
+
     initCrashHandler(
       this.context.getApplicationContext(),
       () => "{}",
