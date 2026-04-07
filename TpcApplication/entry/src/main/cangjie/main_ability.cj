@@ -21,6 +21,7 @@ import ohos_app_cangjie_hm_metricx_cj.laggy.*
 import ohos_app_cangjie_hm_metricx_cj.traffic.*
 import ohos_app_cangjie_hm_metricx_cj.memLeak.*
 import ohos_app_cangjie_hm_metricx_cj.thermal.*
+import ohos_app_cangjie_hm_metricx_cj.exitInfo.*
 import stdx.encoding.json.*
 import std.fs.*
 import ohos.hilog.*
@@ -39,6 +40,17 @@ class EntryAbility <: UIAbility {
                     .START_ABILITY => AppLog.info("START_ABILITY")
             case _ => ()
         }
+        initExitInfoHandler(
+            this.context,
+            launchParam,
+            { data: ExitInfo =>
+                AppLog.error("[MetricX][ExitInfo] ${data.toString()}")
+            },
+            { data: AppStateInfo =>
+                AppLog.error("[MetricX][AppState] ${data.toString()}")
+            },
+            Path(this.context.cacheDir)
+        )
         initCrashHandler(this
             .context
             .getApplicationContext(), {=> JsonValue.fromStr("{}")}, {=> unsafe { LibC.mallocCString("{}") }}, {data => AppLog.error("xxx: " + data.rawFile.toString())},
@@ -71,12 +83,57 @@ class EntryAbility <: UIAbility {
                 .START_ABILITY => AppLog.info("START_ABILITY")
             case _ => ()
         }
-        
+
+        // 高 CPU 占用监控初始化
+        initHighCpuMonitorHandler(
+            this.context,
+            HighCpuMonitorConfig(
+                cpuThreshold: 0.05,
+                foregroundIntervalMs: 1000,
+                backgroundIntervalMs: 2000,
+                monitorDurationMs: 33000,
+                threadCooldownMs: 60000,
+                globalCooldownMs: 3000,
+                highSampleRatioThreshold: 0.85,
+                topNThreads: 10
+            ),
+            { reportInfo =>
+                AppLog.warn("===== 高 CPU 占用上报 =====")
+                AppLog.warn("时间：${reportInfo.timestamp}")
+                AppLog.warn("进程：${reportInfo.processName} (PID: ${reportInfo.pid})")
+                AppLog.warn("页面：${reportInfo.pageName}")
+                AppLog.warn("进程平均 CPU: ${reportInfo.avgProcessCpu}")
+                AppLog.warn("进程最大 CPU: ${reportInfo.maxProcessCpu}")
+                AppLog.warn("监控时长：${reportInfo.monitorDuration}毫秒")
+                AppLog.warn("高占用线程数：${reportInfo.highCpuThreads.size}")
+
+                for (threadInfo in reportInfo.highCpuThreads) {
+                    AppLog.warn("--- 线程信息 ---")
+                    AppLog.warn("  TID: ${threadInfo.tid}")
+                    AppLog.warn("  线程名：${threadInfo.threadName}")
+                    AppLog.warn("  平均 CPU: ${threadInfo.avgCpuUsage}")
+                    AppLog.warn("  最大 CPU: ${threadInfo.maxCpuUsage}")
+                    AppLog.warn("  采样次数：${threadInfo.sampleCount}")
+                    AppLog.warn("  高采样比例：${threadInfo.getHighSampleRatio()}")
+                }
+            }
+        )
+        AppLog.info("高 CPU 监控已启动（生产模式：3 分钟上报，50% 阈值，85% 高采样比例）")
+
         initTrafficHandler(this.context, {data =>}, {data =>})
         initStorageHandler({data: StorageInfo =>}, sizeLimit: 100000000, dirSizeLimit: 1000, reportTopNum: 5)
         initBatteryHandler(this.context, {data =>}, {data =>})
         initCpuHandler(this.context, {data =>}, {data =>})
-        initMemoryHandler(this.context, {data =>}, {data=>})
+
+        // 测试自定义报告间隔和保存间隔（参数单位：毫秒）
+        initMemoryHandler(
+            this.context,
+            {data => AppLog.info("initMemoryHandler : ${data.toString()}")},
+            {data => AppLog.info("initMemoryHandler2 : ${data.toString()}")},
+            sampleInterval : 5 * 1000,
+            reportInterval : 6 * 1000,
+            saveInterval : 30 * 1000
+        )
         initMemLeakHandler(this.context, Path(this
             .context
             .cacheDir), {pageInfo, typeInfos => true}, {typeInfos => false},
@@ -84,10 +141,12 @@ class EntryAbility <: UIAbility {
     }
 
     public override func onDestroy(): Unit {
+        destroyHighCpuMonitorHandler()
         destroyBatteryHandler()
         destroyCpuHandler()
         destroyMemoryHandler()
         destroyTrafficHandler()
+        destroyExitInfoHandler()
         AppLog.info("myAbility onDestroy.")
     }
 
