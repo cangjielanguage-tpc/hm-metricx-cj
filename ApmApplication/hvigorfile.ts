@@ -8,10 +8,28 @@ function ensureDir(p: string) {
 }
 
 function copyIfExists(src: string, dst: string) {
-  if (fs.existsSync(src)) {
-    ensureDir(path.dirname(dst));
-    fs.copyFileSync(src, dst);
+  if (!fs.existsSync(src)) return;
+  ensureDir(path.dirname(dst));
+  fs.copyFileSync(src, dst);
+}
+
+function pruneDirToWhitelist(dir: string, keepFiles: string[]) {
+  if (!fs.existsSync(dir)) return;
+
+  for (const entry of fs.readdirSync(dir)) {
+    if (!entry.endsWith('.so')) continue;
+    if (keepFiles.includes(entry)) continue;
+
+    fs.rmSync(path.join(dir, entry), { force: true });
   }
+}
+
+function getNodeByName(root: any, name: string): any | null {
+  let found: any = null;
+  root.subNodes((n: any) => {
+    if (n.getNodeName() === name) found = n;
+  });
+  return found;
 }
 
 const RUNTIME_DIFF_LIBS = [
@@ -19,33 +37,59 @@ const RUNTIME_DIFF_LIBS = [
   'libark_interop_diff.z.so',
   'libcangjie-runtime_diff.z.so',
   'libcj_frontend_ohos_diff.z.so',
+  'libtransform_interaction_ext.z.so',
+  'libohos.base.so',
 ];
 
 hvigor.nodesEvaluated(() => {
-  console.log('[plugin] hvigor.nodesEvaluated triggered'); // 打印触发
-
   const root = hvigor.getRootNode();
-  console.log('[plugin] root node:', root);
+  const hmNode = getNodeByName(root, 'hm_metricx_cj');
+  const entryNode = getNodeByName(root, 'entry');
 
-  let hmMetricxPath = '';
-  root.subNodes(n => {
-    if (n.getNodeName() === 'hm_metricx_cj') hmMetricxPath = n.getNodePath();
-  });
-  console.log('[plugin] hm_metricxPath:', hmMetricxPath);
+  if (!hmNode || !entryNode) return;
 
-  root.subNodes(node => {
-    console.log('[plugin] visiting node:', node.getNodeName ? node.getNodeName() : '(unknown)');
+  const task = entryNode.getTaskByName('default@CacheNativeLibs');
+  if (!task || typeof task.afterRun !== 'function') return;
 
-    if (node.getNodeName() === 'hm_metricx_cj') {
-      const task = node.getTaskByName('default@CacheNativeLibs');
-      console.log('[plugin] hm_metricx_cj task:', task);
-      task.afterRun(() => console.log('[plugin] hm_metricx_cj CacheNativeLibs afterRun triggered'));
+  task.afterRun(() => {
+    const hmMetricxPath = hmNode.getNodePath();
+    const entryRuntimeDirs = [
+      path.join(entryNode.getNodePath(), 'build/default/intermediates/stripped_native_libs/default/arm64-v8a/runtime'),
+      path.join(entryNode.getNodePath(), 'build/default/intermediates/libs/default/arm64-v8a/runtime'),
+    ];
+
+    for (const dir of entryRuntimeDirs) {
+      ensureDir(dir);
     }
 
-    if (node.getNodeName() === 'entry') {
-      const task = node.getTaskByName('default@CacheNativeLibs');
-      console.log('[plugin] entry task:', task);
-      task.afterRun(() => console.log('[plugin] entry CacheNativeLibs afterRun triggered'));
+    const srcCandidates = [
+      path.join(hmMetricxPath, 'build/default/intermediates/stripped_native_libs/default/arm64-v8a/ohos'),
+      path.join(hmMetricxPath, 'build/default/intermediates/libs/default/arm64-v8a/ohos'),
+      path.join(hmMetricxPath, 'build/default/intermediates/cj/libs/default/arm64-v8a/ohos'),
+    ];
+
+    for (const lib of RUNTIME_DIFF_LIBS) {
+      for (const entryRuntimeDir of entryRuntimeDirs) {
+        const dst = path.join(entryRuntimeDir, lib);
+        if (fs.existsSync(dst)) continue;
+
+        for (const srcDir of srcCandidates) {
+          const src = path.join(srcDir, lib);
+          if (fs.existsSync(src)) {
+            copyIfExists(src, dst);
+            break;
+          }
+        }
+      }
+    }
+
+    const entryOhosDirs = [
+      path.join(entryNode.getNodePath(), 'build/default/intermediates/stripped_native_libs/default/arm64-v8a/ohos'),
+      path.join(entryNode.getNodePath(), 'build/default/intermediates/libs/default/arm64-v8a/ohos'),
+    ];
+
+    for (const dir of entryOhosDirs) {
+      pruneDirToWhitelist(dir, RUNTIME_DIFF_LIBS);
     }
   });
 });
