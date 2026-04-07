@@ -430,6 +430,16 @@ function getArkTsTotalHeap(): number {
   }
 }
 
+function getTotalMemoryLimit(): number {
+  try {
+    const appMemoryLimit = hidebug.getAppMemoryLimit();
+    return Number(appMemoryLimit.vmHeapLimit);
+  } catch (e) {
+    hilog.warn(DOMAIN, TAG, 'getTotalMemoryLimit failed: ' + JSON.stringify(e));
+    return 0;
+  }
+}
+
 // 时间间隔边界值常量（毫秒）
 const MIN_INTERVAL = 0;           // 最小间隔：0ms
 const MAX_INTERVAL = 60 * 60 * 1000; // 最大间隔：1 小时
@@ -459,18 +469,26 @@ export function initMemoryHandler(
   memoryThreshold: number,
   sampleInterval?: number,
   reportInterval?: number,
-  saveInterval?: number
+  saveInterval?: number,
+  totalRatio?: number,
+  cjRatio?: number,
+  arkTsRatio?: number
 ): void {
   if (!cjLibMemory) {
     hilog.warn(DOMAIN, TAG, 'initMemoryHandler called but memory module is disabled');
     return;
   }
-  
+
   // 边界值校验，超出范围则使用默认值
   const validSampleInterval = validateInterval(sampleInterval, DEFAULT_SAMPLE_INTERVAL);
   const validReportInterval = validateInterval(reportInterval, DEFAULT_REPORT_INTERVAL);
   const validSaveInterval = validateInterval(saveInterval, DEFAULT_SAVE_INTERVAL);
   
+  // ratio边界值校验，超出范围则使用默认值0.8
+  const validTotalRatio = (totalRatio === undefined || totalRatio < 0 || totalRatio > 1) ? 0.8 : totalRatio;
+  const validCjRatio = (cjRatio === undefined || cjRatio < 0 || cjRatio > 1) ? 0.8 : cjRatio;
+  const validArkTsRatio = (arkTsRatio === undefined || arkTsRatio < 0 || arkTsRatio > 1) ? 0.8 : arkTsRatio;
+
   let preference = preferences.getPreferencesSync(context, { name: 'hm_metricx_cj:Memory' });
   let p: MemoryPreference = {
     put: (key: string, value: number): void => {
@@ -499,8 +517,8 @@ export function initMemoryHandler(
     }, validSampleInterval);
   };
   cjLibMemory.initMemoryHandlerInterop(p, getMemoryUsage, getArkTsMemoryUsage, getArkTsTotalHeap,
-    onNavDestinationSwitch, repeatSampleAndReportMemory, reportPageMemoryInfo,
-    reportProcessMemoryInfo, memoryThreshold);
+    getTotalMemoryLimit, onNavDestinationSwitch, repeatSampleAndReportMemory, reportPageMemoryInfo,
+    reportProcessMemoryInfo, memoryThreshold, validTotalRatio, validCjRatio, validArkTsRatio);
 }
 
 export function destroyMemoryHandler(): void {

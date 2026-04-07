@@ -20,15 +20,20 @@ public func initMemoryHandlerInterop(
     getMemoryUsage: () -> Int64,
     getArkTsMemoryUsage: () -> Int64,
     getArkTsTotalHeap: () -> Int64,
+    getTotalMemoryLimit: () -> Int64,
     onNavDestinationSwitch: ((String) -> Unit) -> Unit,
     repeatSampleAndReportMemory: (() -> Unit, () -> Unit, () -> Unit) -> Unit,
     reporPageMemoryInfo: (InteropPageMemoryInfo) -> Unit,
     reporProcessMemoryInfo: (InteropProcessMemoryInfo) -> Unit,
-    memoryThreshold: Int64
+    memoryThreshold: Int64,
+    totalRatio: Float64,
+    cjRatio: Float64,
+    arkTsRatio: Float64
 ): Unit {
     initMemoryHandler(memoryPreference, getMemoryUsage, getArkTsMemoryUsage, getArkTsTotalHeap,
-        onNavDestinationSwitch, repeatSampleAndReportMemory,
-        reporPageMemoryInfo, reporProcessMemoryInfo, memoryThreshold: memoryThreshold)
+        getTotalMemoryLimit, onNavDestinationSwitch, repeatSampleAndReportMemory,
+        reporPageMemoryInfo, reporProcessMemoryInfo, memoryThreshold: memoryThreshold,
+        totalRatio: totalRatio, cjRatio: cjRatio, arkTsRatio: arkTsRatio)
 }
 
 @Interop[ArkTS]

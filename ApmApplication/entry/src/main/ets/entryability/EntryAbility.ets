@@ -108,7 +108,12 @@ export default class EntryAbility extends UIAbility {
           `pageName = ${data.pageName}, avgMemory = ${data.avgMemory}, maxMemory = ${data.maxMemory}, ` +
             `avgCJMemory = ${data.avgCJMemory}, maxCJMemory = ${data.maxCJMemory}, ` +
             `avgArkTsMemory = ${data.avgArkTsMemory}, maxArkTsMemory = ${data.maxArkTsMemory}, ` +
-            `totalHeap = ${data.totalHeap}, sampleCount = ${data.sampleCount}`
+            `sampleCount = ${data.sampleCount}, ` +
+            `totalMemoryLimit = ${data.totalMemoryLimit}, cjMemoryLimit = ${data.cjMemoryLimit}, arkTsMemoryLimit = ${data.arkTsMemoryLimit}, ` +
+            `isTotalTop = ${data.isTotalTop}, isCJTop = ${data.isCJTop}, isArkTsTop = ${data.isArkTsTop}, ` +
+            `memoryAvgUsageRate = ${data.memoryAvgUsageRate}, memoryMaxUsageRate = ${data.memoryMaxUsageRate}, ` +
+            `cjMemoryAvgUsageRate = ${data.cjMemoryAvgUsageRate}, cjMemoryMaxUsageRate = ${data.cjMemoryMaxUsageRate}, ` +
+            `arkTsMemoryAvgUsageRate = ${data.arkTsMemoryAvgUsageRate}, arkTsMemoryMaxUsageRate = ${data.arkTsMemoryMaxUsageRate}`
         );
       },
       data => {
@@ -119,7 +124,12 @@ export default class EntryAbility extends UIAbility {
           `pid = ${data.pid}, avgMemory = ${data.avgMemory}, maxMemory = ${data.maxMemory}, ` +
             `avgCJMemory = ${data.avgCJMemory}, maxCJMemory = ${data.maxCJMemory}, ` +
             `avgArkTsMemory = ${data.avgArkTsMemory}, maxArkTsMemory = ${data.maxArkTsMemory}, ` +
-            `totalHeap = ${data.totalHeap}, sampleCount = ${data.sampleCount}`
+            `sampleCount = ${data.sampleCount}, ` +
+            `totalMemoryLimit = ${data.totalMemoryLimit}, cjMemoryLimit = ${data.cjMemoryLimit}, arkTsMemoryLimit = ${data.arkTsMemoryLimit}, ` +
+            `isTotalTop = ${data.isTotalTop}, isCJTop = ${data.isCJTop}, isArkTsTop = ${data.isArkTsTop}, ` +
+            `memoryAvgUsageRate = ${data.memoryAvgUsageRate}, memoryMaxUsageRate = ${data.memoryMaxUsageRate}, ` +
+            `cjMemoryAvgUsageRate = ${data.cjMemoryAvgUsageRate}, cjMemoryMaxUsageRate = ${data.cjMemoryMaxUsageRate}, ` +
+            `arkTsMemoryAvgUsageRate = ${data.arkTsMemoryAvgUsageRate}, arkTsMemoryMaxUsageRate = ${data.arkTsMemoryMaxUsageRate}`
         );
       },
       100 * 1024,
