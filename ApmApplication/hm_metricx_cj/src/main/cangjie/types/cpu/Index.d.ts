@@ -84,3 +84,39 @@ export declare function triggerHighCpuReportInterop(): void
  * 检查高 CPU 监控是否正在运行
  */
 export declare function isHighCpuMonitoringActiveInterop(): boolean
+
+/**
+ * 后台监控配置互操作类
+ */
+export declare class InteropBackgroundCpuMonitorConfig {
+    cpuThreshold: number
+    warnDurationMs: number
+    errorDurationMs: number
+    fatalDurationMs: number
+    sampleIntervalMs: number
+    windowSizeMs: number
+    constructor (
+        cpuThreshold: number,
+        warnDurationMs: number,
+        errorDurationMs: number,
+        fatalDurationMs: number,
+        sampleIntervalMs: number,
+        windowSizeMs: number
+    )
+}
+
+/**
+ * 初始化后台活动超长率监控
+ */
+export declare function initBackgroundCpuMonitorHandlerInterop(
+    config: InteropBackgroundCpuMonitorConfig,
+    getAppThreadCpuUsageJson: () => string,
+    repeatSample: (funcArg0: () => void) => void,
+    clearSample: () => void,
+    reportHighCpuInfoJson: (funcArg0: string) => void
+): void
+
+/**
+ * 销毁后台活动超长率监控
+ */
+export declare function destroyBackgroundCpuMonitorHandlerInterop(): void

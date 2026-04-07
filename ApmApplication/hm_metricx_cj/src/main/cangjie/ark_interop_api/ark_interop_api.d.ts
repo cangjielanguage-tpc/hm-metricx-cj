@@ -1,3 +1,12 @@
+export declare class InteropBackgroundCpuMonitorConfig {
+    cpuThreshold: number
+    warnDurationMs: number
+    errorDurationMs: number
+    fatalDurationMs: number
+    sampleIntervalMs: number
+    windowSizeMs: number
+}
+
 export declare class InteropAppStateInfo {
     appState: string
     stateChangeTime: number
@@ -426,4 +435,7 @@ export declare interface CustomLib {
     initExitInfoHandlerInterop(lastExitMessage: string, lastExitReasonValue: number, reportExitInfoHandler: (funcArg0: ExitInfo) => void, reportAppStateHandler: (funcArg0: AppStateInfo) => void): void
     destroyExitInfoHandlerInterop(): void
     initMemoryHandlerInterop(memoryPreference: MemoryPreference, getMemoryUsage: () => number, getArkTsMemoryUsage: () => number, getArkTsTotalHeap: () => number, getTotalMemoryLimit: () => number, onNavDestinationSwitch: (funcArg0: (funcArgfuncArg0: string) => void) => void, repeatSampleAndReportMemory: (funcArg0: () => void, funcArg1: () => void, funcArg2: () => void) => void, reporPageMemoryInfo: (funcArg0: InteropPageMemoryInfo) => void, reporProcessMemoryInfo: (funcArg0: InteropProcessMemoryInfo) => void, memoryThreshold: number, totalRatio: number, cjRatio: number, arkTsRatio: number): void
+    InteropBackgroundCpuMonitorConfig: {new (cpuThreshold: number, warnDurationMs: number, errorDurationMs: number, fatalDurationMs: number, sampleIntervalMs: number, windowSizeMs: number): InteropBackgroundCpuMonitorConfig}
+    initBackgroundCpuMonitorHandlerInterop(config: InteropBackgroundCpuMonitorConfig, getAppThreadCpuUsageJson: () => string, repeatSample: (funcArg0: () => void) => void, clearSample: () => void, reportHighCpuInfoJson: (funcArg0: string) => void): void
+    destroyBackgroundCpuMonitorHandlerInterop(): void
 }
