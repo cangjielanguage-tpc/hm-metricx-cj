@@ -7,7 +7,8 @@ import * as path from 'path';
  * ===================== 配置 =====================
  */
 const INCLUDE_FEATURES: string[] = [
-  'crash', 'memory', 'freeze', 'fps', 'thermal', 'laggy', 'cpu'
+  'battery', 'cpu', 'crash', 'exitInfo', 'fps', 'freeze', 'laggy',
+  'memLeak', 'memory', 'storage', 'thermal', 'traffic'
 ];
 
 const SO_PREFIX = 'libohos_app_cangjie_hm_metricx_cj.';
