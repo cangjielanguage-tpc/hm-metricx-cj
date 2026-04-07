@@ -147,7 +147,10 @@ export default class EntryAbility extends UIAbility {
       100 * 1024,
       5 * 1000,       // sampleInterval: 5 秒（测试用）
       6 * 1000,      // reportInterval: 15 秒（测试用）
-      10 * 1000       // saveInterval: 10 秒（测试用）
+      10 * 1000,       // saveInterval: 10 秒（测试用）
+      0.6,
+      0.6,
+      0.6
     );
     hilog.info(0x0000, 'memory', '测试：initMemoryHandler 使用自定义间隔 (5s/15s/10s)');
 
