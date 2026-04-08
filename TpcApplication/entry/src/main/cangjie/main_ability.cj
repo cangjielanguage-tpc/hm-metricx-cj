@@ -132,7 +132,10 @@ class EntryAbility <: UIAbility {
             {data => AppLog.info("initMemoryHandler2 : ${data.toString()}")},
             sampleInterval : 5 * 1000,
             reportInterval : 6 * 1000,
-            saveInterval : 30 * 1000
+            saveInterval : 30 * 1000,
+            totalRatio : 0.6,
+            cjRatio : 0.6,
+            arkTsRatio : 0.6
         )
         initMemLeakHandler(this.context, Path(this
             .context
