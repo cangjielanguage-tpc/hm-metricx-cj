@@ -232,6 +232,54 @@ class EntryAbility <: UIAbility {
 > 
 > 和监控Crash类似，如果应用编译开启了 `O2` 级别优化，在部分场景，freeze调用栈会出现漏栈、行号不准的问题。
 
+### 监控系统强杀
+`hm_metricx_cj` 提供
+```text
+public func initExitInfoHandler(
+    lastExitMessage: String,
+    lastExitReason: Int32,
+    reportExitInfoHandler: (ExitInfo) -> Unit,
+    reportAppStateHandler: (AppStateInfo) -> Unit
+): Unit
+```
+接口对系统强杀监控进行类型分类。
+
+`initExitInfoHandler` 需要的入参说明如下：
+- `launchParam：应用本次启动时系统传入的启动参数
+
+使用示例：
+
+i.
+在主模块的 `main_ability.cj` 的 `onCreate` 回调中调用 `initThermalHandler`：
+```text
+class EntryAbility <: UIAbility {
+    public override func onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): Unit {
+        AppLog.info("Ability OnCreated.${want.abilityName}")
+        match (launchParam.launchReason) {
+            case AbilityConstant.LaunchReason.START_ABILITY => AppLog.info("START_ABILITY")
+            case _ => ()
+        }
+        initExitInfoHandler(
+            this.context,
+            launchParam,
+            { data: ExitInfo =>
+                AppLog.error("[MetricX][ExitInfo] ${data.toString()}")
+            },
+            { data: AppStateInfo =>
+                AppLog.error("[MetricX][AppState] ${data.toString()}")
+            },
+            Path(this.context.cacheDir)
+        )
+        match (launchParam.launchReason) {
+            case AbilityConstant
+                .LaunchReason
+                .START_ABILITY => AppLog.info("START_ABILITY")
+            case _ => ()
+        }
+    }
+}
+```
+
 ### 监控热量
 `hm_metricx_cj` 提供
 ```text
