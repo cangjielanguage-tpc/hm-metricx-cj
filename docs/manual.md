@@ -247,6 +247,18 @@ public func initExitInfoHandler(
 `initExitInfoHandler` 需要的入参说明如下：
 - `launchParam：应用本次启动时系统传入的启动参数
 
+- `exitReason` 上次应用退出的原因，分类如下：
+    - `ability_not_responding` Ability未响应
+    - `app_freeze` 应用无响应
+    - `cpp_crash` Native层发出异常信号导致应用退出
+    - `js_error` JS层Error导致应用退出
+    - `unknown` 上次应用退出原因未被应用框架记录
+    - `normal` 正常退出，如用户主动关闭应用
+    - `performance_control` 系统能耗管控导致应用退出，如设备低内存
+    - `resource_control` 资源管控导致应用退出，如过量使用CPU/IO/内存资源
+    - `upgrade` 应用升级导致应用退出
+- `exitMessage` 上次应用退出的详细信息
+
 使用示例：
 
 i.
