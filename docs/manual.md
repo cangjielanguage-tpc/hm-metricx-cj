@@ -238,7 +238,7 @@ public func initExitInfoHandler(
 - `exitReason` 上次应用退出的原因，分类如下：
     - `ability_not_responding` Ability未响应
     - `app_freeze` 应用无响应
-    - `app_crash` Native层发出异常信号导致应用退出
+    - `cpp_crash` Native层发出异常信号导致应用退出
     - `js_error` JS层Error导致应用退出
     - `unknown` 上次应用退出原因未被应用框架记录
     - `normal` 正常退出，如用户主动关闭应用
