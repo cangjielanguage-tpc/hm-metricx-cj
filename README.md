@@ -23,6 +23,13 @@
 cangjie.compatible.sdk.location = \path to your compatible sdk\
 - 需要DevEco对应的sdk plugins, 在DevEco中File -> Setting -> Plugings: 点击installed右边的按键， 然后选择“Install Plugin From Disk...”把plugins的zip file直接导入。
 
+
+- Clone文件到本地
+```bat
+git clone https://gitcode.com/Cangjie-TPC/hm-metricx-cj.git
+```
+在 ~hm-metricx-cj-main\TpcApplication\tpc\src\main\cangjie下放入tpc_home的folder（和index.cj同一层）
+
 ## 优势
 
 - 覆盖范围广，支持收集多种量化指标
