@@ -16,6 +16,13 @@
 
 `hm-metricx-cj` 系统性地采集和分析监控指标数据，帮助开发团队及时发现性能瓶颈和异常，持续优化应用质量，提升用户体验。
 
+## DevEco Setup
+- 需要tpc: https://gitcode.com/xuyooo/TPC-HMOS 下载tpc_5.1_all, 然后改名为tpc_home.
+- 需要对应版本的stdx，在系统环境变量里设置加入变量名“CANGJIE_OHOS_STDX_PATH”，变量值是所对应的stdx-path：~\linux_ohos_aarch64_llvm\dynamic\stdx
+- 需要compatibe sdk, 在DevEco中Help->Edit Custom Properites加入一下指令：
+cangjie.compatible.sdk.location = \path to your compatible sdk\
+- 需要DevEco对应的sdk plugins, 在DevEco中File -> Setting -> Plugings: 点击installed右边的按键， 然后选择“Install Plugin From Disk...”把plugins的zip file直接导入。
+
 ## 优势
 
 - 覆盖范围广，支持收集多种量化指标
