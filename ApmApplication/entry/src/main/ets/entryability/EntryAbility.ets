@@ -24,7 +24,11 @@ import {
   initHighCpuMonitorHandler,
   destroyHighCpuMonitorHandler,
   HighCpuMonitorConfig,
-  HighCpuReportInfo
+  HighCpuReportInfo,
+  initBackgroundCpuMonitorHandler,
+  destroyBackgroundCpuMonitorHandler,
+  BackgroundCpuMonitorConfig,
+  BackgroundCpuReportInfo
 } from '@cangjie-tpc/hm_metricx_cj_hybrid';
 
 const DOMAIN = 0x0000;
@@ -197,15 +201,48 @@ export default class EntryAbility extends UIAbility {
       }
     );
     hilog.info(DOMAIN, 'HighCpuMonitor', '高 CPU 监控已启动（生产模式：33 秒上报，5% 阈值，85% 高采样比例）');
+
+    // 后台活动超长率监控初始化
+    initBackgroundCpuMonitorHandler(
+      this.context,
+      new BackgroundCpuMonitorConfig(
+        0.05,           // CPU 利用率阈值 5%
+        10000,           // 10 秒触发 WARN
+        30000,           // 30 秒触发 ERROR
+        60000,          // 60 秒触发 FATAL
+        1000,            // 1 秒采样一次
+        5000            // 5 秒滑动窗口
+      ),
+      (reportInfo: BackgroundCpuReportInfo) => {
+        hilog.warn(DOMAIN, 'BackgroundCpuMonitor', '===== 后台 CPU 活动超长率上报 =====');
+        hilog.warn(DOMAIN, 'BackgroundCpuMonitor', `时间：${reportInfo.timestamp}`);
+        hilog.warn(DOMAIN, 'BackgroundCpuMonitor', `进程：${reportInfo.processName} (PID: ${reportInfo.pid})`);
+        hilog.warn(DOMAIN, 'BackgroundCpuMonitor', `异常级别：${reportInfo.level}`);
+        hilog.warn(DOMAIN, 'BackgroundCpuMonitor', `后台时长：${reportInfo.backgroundDuration}ms`);
+        hilog.warn(DOMAIN, 'BackgroundCpuMonitor', `平均 CPU: ${reportInfo.avgCpuUsage}`);
+        hilog.warn(DOMAIN, 'BackgroundCpuMonitor', `最大 CPU: ${reportInfo.maxCpuUsage}`);
+        hilog.warn(DOMAIN, 'BackgroundCpuMonitor', `滑动窗口采样数：${reportInfo.windowSamples.length}`);
+
+        // 打印滑动窗口数据
+        for (const sample of reportInfo.windowSamples) {
+          hilog.warn(DOMAIN, 'BackgroundCpuMonitor', '--- 窗口采样 ---');
+          hilog.warn(DOMAIN, 'BackgroundCpuMonitor', `  时间戳：${sample.timestamp}`);
+          hilog.warn(DOMAIN, 'BackgroundCpuMonitor', `  CPU 使用率：${sample.cpuUsage}`);
+          hilog.warn(DOMAIN, 'BackgroundCpuMonitor', `  后台时长：${sample.duration}ms`);
+        }
+      }
+    );
+    hilog.info(DOMAIN, 'BackgroundCpuMonitor', '后台 CPU 监控已启动');
   }
 
   onDestroy(): void {
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onDestroy');
-    destroyHighCpuMonitorHandler();
     destroyMemoryHandler();
     destroyCpuHandler();
     destroyBatteryHandler();
     destroyTrafficHandler();
+    destroyHighCpuMonitorHandler();
+    destroyBackgroundCpuMonitorHandler();
   }
 
   onWindowStageCreate(windowStage: window.WindowStage): void {

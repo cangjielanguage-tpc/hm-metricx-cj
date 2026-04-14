@@ -603,6 +603,35 @@ var totalSampleCount: Int64 = 0
 // 高 CPU 采样次数（CPU>50% 的次数） 用于计算高采样比例，判定是否触发抓栈
 var highCpuSampleCount: Int64 = 0
 
+// --- 后台监控状态 ---
+// 监控是否已初始化（防止重复初始化）
+var backgroundCpuConfig: Option<BackgroundCpuMonitorConfig> = None
+var backgroundCpuCallback: Option<(info: BackgroundCpuReportInfo) -> Unit> = None
+var backgroundCpuMonitorInited: Bool = false
+
+var backgroundStartTime: Int64 = 0
+var isInBackground: Bool = false
+
+// 定时器控制回调 (由 ArkTS 传入)
+var repeatBackgroundSampleCallback: Option<(() -> Unit) -> Unit> = None
+var clearBackgroundSampleCallback: Option<() -> Unit> = None
+
+// --- 采样数据 ---
+// 滑动窗口采样数据
+var windowSamplesList: ArrayList<WindowSample> = ArrayList()
+// 进程 CPU 采样列表
+var backgroundCpuSamples: ArrayList<Float64> = ArrayList()
+// 线程采样数据：tid -> ThreadStackInfo
+var backgroundThreadSamples: HashMap<Int64, ThreadStackInfo> = HashMap()
+
+// --- 上报状态 ---
+// 各级别是否已上报
+var warnReported: Bool = false
+var errorReported: Bool = false
+var fatalReported: Bool = false
+// 抓栈锁（防止重复抓栈）
+var isBackgroundCapturingStack: Bool = false
+
 /**
  * 获取当前时间戳（毫秒）
  *
@@ -1195,18 +1224,43 @@ public func initHighCpuMonitorHandlerInternal(
 
 /**
  * 应用进入前台时调用（由 ArkTS 侧调用）
+ *
+ * 同时处理高 CPU 监控和后台监控的前台切换逻辑
  */
 public func onAppForegroundInternal(): Unit {
+    // 高 CPU 监控逻辑
     isAppForeground = true
     updateSampleInterval()
+    
+    // 后台监控逻辑
+    if (isInBackground) {
+        isInBackground = false
+        stopBackgroundMonitorInternal()
+        warnReported = false
+        errorReported = false
+        fatalReported = false
+        AppLog.info("hm-metricx-cj: App entered foreground, background monitoring stopped")
+    }
 }
 
 /**
  * 应用进入后台时调用（由 ArkTS 侧调用）
+ *
+ * 同时处理高 CPU 监控和后台监控的后台切换逻辑
  */
 public func onAppBackgroundInternal(): Unit {
+    // 高 CPU 监控逻辑
     isAppForeground = false
     updateSampleInterval()
+    
+    // 后台监控逻辑
+    if (!isInBackground) {
+        isInBackground = true
+        backgroundStartTime = getCurrentTimeMillis()
+        resetBackgroundMonitorData()
+        startBackgroundMonitorInternal()
+        AppLog.info("hm-metricx-cj: App entered background, background monitoring started")
+    }
 }
 
 /**
@@ -1424,4 +1478,420 @@ private func parseThreadCpuUsage(jsonStr: String): ArrayList<ThreadCpuUsageInfo>
     
     AppLog.info("hm-metricx-cj: parseThreadCpuUsage parsed " + result.size.toString() + " threads")
     result
+}
+
+// ==================== 后台活动超长率监控 ====================
+
+// 后台 CPU 异常级别
+public enum BackgroundCpuLevel {
+    WARN |    // 警告级别（超过最小异常时长）
+    ERROR |   // 错误级别（超过 error_time）
+    FATAL    // 致命级别（超过 fatal_time）
+
+    public func toString(): String {
+        match (this) {
+            case WARN => "WARN"
+            case ERROR => "ERROR"
+            case FATAL => "FATAL"
+        }
+    }
+}
+
+// 滑动窗口采样数据
+public class WindowSample {
+    private var timestampValue: Int64 = 0
+    private var cpuUsageValue: Float64 = 0.0
+    private var durationValue: Int64 = 0
+
+    public mut prop timestamp: Int64 {
+        get() { timestampValue }
+        set(value) { timestampValue = value }
+    }
+    public mut prop cpuUsage: Float64 {
+        get() { cpuUsageValue }
+        set(value) { cpuUsageValue = value }
+    }
+    public mut prop duration: Int64 {
+        get() { durationValue }
+        set(value) { durationValue = value }
+    }
+
+    public func toJson(): String {
+        let sb = StringBuilder()
+        sb.append("{\"timestamp\":")
+        sb.append(this.timestampValue.toString())
+        sb.append(",\"cpuUsage\":")
+        sb.append(this.cpuUsageValue.toString())
+        sb.append(",\"duration\":")
+        sb.append(this.durationValue.toString())
+        sb.append("}")
+        sb.toString()
+    }
+}
+
+// 后台 CPU 异常上报信息
+public class BackgroundCpuReportInfo {
+    private var timestampValue: Int64 = 0
+    private var pidValue: Int32 = 0
+    private var processNameValue: String = ""
+    private var levelValue: BackgroundCpuLevel = BackgroundCpuLevel.WARN
+    private var backgroundDurationValue: Int64 = 0
+    private var avgCpuUsageValue: Float64 = 0.0
+    private var maxCpuUsageValue: Float64 = 0.0
+    private var windowSamplesValue: ArrayList<WindowSample> = ArrayList()
+    private var highCpuThreadsValue: ArrayList<ThreadStackInfo> = ArrayList()
+
+    public mut prop timestamp: Int64 { get() { timestampValue } set(value) { timestampValue = value } }
+    public mut prop pid: Int32 { get() { pidValue } set(value) { pidValue = value } }
+    public mut prop processName: String { get() { processNameValue } set(value) { processNameValue = value } }
+    public mut prop level: BackgroundCpuLevel { get() { levelValue } set(value) { levelValue = value } }
+    public mut prop backgroundDuration: Int64 { get() { backgroundDurationValue } set(value) { backgroundDurationValue = value } }
+    public mut prop avgCpuUsage: Float64 { get() { avgCpuUsageValue } set(value) { avgCpuUsageValue = value } }
+    public mut prop maxCpuUsage: Float64 { get() { maxCpuUsageValue } set(value) { maxCpuUsageValue = value } }
+    public mut prop windowSamples: ArrayList<WindowSample> { get() { windowSamplesValue } set(value) { windowSamplesValue = value } }
+    public mut prop highCpuThreads: ArrayList<ThreadStackInfo> { get() { highCpuThreadsValue } set(value) { highCpuThreadsValue = value } }
+
+    public func toJson(): String {
+        let sb = StringBuilder()
+        sb.append("{\"timestamp\":")
+        sb.append(this.timestampValue.toString())
+        sb.append(",\"pid\":")
+        sb.append(this.pidValue.toString())
+        sb.append(",\"processName\":\"")
+        sb.append(this.processNameValue)
+        sb.append("\",\"level\":\"")
+        sb.append(this.levelValue.toString())
+        sb.append("\",\"backgroundDuration\":")
+        sb.append(this.backgroundDurationValue.toString())
+        sb.append(",\"avgCpuUsage\":")
+        sb.append(this.avgCpuUsageValue.toString())
+        sb.append(",\"maxCpuUsage\":")
+        sb.append(this.maxCpuUsageValue.toString())
+        sb.append(",\"windowSamples\":[")
+        var first = true
+        for (sample in this.windowSamplesValue) {
+            if (!first) { sb.append(",") }
+            sb.append(sample.toJson())
+            first = false
+        }
+        sb.append("],\"highCpuThreads\":[")
+        first = true
+        for (thread in this.highCpuThreadsValue) {
+            if (!first) { sb.append(",") }
+            sb.append(thread.toJson())
+            first = false
+        }
+        sb.append("]}")
+        sb.toString()
+    }
+}
+
+/**
+ * 后台活动超长率监控配置
+ */
+public class BackgroundCpuMonitorConfig {
+    public let cpuThreshold: Float64
+    public let warnDurationMs: Int64
+    public let errorDurationMs: Int64
+    public let fatalDurationMs: Int64
+    public let sampleIntervalMs: Int64
+    public let windowSizeMs: Int64
+
+    private static let DEFAULT_CPU_THRESHOLD: Float64 = 0.5
+    private static let DEFAULT_WARN_DURATION_MS: Int64 = 10000
+    private static let DEFAULT_ERROR_DURATION_MS: Int64 = 30000
+    private static let DEFAULT_FATAL_DURATION_MS: Int64 = 60000
+    private static let DEFAULT_SAMPLE_INTERVAL_MS: Int64 = 1000
+    private static let DEFAULT_WINDOW_SIZE_MS: Int64 = 5000
+    private static let MAX_DURATION_MS: Int64 = 15000000
+
+    public init(
+        cpuThreshold!: Float64 = DEFAULT_CPU_THRESHOLD,
+        warnDurationMs!: Int64 = DEFAULT_WARN_DURATION_MS,
+        errorDurationMs!: Int64 = DEFAULT_ERROR_DURATION_MS,
+        fatalDurationMs!: Int64 = DEFAULT_FATAL_DURATION_MS,
+        sampleIntervalMs!: Int64 = DEFAULT_SAMPLE_INTERVAL_MS,
+        windowSizeMs!: Int64 = DEFAULT_WINDOW_SIZE_MS
+    ) {
+        this.cpuThreshold = if (cpuThreshold <= 0.0 || cpuThreshold > 1.0) { DEFAULT_CPU_THRESHOLD } else { cpuThreshold }
+        this.warnDurationMs = if (warnDurationMs <= 0 || warnDurationMs > MAX_DURATION_MS) { DEFAULT_WARN_DURATION_MS } else { warnDurationMs }
+        this.errorDurationMs = if (errorDurationMs <= 0 || errorDurationMs > MAX_DURATION_MS) { DEFAULT_ERROR_DURATION_MS } else { errorDurationMs }
+        this.fatalDurationMs = if (fatalDurationMs <= 0 || fatalDurationMs > MAX_DURATION_MS) { DEFAULT_FATAL_DURATION_MS } else { fatalDurationMs }
+        this.sampleIntervalMs = if (sampleIntervalMs <= 0 || sampleIntervalMs > MAX_DURATION_MS) { DEFAULT_SAMPLE_INTERVAL_MS } else { sampleIntervalMs }
+        this.windowSizeMs = if (windowSizeMs <= 0 || windowSizeMs > MAX_DURATION_MS) { DEFAULT_WINDOW_SIZE_MS } else { windowSizeMs }
+    }
+
+    public func toInterop(): InteropBackgroundCpuMonitorConfig {
+        InteropBackgroundCpuMonitorConfig(
+            this.cpuThreshold, this.warnDurationMs, this.errorDurationMs,
+            this.fatalDurationMs, this.sampleIntervalMs, this.windowSizeMs
+        )
+    }
+}
+
+/**
+ * 执行后台 CPU 采样
+ *
+ * 核心采样逻辑：
+ * 1. 检查是否在后台
+ * 2. 获取当前进程 CPU 使用率
+ * 3. 记录采样数据到滑动窗口
+ * 4. 维护滑动窗口大小
+ * 5. 检查是否满足上报条件
+ */
+private func doBackgroundCpuSample(): Unit {
+    AppLog.info("hm-metricx-cj: [DEBUG] doBackgroundCpuSample called, isInBackground=${isInBackground}")
+    
+    if (!isInBackground) {
+        AppLog.info("hm-metricx-cj: [DEBUG] Sampling skipped, not in background")
+        return
+    }
+
+    let currentTime = getCurrentTimeMillis()
+    let cpuUsage = _getCpuUsage() // 复用高 CPU 监控的获取函数
+    let backgroundDuration = currentTime - backgroundStartTime
+    
+    AppLog.info("hm-metricx-cj: [DEBUG] Sample #${backgroundCpuSamples.size + 1}, cpuUsage=${cpuUsage}, backgroundDuration=${backgroundDuration}ms")
+
+    backgroundCpuSamples.add(cpuUsage)
+
+    let sample = WindowSample()
+    sample.timestamp = currentTime
+    sample.cpuUsage = cpuUsage
+    sample.duration = backgroundDuration
+    windowSamplesList.add(sample)
+
+    // 维护滑动窗口
+    if (let Some(config) <- backgroundCpuConfig) {
+        while (!windowSamplesList.isEmpty()) {
+            let firstSample = windowSamplesList[0]
+            if (currentTime - firstSample.timestamp > config.windowSizeMs) {
+                windowSamplesList.remove(at: 0)
+            } else { break }
+        }
+    }
+
+    // 检查上报条件
+    if (let Some(config) <- backgroundCpuConfig) {
+        if (backgroundDuration >= config.warnDurationMs) {
+            var windowAvgCpu: Float64 = 0.0
+            if (!windowSamplesList.isEmpty()) {
+                var sum: Float64 = 0.0
+                for (s in windowSamplesList) { sum += s.cpuUsage }
+                windowAvgCpu = sum / Float64(windowSamplesList.size)
+            }
+
+            AppLog.info("hm-metricx-cj: [DEBUG] backgroundDuration=${backgroundDuration}ms, windowAvgCpu=${windowAvgCpu}, threshold=${config.cpuThreshold}")
+            AppLog.info("hm-metricx-cj: [DEBUG] warnReported=${warnReported}, errorReported=${errorReported}, fatalReported=${fatalReported}")
+
+            if (windowAvgCpu >= config.cpuThreshold) {
+                // 分级上报：从高级别到低级别判断，每次只触发一个级别
+                if (backgroundDuration >= config.fatalDurationMs && !fatalReported) {
+                    AppLog.info("hm-metricx-cj: [DEBUG] Triggering FATAL report")
+                    triggerBackgroundCpuReport(BackgroundCpuLevel.FATAL, windowAvgCpu, cpuUsage)
+                } else if (backgroundDuration >= config.errorDurationMs && !errorReported) {
+                    AppLog.info("hm-metricx-cj: [DEBUG] Triggering ERROR report")
+                    triggerBackgroundCpuReport(BackgroundCpuLevel.ERROR, windowAvgCpu, cpuUsage)
+                } else if (backgroundDuration >= config.warnDurationMs && !warnReported) {
+                    AppLog.info("hm-metricx-cj: [DEBUG] Triggering WARN report")
+                    triggerBackgroundCpuReport(BackgroundCpuLevel.WARN, windowAvgCpu, cpuUsage)
+                }
+            }
+        } else {
+            AppLog.info("hm-metricx-cj: [DEBUG] backgroundDuration=${backgroundDuration}ms < warnDurationMs=${config.warnDurationMs}ms, skipping report check")
+        }
+    }
+}
+
+/**
+ * 触发后台 CPU 占用上报
+ *
+ * 根据异常级别（WARN/ERROR/FATAL）上报后台活动超长率信息
+ */
+private func triggerBackgroundCpuReport(level: BackgroundCpuLevel, avgCpu: Float64, maxCpu: Float64): Unit {
+    let currentTime = getCurrentTimeMillis()
+    let backgroundDuration = currentTime - backgroundStartTime
+
+    if (!isBackgroundCapturingStack) { captureStackForBackgroundCpu() }
+
+    let reportInfo = BackgroundCpuReportInfo()
+    reportInfo.timestamp = currentTime
+    reportInfo.pid = getpid()
+    reportInfo.processName = getpid().toString()
+    reportInfo.level = level
+    reportInfo.backgroundDuration = backgroundDuration
+    reportInfo.avgCpuUsage = avgCpu
+    reportInfo.maxCpuUsage = maxCpu
+    reportInfo.windowSamples = windowSamplesList
+    
+    reportInfo.highCpuThreads = ArrayList()
+    for (entry in backgroundThreadSamples) {
+        reportInfo.highCpuThreads.add(entry[1])
+    }
+
+    if (let Some(callback) <- backgroundCpuCallback) {
+        callback(reportInfo)
+    }
+
+    match (level) {
+        case BackgroundCpuLevel.WARN => warnReported = true
+        case BackgroundCpuLevel.ERROR => errorReported = true
+        case BackgroundCpuLevel.FATAL => fatalReported = true
+    }
+}
+
+/**
+ * 执行后台抓栈操作
+ *
+ * 抓取高 CPU 占用线程的调用栈信息
+ */
+private func captureStackForBackgroundCpu(): Unit {
+    if (isBackgroundCapturingStack) { return }
+    isBackgroundCapturingStack = true
+
+    try {
+        let threadCpuUsageJson = _getAppThreadCpuUsageJson()
+        let threadCpuUsageArray = parseThreadCpuUsage(threadCpuUsageJson)
+        
+        let currentTime = getCurrentTimeMillis()
+        if (let Some(config) <- backgroundCpuConfig) {
+            for (threadUsage in threadCpuUsageArray) {
+                let tid = Int64(threadUsage.threadId)
+                let cpuUsage = Float64(threadUsage.cpuUsage)
+                if (cpuUsage >= config.cpuThreshold) {
+                    let threadName = getThreadName(tid)
+                    if (!backgroundThreadSamples.contains(tid)) {
+                        let threadInfo = ThreadStackInfo()
+                        threadInfo.tid = tid
+                        threadInfo.threadName = threadName
+                        threadInfo.firstDetectedTime = currentTime
+                        threadInfo.computeAvg(cpuUsage, threshold: config.cpuThreshold)
+                        backgroundThreadSamples.add(tid, threadInfo)
+                    } else {
+                        let threadInfo = backgroundThreadSamples[tid]
+                        threadInfo.computeAvg(cpuUsage, threshold: config.cpuThreshold)
+                    }
+                }
+            }
+        }
+    } catch (e: Exception) {
+        AppLog.warn("hm-metricx-cj: Exception during background stack capture: " + e.toString())
+    } finally {
+        isBackgroundCapturingStack = false
+    }
+}
+
+/**
+ * 启动后台监控（内部版本）
+ *
+ * 通过 ArkTS 传入的回调函数启动采样定时器
+ */
+private func startBackgroundMonitorInternal(): Unit {
+    if (let Some(callback) <- repeatBackgroundSampleCallback) {
+        callback({ => doBackgroundCpuSample() })
+    }
+}
+
+/**
+ * 停止后台监控（内部版本）
+ *
+ * 通过 ArkTS 传入的回调清除采样定时器
+ */
+private func stopBackgroundMonitorInternal(): Unit {
+    if (let Some(callback) <- clearBackgroundSampleCallback) {
+        callback()
+    }
+}
+
+/**
+ * 重置后台监控采样数据
+ *
+ * 在每次进入前台或销毁时调用，清空采样数据
+ */
+private func resetBackgroundMonitorData(): Unit {
+    windowSamplesList.clear()
+    backgroundCpuSamples.clear()
+    backgroundThreadSamples.clear()
+    isBackgroundCapturingStack = false
+}
+
+/**
+ * 初始化后台活动超长率监控（内部版本）
+ *
+ * 启动后台活动超长率监控功能，可配置采样间隔、异常级别阈值等
+ *
+ * @param config 后台 CPU 监控配置
+ * @param getAppThreadCpuUsageJson 获取线程 CPU 使用率 JSON 的回调（由 ArkTS 传入）
+ * @param repeatSample 重复采样回调（由 ArkTS 传入，用于启动采样定时器）
+ * @param clearSample 清除采样定时器回调（由 ArkTS 传入）
+ * @param reportCallback 后台 CPU 占用上报回调
+ */
+public func initBackgroundCpuMonitorHandlerInternal(
+    config: InteropBackgroundCpuMonitorConfig,
+    getAppThreadCpuUsageJson: () -> String,
+    repeatSample: (() -> Unit) -> Unit,
+    clearSample: () -> Unit,
+    reportCallback: (info: BackgroundCpuReportInfo) -> Unit
+): Unit {
+    if (backgroundCpuMonitorInited) { return }
+
+    backgroundCpuConfig = Some(BackgroundCpuMonitorConfig(
+        cpuThreshold: config.cpuThreshold, warnDurationMs: config.warnDurationMs,
+        errorDurationMs: config.errorDurationMs, fatalDurationMs: config.fatalDurationMs,
+        sampleIntervalMs: config.sampleIntervalMs, windowSizeMs: config.windowSizeMs
+    ))
+    
+    // 保存线程 CPU 获取回调
+    _getAppThreadCpuUsageJson = getAppThreadCpuUsageJson
+    
+    repeatBackgroundSampleCallback = Some(repeatSample)
+    clearBackgroundSampleCallback = Some(clearSample)
+    backgroundCpuCallback = Some(reportCallback)
+    backgroundCpuMonitorInited = true
+
+    AppLog.info("hm-metricx-cj: Background CPU monitor handler initialized")
+}
+
+/**
+ * 销毁后台活动超长率监控（内部版本）
+ *
+ * 停止监控并清空所有采样数据
+ */
+public func destroyBackgroundCpuMonitorHandlerInternal(): Unit {
+    if (!backgroundCpuMonitorInited) { return }
+    stopBackgroundMonitorInternal()
+    resetBackgroundMonitorData()
+    warnReported = false; errorReported = false; fatalReported = false
+    backgroundCpuMonitorInited = false
+    backgroundCpuConfig = None
+    backgroundCpuCallback = None
+    AppLog.info("hm-metricx-cj: Background CPU monitor destroyed")
+}
+
+// ==================== @Interop 互操作类定义 ====================
+
+/**
+ * 后台监控配置互操作类
+ * 用于 ArkTS 与仓颉之间的数据传递
+ */
+@Interop[ArkTS]
+public class InteropBackgroundCpuMonitorConfig {
+    public let cpuThreshold: Float64
+    public let warnDurationMs: Int64
+    public let errorDurationMs: Int64
+    public let fatalDurationMs: Int64
+    public let sampleIntervalMs: Int64
+    public let windowSizeMs: Int64
+
+    public init(
+        cpuThreshold: Float64, warnDurationMs: Int64, errorDurationMs: Int64,
+        fatalDurationMs: Int64, sampleIntervalMs: Int64, windowSizeMs: Int64
+    ) {
+        this.cpuThreshold = cpuThreshold
+        this.warnDurationMs = warnDurationMs
+        this.errorDurationMs = errorDurationMs
+        this.fatalDurationMs = fatalDurationMs
+        this.sampleIntervalMs = sampleIntervalMs
+        this.windowSizeMs = windowSizeMs
+    }
 }

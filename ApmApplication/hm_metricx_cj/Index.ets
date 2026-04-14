@@ -3,6 +3,8 @@ import { ApplicationStateChangeCallback, appManager } from '@kit.AbilityKit';
 import {thermal} from '@kit.BasicServicesKit';
 import { requireCJLib } from 'libark_interop_loader.so';
 import { process } from '@kit.ArkTS';
+import { backgroundTaskManager } from '@kit.BackgroundTasksKit';
+import { wantAgent } from '@kit.AbilityKit';
 
 import {
   CustomLib,
@@ -32,7 +34,8 @@ import {
   ExitInfo,
   AppStateInfo,
   InteropDayTrafficInfo as DayTrafficInfo,
-  InteropHighCpuMonitorConfig
+  InteropHighCpuMonitorConfig,
+  InteropBackgroundCpuMonitorConfig
 } from 'libark_interop_api.so';
 import { preferences } from '@kit.ArkData';
 import { uiObserver, window } from '@kit.ArkUI';
@@ -528,7 +531,7 @@ export function initMemoryHandler(
   const validSampleInterval = validateInterval(sampleInterval, DEFAULT_SAMPLE_INTERVAL);
   const validReportInterval = validateInterval(reportInterval, DEFAULT_REPORT_INTERVAL);
   const validSaveInterval = validateInterval(saveInterval, DEFAULT_SAVE_INTERVAL);
-  
+
   // ratio边界值校验，超出范围则使用默认值0.8
   const validTotalRatio = (totalRatio === undefined || totalRatio < 0 || totalRatio > 1) ? 0.8 : totalRatio;
   const validCjRatio = (cjRatio === undefined || cjRatio < 0 || cjRatio > 1) ? 0.8 : cjRatio;
@@ -1241,6 +1244,254 @@ export function destroyHighCpuMonitorHandler(): void {
 export function triggerHighCpuReport(): void {
   if (!cjLibCpu) return;
   cjLibCpu.triggerHighCpuReportInterop();
+}
+
+// ==================== 后台活动超长率监控 ====================
+
+/**
+ * 后台 CPU 异常级别
+ */
+export enum BackgroundCpuLevel {
+  WARN = 'WARN',
+  ERROR = 'ERROR',
+  FATAL = 'FATAL'
+}
+
+/**
+ * 滑动窗口采样数据
+ */
+export interface WindowSample {
+  timestamp: number;
+  cpuUsage: number;
+  duration: number;
+}
+
+/**
+ * 后台 CPU 异常上报信息
+ */
+export interface BackgroundCpuReportInfo {
+  timestamp: number;
+  pid: number;
+  processName: string;
+  level: BackgroundCpuLevel;
+  backgroundDuration: number;
+  avgCpuUsage: number;
+  maxCpuUsage: number;
+  windowSamples: WindowSample[];
+  highCpuThreads: ThreadStackInfo[];
+}
+
+/**
+ * 后台活动超长率监控配置（ArkTS 版本）
+ */
+export class BackgroundCpuMonitorConfig {
+  cpuThreshold: number = 0.5;
+  warnDurationMs: number = 10000;
+  errorDurationMs: number = 30000;
+  fatalDurationMs: number = 60000;
+  sampleIntervalMs: number = 1000;
+  windowSizeMs: number = 5000;
+
+  private static readonly MAX_DURATION_MS = 15000000;
+
+  constructor(
+    cpuThreshold?: number,
+    warnDurationMs?: number,
+    errorDurationMs?: number,
+    fatalDurationMs?: number,
+    sampleIntervalMs?: number,
+    windowSizeMs?: number
+  ) {
+    if (cpuThreshold !== undefined && cpuThreshold > 0 && cpuThreshold <= 1) this.cpuThreshold = cpuThreshold;
+    if (warnDurationMs !== undefined && warnDurationMs > 0 && warnDurationMs <= BackgroundCpuMonitorConfig.MAX_DURATION_MS) this.warnDurationMs = warnDurationMs;
+    if (errorDurationMs !== undefined && errorDurationMs > 0 && errorDurationMs <= BackgroundCpuMonitorConfig.MAX_DURATION_MS) this.errorDurationMs = errorDurationMs;
+    if (fatalDurationMs !== undefined && fatalDurationMs > 0 && fatalDurationMs <= BackgroundCpuMonitorConfig.MAX_DURATION_MS) this.fatalDurationMs = fatalDurationMs;
+    if (sampleIntervalMs !== undefined && sampleIntervalMs > 0 && sampleIntervalMs <= BackgroundCpuMonitorConfig.MAX_DURATION_MS) this.sampleIntervalMs = sampleIntervalMs;
+    if (windowSizeMs !== undefined && windowSizeMs > 0 && windowSizeMs <= BackgroundCpuMonitorConfig.MAX_DURATION_MS) this.windowSizeMs = windowSizeMs;
+  }
+
+  toInteropConfig(): InteropBackgroundCpuMonitorConfig {
+    if (!cjLibCpu) {
+      throw new Error('cjLibCpu is not available');
+    }
+    return new cjLibCpu.InteropBackgroundCpuMonitorConfig(
+      this.cpuThreshold,
+      this.warnDurationMs,
+      this.errorDurationMs,
+      this.fatalDurationMs,
+      this.sampleIntervalMs,
+      this.windowSizeMs
+    );
+  }
+}
+
+let clearBackgroundSampleTimer: () => void = () => {};
+let backgroundDelayTaskId: number = -1; // 后台延时任务ID
+
+/**
+ * 申请后台延时任务
+ * 
+ * 应用进入后台时调用,申请3分钟的延时任务,保持定时器和采样继续运行
+ * 3分钟后系统会自动恢复正常的后台挂起行为
+ */
+function requestBackgroundDelayTask(): void {
+  // 如果已经有延时任务在运行,先取消
+  if (backgroundDelayTaskId > 0) {
+    hilog.info(DOMAIN, TAG, 'Background delay task already running, cancelling first');
+    cancelBackgroundDelayTask();
+  }
+
+  try {
+    // 申请延时任务 - 系统会返回实际批准的延时时长
+    const delayInfo = backgroundTaskManager.requestSuspendDelay('后台性能监控', () => {
+      // 回调函数:应用申请的延时任务即将超时
+      hilog.info(DOMAIN, TAG, 'Background delay task will time out, stopping all monitoring');
+      backgroundDelayTaskId = -1;
+      // 取消后台任务
+      cancelBackgroundDelayTask();
+    });
+    
+    backgroundDelayTaskId = delayInfo.requestId;
+    const actualTime = delayInfo.actualDelayTime;
+    
+    hilog.warn(DOMAIN, TAG, `===== Background delay task requested =====`);
+    hilog.warn(DOMAIN, TAG, `Request ID: ${backgroundDelayTaskId}`);
+    hilog.warn(DOMAIN, TAG, `System approved actualDelayTime: ${actualTime}ms (${actualTime / 1000}s)`);
+    hilog.warn(DOMAIN, TAG, `Timer will continue for approximately ${actualTime / 1000} seconds`);
+
+  } catch (error) {
+    const err = error as BusinessError;
+    hilog.error(DOMAIN, TAG, `requestSuspendDelay failed: code is ${err.code}, message is ${err.message}`);
+  }
+}
+
+/**
+ * 取消后台延时任务
+ * 
+ * 应用回到前台或3分钟到期时调用,停止延时任务
+ */
+function cancelBackgroundDelayTask(): void {
+  // 取消延时任务
+  if (backgroundDelayTaskId > 0) {
+    try {
+      backgroundTaskManager.cancelSuspendDelay(backgroundDelayTaskId);
+      hilog.warn(DOMAIN, TAG, `Background delay task cancelled, requestId: ${backgroundDelayTaskId}`);
+      backgroundDelayTaskId = -1;
+    } catch (error) {
+      const err = error as BusinessError;
+      hilog.error(DOMAIN, TAG, `cancelSuspendDelay failed: code is ${err.code}, message is ${err.message}`);
+    }
+  }
+}
+
+/**
+ * 初始化后台活动超长率监控
+ */
+export function initBackgroundCpuMonitorHandler(
+  context: common.UIAbilityContext,
+  config: BackgroundCpuMonitorConfig,
+  reportBackgroundCpuInfo: (data: BackgroundCpuReportInfo) => void
+): void {
+  if (!cjLibCpu) {
+    hilog.warn(DOMAIN, TAG, 'initBackgroundCpuMonitorHandler called but cpu module is disabled');
+    return;
+  }
+
+  // 监听应用生命周期
+  const applicationStateChangeCallback: ApplicationStateChangeCallback = {
+    onApplicationForeground() {
+      cjLibCpu.onAppForegroundInterop();
+      // 应用回到前台,取消后台延时任务
+      cancelBackgroundDelayTask();
+    },
+    onApplicationBackground() {
+      cjLibCpu.onAppBackgroundInterop();
+      // 应用进入后台,申请延时任务,保持3分钟的定时器运行
+      requestBackgroundDelayTask();
+    }
+  };
+  context.getApplicationContext().on('applicationStateChange', applicationStateChangeCallback);
+
+  // 定义定时器控制逻辑
+  const repeatSample = (sample: () => void) => {
+    const id = setInterval(sample, config.sampleIntervalMs);
+    clearBackgroundSampleTimer = () => clearInterval(id);
+  };
+
+  const clearSample = () => {
+    clearBackgroundSampleTimer();
+  };
+
+  // 解析上报数据
+  const reportCallbackJson = (jsonStr: string) => {
+    try {
+      const jsonObj: Record<string, Object> = JSON.parse(jsonStr) as Record<string, Object>;
+      const windowSamplesRaw: Object[] = (jsonObj.windowSamples as Object[]) || [];
+      const windowSamples: WindowSample[] = windowSamplesRaw.map((s: Object) => {
+        const sample = s as Record<string, number>;
+        return { timestamp: sample.timestamp, cpuUsage: sample.cpuUsage, duration: sample.duration } as WindowSample;
+      });
+
+      const highCpuThreadsRaw: Object[] = (jsonObj.highCpuThreads as Object[]) || [];
+      const highCpuThreads: ThreadStackInfo[] = highCpuThreadsRaw.map((t: Object) => {
+        const thread = t as Record<string, number | string>;
+        return {
+          tid: thread.tid as number, threadName: thread.threadName as string,
+          avgCpuUsage: thread.avgCpuUsage as number, maxCpuUsage: thread.maxCpuUsage as number,
+          sampleCount: thread.sampleCount as number, stackTrace: thread.stackTrace as string,
+          moduleName: thread.moduleName as string, firstDetectedTime: thread.firstDetectedTime as number,
+          highSampleCount: thread.highSampleCount as number
+        } as ThreadStackInfo;
+      });
+
+      const info: BackgroundCpuReportInfo = {
+        timestamp: jsonObj.timestamp as number, pid: jsonObj.pid as number,
+        processName: jsonObj.processName as string, level: jsonObj.level as BackgroundCpuLevel,
+        backgroundDuration: jsonObj.backgroundDuration as number,
+        avgCpuUsage: jsonObj.avgCpuUsage as number, maxCpuUsage: jsonObj.maxCpuUsage as number,
+        windowSamples: windowSamples, highCpuThreads: highCpuThreads
+      };
+      reportBackgroundCpuInfo(info);
+    } catch {
+      hilog.error(DOMAIN, TAG, 'Failed to parse BackgroundCpuReportInfo JSON');
+    }
+  };
+
+  // 获取线程 CPU 使用率 JSON
+  // 格式：[{"threadId":123,"cpuUsage":0.5}, ...]
+  const getAppThreadCpuUsageJson = (): string => {
+    try {
+      const threadCpuArray = hidebug.getAppThreadCpuUsage();
+      // 将 ThreadCpuUsage[] 转换为 JSON 字符串
+      const jsonStr = JSON.stringify(threadCpuArray);
+      return jsonStr;
+    } catch (e) {
+      hilog.error(DOMAIN, TAG, 'getAppThreadCpuUsageJson failed: ' + JSON.stringify(e));
+      return '[]';
+    }
+  };
+
+  // 调用仓颉侧初始化
+  cjLibCpu.initBackgroundCpuMonitorHandlerInterop(
+    config.toInteropConfig(),
+    getAppThreadCpuUsageJson,
+    repeatSample,
+    clearSample,
+    reportCallbackJson
+  );
+
+  hilog.info(DOMAIN, TAG, 'Background CPU monitor initialized');
+}
+
+/**
+ * 销毁后台活动超长率监控
+ */
+export function destroyBackgroundCpuMonitorHandler(): void {
+  if (!cjLibCpu) return;
+  clearBackgroundSampleTimer();
+  // 销毁时也取消后台延时任务
+  cancelBackgroundDelayTask();
+  cjLibCpu.destroyBackgroundCpuMonitorHandlerInterop();
 }
 
 /**

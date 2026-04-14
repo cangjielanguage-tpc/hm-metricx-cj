@@ -106,3 +106,41 @@ public func triggerHighCpuReportInterop(): Unit {
 public func isHighCpuMonitoringActiveInterop(): Bool {
     isHighCpuMonitoringActiveInternal()
 }
+
+/**
+ * 初始化后台活动超长率监控
+ *
+ * @param config 后台 CPU 监控配置
+ * @param getAppThreadCpuUsageJson 获取线程 CPU 使用率 JSON 的回调（由 ArkTS 传入）
+ * @param repeatSample 重复采样回调（由 ArkTS 传入，用于启动采样定时器）
+ * @param clearSample 清除采样定时器回调（由 ArkTS 传入）
+ * @param reportHighCpuInfoJson 后台 CPU 占用上报回调（JSON 字符串格式）
+ */
+@Interop[ArkTS]
+public func initBackgroundCpuMonitorHandlerInterop(
+    config: InteropBackgroundCpuMonitorConfig,
+    getAppThreadCpuUsageJson: () -> String,
+    repeatSample: (() -> Unit) -> Unit,
+    clearSample: () -> Unit,
+    reportHighCpuInfoJson: (String) -> Unit
+): Unit {
+    let wrappedReportCallback: (info: BackgroundCpuReportInfo) -> Unit = { info =>
+        reportHighCpuInfoJson(info.toJson())
+    }
+
+    initBackgroundCpuMonitorHandlerInternal(
+        config,
+        getAppThreadCpuUsageJson,
+        repeatSample,
+        clearSample,
+        wrappedReportCallback
+    )
+}
+
+/**
+ * 销毁后台活动超长率监控
+ */
+@Interop[ArkTS]
+public func destroyBackgroundCpuMonitorHandlerInterop(): Unit {
+    destroyBackgroundCpuMonitorHandlerInternal()
+}
