@@ -118,7 +118,39 @@ class EntryAbility <: UIAbility {
                 }
             }
         )
-        AppLog.info("高 CPU 监控已启动（生产模式：3 分钟上报，50% 阈值，85% 高采样比例）")
+        AppLog.warn("高 CPU 监控已启动（快速验证模式：33 秒上报，5% 阈值，85% 高采样比例）")
+
+        // 后台活动超长率监控初始化
+        initBackgroundCpuMonitorHandler(
+            this.context,
+            BackgroundCpuMonitorConfig(
+                cpuThreshold: 0.05,           // CPU 利用率阈值 5%
+                warnDurationMs: 10000,       // 10 秒触发 WARN 级别
+                errorDurationMs: 30000,      // 30 秒触发 ERROR 级别
+                fatalDurationMs: 60000,      // 60 秒触发 FATAL 级别
+                sampleIntervalMs: 1000,      // 1 秒采样一次
+                windowSizeMs: 5000           // 5 秒滑动窗口
+            ),
+            { reportInfo =>
+                AppLog.warn("===== 后台 CPU 活动超长率上报 =====")
+                AppLog.warn("时间：${reportInfo.timestamp}")
+                AppLog.warn("进程：${reportInfo.processName} (PID: ${reportInfo.pid})")
+                AppLog.warn("异常级别：${reportInfo.level.toString()}")
+                AppLog.warn("后台时长：${reportInfo.backgroundDuration}毫秒")
+                AppLog.warn("平均 CPU: ${reportInfo.avgCpuUsage}")
+                AppLog.warn("最大 CPU: ${reportInfo.maxCpuUsage}")
+                AppLog.warn("滑动窗口采样数：${reportInfo.windowSamples.size}")
+
+                // 打印滑动窗口数据
+                for (sample in reportInfo.windowSamples) {
+                    AppLog.warn("--- 窗口采样 ---")
+                    AppLog.warn("  时间戳：${sample.timestamp}")
+                    AppLog.warn("  CPU 使用率：${sample.cpuUsage}")
+                    AppLog.warn("  后台时长：${sample.duration}毫秒")
+                }
+            }
+        )
+        AppLog.warn("后台 CPU 监控已启动，快速验证模式（WARN:10 秒，ERROR:30 秒，FATAL:60 秒，5% 阈值）")
 
         initTrafficHandler(this.context, {data =>}, {data =>})
         initStorageHandler({data: StorageInfo =>}, sizeLimit: 100000000, dirSizeLimit: 1000, reportTopNum: 5)
@@ -145,6 +177,7 @@ class EntryAbility <: UIAbility {
 
     public override func onDestroy(): Unit {
         destroyHighCpuMonitorHandler()
+        destroyBackgroundCpuMonitorHandler()
         destroyBatteryHandler()
         destroyCpuHandler()
         destroyMemoryHandler()
