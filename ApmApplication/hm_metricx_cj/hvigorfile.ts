@@ -127,6 +127,10 @@ function validateIncludeFeatures(rawIncludeFeatures: string[]): string[] {
   const normalized: string[] = [];
   const firstIndexByName = new Map<string, number>();
 
+  if (rawIncludeFeatures.length === 0) {
+    throw new Error('[feature-pack] INCLUDE_FEATURES 不能为空');
+  }
+
   rawIncludeFeatures.forEach((rawItem, index) => {
     const featureName = rawItem.trim();
 
