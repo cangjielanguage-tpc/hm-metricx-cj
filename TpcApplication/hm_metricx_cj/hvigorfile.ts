@@ -32,6 +32,9 @@ function hookAfterRun(task: any, fn: () => void) { if(!task || typeof task.after
 function normalizeList(arr: string[]): string[] { return Array.from(new Set(arr.map(s=>s.trim()).filter(Boolean))); }
 function validateIncludeFeatures(arr: string[]): string[] {
   const normalized = arr.map(item => item.trim());
+  if (normalized.length === 0) {
+    throw new Error('[feature-pack] INCLUDE_FEATURES cannot be empty');
+  }
   const emptyIndexes = normalized
     .map((item, index) => item ? -1 : index)
     .filter(index => index >= 0);
