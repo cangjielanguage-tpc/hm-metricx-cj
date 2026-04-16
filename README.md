@@ -28,8 +28,6 @@
 ```bat
 git clone https://gitcode.com/Cangjie-TPC/hm-metricx-cj.git
 ```
-在 ~hm-metricx-cj-main\TpcApplication\tpc\src\main\cangjie下放入tpc_home的folder（和index.cj同一层）
-
 然后导入自己本地的签名，在file -> project structure -> signing Configs: ☑️勾选Automatically generate signature，然后apply再点ok。最后接入手机和对应版本的镜像，点运行就可以验证功能。
 
 ## 优势
