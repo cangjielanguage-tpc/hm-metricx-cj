@@ -43,6 +43,8 @@ function levelToName(level: number): string {
 @Entry
 @Component
 struct Index {
+  @State pageStack: NavPathStack = new NavPathStack()
+
   @State message: string = 'Thermal + Traffic Test'
 
   // traffic
@@ -106,115 +108,160 @@ struct Index {
     this.stopTraffic()
   }
 
-  build() {
-    Column({ space: 12 }) {
-      Text(this.message)
-        .fontSize(22)
-        .fontWeight(FontWeight.Bold)
+  build(): void {
+    Column() {
+      Navigation(this.pageStack) {
+        this.buildHomePage()
+      }
+      .id("root")
+      .navDestination(this.pageMap)
+    }
+    .id('whiteScreenTestRoot')
+    .width('100%')
+    .height('100%')
+  }
 
-      Button("模拟 Freeze")
-        .onClick(() => {
-          while(true) {}  // 阻塞事件循环
-        })
-      Button('js leak')
-        .type(ButtonType.Capsule)
-        .margin({
-          top: 20
-        })
-        .backgroundColor('#0D9FFB')
-        .width('80%')
-        .height('5%')
-        .onClick(() => {
-          for (let i = 0; i < 10000; i++) {
-            this.leakedArray.push(new Array(500000).fill(1));
-          }
-        })
-      Button('模拟 Crash')
-        .fontSize($r('app.float.page_text_font_size'))
-        .fontWeight(FontWeight.Bold)
-        .alignRules({
-          center: { anchor: '__container__', align: VerticalAlign.Center },
-          middle: { anchor: '__container__', align: HorizontalAlign.Center }
-        })
-        .onClick(() => {
-          // 更新 UI 文本
-          this.message = '准备触发 Crash';
+  @Builder
+  private buildHomePage(): void {
+    Scroll() {
+      Column({ space: 12 }) {
+        Text(this.message)
+          .fontSize(22)
+          .fontWeight(FontWeight.Bold)
 
-          // 模拟 ArkTS crash：抛出异常
-          throw new Error("Simulated crash in ArkTS");
+        // 白屏测试按钮
+        Button('WhiteScreen: Page Open Trigger Page')
+          .onClick((): void => {
+            this.pageStack.pushPath(new NavPathInfo('PageOpenTriggerPage', ''))
+          })
 
-          // 如果你想模拟 UI 卡死（Freeze），可以使用：
-          // while(true) {}
-        })
+        Button('WhiteScreen: Switch Result Trigger Page')
+          .onClick((): void => {
+            this.pageStack.pushPath(new NavPathInfo('SwitchResultTriggerPage', ''))
+          })
 
-      Button('刷新显示')
-        .onClick((): void => {
-          this.syncFromStore()
-          this.refreshThermalLevel()
-        })
+        // 原有测试按钮
+        Button('模拟 Freeze')
+          .onClick((): void => {
+            while (true) {
+            }
+          })
+        Button('js leak')
+          .type(ButtonType.Capsule)
+          .margin({
+            top: 20
+          })
+          .backgroundColor('#0D9FFB')
+          .width('80%')
+          .height('5%')
+          .onClick(() => {
+            for (let i = 0; i < 10000; i++) {
+              this.leakedArray.push(new Array(500000).fill(1));
+            }
+          })
+        Button('模拟 Crash')
+          .fontSize($r('app.float.page_text_font_size'))
+          .fontWeight(FontWeight.Bold)
+          .alignRules({
+            center: { anchor: '__container__', align: VerticalAlign.Center },
+            middle: { anchor: '__container__', align: HorizontalAlign.Center }
+          })
+          .onClick(() => {
+            this.message = '准备触发 Crash';
+            throw new Error("Simulated crash in ArkTS");
+          })
 
-      // traffic
-      Button(this.isTrafficRunning ? '下载流量中…' : '开始下载流量')
-        .onClick((): void => {
-          this.startDownloadTraffic()
-        })
+        Button('刷新显示')
+          .onClick((): void => {
+            this.syncFromStore()
+            this.refreshThermalLevel()
+          })
 
-      Button('停止下载流量')
-        .onClick((): void => {
-          this.stopTraffic()
-        })
+        Button(this.isTrafficRunning ? '下载流量中…' : '开始下载流量')
+          .onClick((): void => {
+            this.startDownloadTraffic()
+          })
 
-      // stress
-      Button(this.isCpuStressRunning ? 'CPU 热压中…' : '开始 CPU 热压测试')
-        .onClick((): void => {
-          this.startCpuStress()
-        })
+        Button('停止下载流量')
+          .onClick((): void => {
+            this.stopTraffic()
+          })
 
-      Button('停止 CPU 热压测试')
-        .onClick((): void => {
-          this.stopCpuStress()
-        })
+        Button(this.isCpuStressRunning ? 'CPU 热压中…' : '开始 CPU 热压测试')
+          .onClick((): void => {
+            this.startCpuStress()
+          })
 
-      Button(this.isUiStressRunning ? 'UI 高频刷新中…' : '开始 UI 高频刷新')
-        .onClick((): void => {
-          this.startUiStress()
-        })
+        Button('停止 CPU 热压测试')
+          .onClick((): void => {
+            this.stopCpuStress()
+          })
 
-      Button('停止 UI 高频刷新')
-        .onClick((): void => {
-          this.stopUiStress()
-        })
+        Button(this.isUiStressRunning ? 'UI 高频刷新中…' : '开始 UI 高频刷新')
+          .onClick((): void => {
+            this.startUiStress()
+          })
 
-      Button('模拟点击切换文本')
-        .onClick((): void => {
-          this.message = this.message === 'Thermal + Traffic Test' ? 'Welcome' : 'Thermal + Traffic Test'
-        })
+        Button('停止 UI 高频刷新')
+          .onClick((): void => {
+            this.stopUiStress()
+          })
 
-      Text(`下载状态: ${this.isTrafficRunning ? '运行中' : '已停止'}`)
-      Text(`下载字节: ${this.downloadBytes}`)
-      Text(`请求次数: ${this.requestCount}`)
-      Text(`失败次数: ${this.failedCount}`)
+        Button('模拟点击切换文本')
+          .onClick((): void => {
+            this.message = this.message === 'Thermal + Traffic Test' ? 'Welcome' : 'Thermal + Traffic Test'
+          })
 
-      Text(`CPU热压状态: ${this.isCpuStressRunning ? '运行中' : '已停止'}`)
-      Text(`UI刷新状态: ${this.isUiStressRunning ? '运行中' : '已停止'}`)
-      Text(`CPU热压轮次: ${this.cpuStressRounds}`)
-      Text(`UI刷新计数: ${this.uiTick}`)
+        Text(`下载状态: ${this.isTrafficRunning ? '运行中' : '已停止'}`)
+        Text(`下载字节: ${this.downloadBytes}`)
+        Text(`请求次数: ${this.requestCount}`)
+        Text(`失败次数: ${this.failedCount}`)
 
-      Text(`当前热档位: ${this.currentThermalLevel}`)
-      Text(`当前热档位名称: ${this.currentThermalLevelName}`)
+        Text(`CPU热压状态: ${this.isCpuStressRunning ? '运行中' : '已停止'}`)
+        Text(`UI刷新状态: ${this.isUiStressRunning ? '运行中' : '已停止'}`)
+        Text(`CPU热压轮次: ${this.cpuStressRounds}`)
+        Text(`UI刷新计数: ${this.uiTick}`)
 
-      Text(`thermal上报次数: ${this.reportCount}`)
-      Text(`最近 level: ${this.lastLevel}`)
-      Text(`最近 levelName: ${this.lastLevelName}`)
-      Text(`最近 pageName: ${this.lastPageName}`)
-      Text(`最近 durationMs: ${this.lastDurationMs}`)
-      Text(`最近 timestamp: ${this.lastTimestamp}`)
-      Text(`最近前台状态: ${this.lastIsForeground}`)
+        Text(`当前热档位: ${this.currentThermalLevel}`)
+        Text(`当前热档位名称: ${this.currentThermalLevelName}`)
+
+        Text(`thermal上报次数: ${this.reportCount}`)
+        Text(`最近 level: ${this.lastLevel}`)
+        Text(`最近 levelName: ${this.lastLevelName}`)
+        Text(`最近 pageName: ${this.lastPageName}`)
+        Text(`最近 durationMs: ${this.lastDurationMs}`)
+        Text(`最近 timestamp: ${this.lastTimestamp}`)
+        Text(`最近前台状态: ${this.lastIsForeground}`)
+      }
+      .width('100%')
+      .justifyContent(FlexAlign.Center)
+      .padding(20)
     }
     .width('100%')
     .height('100%')
-    .justifyContent(FlexAlign.Center)
-    .padding(20)
+  }
+
+  @Builder
+  private pageMap(name: string): void {
+    if (name === 'BlankPage') {
+      BlankPage()
+    } else if (name === 'HalfBlankPage') {
+      HalfBlankPage()
+    } else if (name === 'SlowLoadPage') {
+      SlowLoadPage()
+    } else if (name === 'ImagePage') {
+      ImagePage()
+    } else if (name === 'SlowImagePage') {
+      SlowImagePage()
+    } else if (name === 'PageOpenTriggerPage') {
+      PageOpenTriggerPage()
+    } else if (name === 'SwitchResultTriggerPage') {
+      SwitchResultTriggerPage()
+    } else if (name === 'SwitchResultBlankPage') {
+      SwitchResultBlankPage()
+    } else {
+      this.buildHomePage()
+    }
   }
 
   // =========================
@@ -267,7 +314,6 @@ struct Index {
       }
       await this.sleep(500)
       if (intervalMs !== 500) {
-        // 占位，避免未使用变量风格问题
       }
     }
 
@@ -414,6 +460,602 @@ struct Index {
         resolve()
       }, ms)
     })
+  }
+}
+
+// ===================== BlankPage =====================
+@Component
+struct BlankPage {
+  @State pageStack: NavPathStack = new NavPathStack()
+  @State contentReady: boolean = false
+
+  private revealTimer: number = -1
+  private returnTimer: number = -1
+
+  build(): void {
+    NavDestination() {
+      Stack() {
+        Row()
+          .width('100%')
+          .height('100%')
+          .backgroundColor('#FFFFFF')
+
+        if (this.contentReady) {
+          Column() {
+            Text('Recovered From Page-Open White Screen')
+              .fontSize(22)
+              .fontWeight(FontWeight.Medium)
+              .margin({ bottom: 10 })
+            Text('This demo blocks the UI thread before the first frame to trigger TTID timeout.')
+              .fontSize(16)
+              .fontColor('#3D4A5D')
+              .margin({ bottom: 10 })
+            Text('If MetricX is working, blankPage should report PAGE_OPEN + TIMEOUT.')
+              .fontSize(15)
+              .fontColor('#56657A')
+          }
+          .width('100%')
+          .height('100%')
+          .padding(24)
+          .backgroundColor('#F3F8FF')
+        }
+      }
+      .width('100%')
+      .height('100%')
+      .backgroundColor('#FFFFFF')
+      .id('whiteScreenTestRoot')
+    }
+    .hideTitleBar(true)
+    .onReady((context): void => {
+      this.pageStack = context.pathStack
+      this.contentReady = false
+
+      let whiteDurationMs: number = 6000
+      const param: string = context.pathInfo.param as string
+      if (param && param.length > 0) {
+        const parsed: number = Number(param)
+        if (!isNaN(parsed)) {
+          whiteDurationMs = parsed
+        }
+      }
+
+      const PAGE_OPEN_TTID_BLOCK_MS: number = 1500
+      let blockDurationMs: number = PAGE_OPEN_TTID_BLOCK_MS
+      if (whiteDurationMs < blockDurationMs) {
+        blockDurationMs = whiteDurationMs
+      }
+
+      this.blockUiThread(blockDurationMs)
+
+      const remainingWhiteMs: number = whiteDurationMs - blockDurationMs
+      if (remainingWhiteMs <= 0) {
+        this.revealContent()
+      } else {
+        this.revealTimer = setTimeout((): void => {
+          this.revealContent()
+        }, remainingWhiteMs)
+      }
+    })
+    .onBackPressed((): boolean => {
+      if (this.revealTimer !== -1) {
+        clearTimeout(this.revealTimer)
+        this.revealTimer = -1
+      }
+      if (this.returnTimer !== -1) {
+        clearTimeout(this.returnTimer)
+        this.returnTimer = -1
+      }
+      this.pageStack.pop()
+      return true
+    })
+  }
+
+  private revealContent(): void {
+    if (this.contentReady) {
+      return
+    }
+    this.contentReady = true
+    if (this.revealTimer !== -1) {
+      clearTimeout(this.revealTimer)
+      this.revealTimer = -1
+    }
+    const WHITE_SCREEN_RECOVERY_STAY_MS: number = 1200
+    this.returnTimer = setTimeout((): void => {
+      this.pageStack.pop()
+    }, WHITE_SCREEN_RECOVERY_STAY_MS)
+  }
+
+  private blockUiThread(durationMs: number): void {
+    if (durationMs <= 0) {
+      return
+    }
+    const start: number = Date.now()
+    while (Date.now() - start < durationMs) {
+    }
+  }
+}
+
+// ===================== HalfBlankPage =====================
+@Component
+struct HalfBlankPage {
+  @State pageStack: NavPathStack = new NavPathStack()
+  private timerId: number = -1
+
+  build(): void {
+    NavDestination() {
+      Column() {
+        Row()
+          .width('100%')
+          .height('50%')
+          .backgroundColor('#000000')
+        Row()
+          .width('100%')
+          .height('50%')
+          .backgroundColor('#FFFFFF')
+      }
+      .width('100%')
+      .height('100%')
+      .id('whiteScreenTestRoot')
+    }
+    .hideTitleBar(true)
+    .onReady((context): void => {
+      this.pageStack = context.pathStack
+
+      let duration: number = 6000
+      const param: string = context.pathInfo.param as string
+      if (param && param.length > 0) {
+        const parsed: number = Number(param)
+        if (!isNaN(parsed)) {
+          duration = parsed
+        }
+      }
+
+      this.timerId = setTimeout((): void => {
+        this.pageStack.pop()
+      }, duration)
+    })
+    .onBackPressed((): boolean => {
+      if (this.timerId !== -1) {
+        clearTimeout(this.timerId)
+      }
+      this.pageStack.pop()
+      return true
+    })
+  }
+}
+
+// ===================== ImagePage =====================
+@Component
+struct ImagePage {
+  @State pageStack: NavPathStack = new NavPathStack()
+  private timerId: number = -1
+
+  build(): void {
+    NavDestination() {
+      Stack() {
+        Image('https://pic.baike.soso.com/ugc/baikepic2/17155/20220223180002-2131977287_png_512_512_124034.jpg/0')
+          .width('100%')
+          .height('100%')
+          .objectFit(ImageFit.Cover)
+      }
+      .width('100%')
+      .height('100%')
+      .id('whiteScreenTestRoot')
+    }
+    .hideTitleBar(true)
+    .onReady((context): void => {
+      this.pageStack = context.pathStack
+
+      let duration: number = 8000
+      const param: string = context.pathInfo.param as string
+      if (param && param.length > 0) {
+        const parsed: number = Number(param)
+        if (!isNaN(parsed)) {
+          duration = parsed
+        }
+      }
+
+      this.timerId = setTimeout((): void => {
+        this.pageStack.pop()
+      }, duration)
+    })
+    .onBackPressed((): boolean => {
+      if (this.timerId !== -1) {
+        clearTimeout(this.timerId)
+      }
+      this.pageStack.pop()
+      return true
+    })
+  }
+}
+
+// ===================== SlowImagePage =====================
+@Component
+struct SlowImagePage {
+  @State showImage: boolean = false
+  @State pageStack: NavPathStack = new NavPathStack()
+  private timerId: number = -1
+  private returnTimerId: number = -1
+
+  build(): void {
+    NavDestination() {
+      Stack() {
+        Row()
+          .width('100%')
+          .height('100%')
+          .backgroundColor('#FFFFFF')
+
+        if (this.showImage) {
+          Image('https://pic.baike.soso.com/ugc/baikepic2/17155/20220223180002-2131977287_png_512_512_124034.jpg/0')
+            .width('100%')
+            .height('100%')
+            .objectFit(ImageFit.Cover)
+        }
+      }
+      .width('100%')
+      .height('100%')
+      .backgroundColor('#FFFFFF')
+      .id('whiteScreenTestRoot')
+    }
+    .hideTitleBar(true)
+    .onReady((context): void => {
+      this.pageStack = context.pathStack
+      this.showImage = false
+
+      let delayMs: number = 8000
+      const param: string = context.pathInfo.param as string
+      if (param && param.length > 0) {
+        const parsed: number = Number(param)
+        if (!isNaN(parsed)) {
+          delayMs = parsed
+        }
+      }
+
+      this.timerId = setTimeout((): void => {
+        this.showImage = true
+        if (this.returnTimerId !== -1) {
+          clearTimeout(this.returnTimerId)
+        }
+        this.returnTimerId = setTimeout((): void => {
+          this.pageStack.pop()
+        }, 1000)
+      }, delayMs)
+    })
+    .onBackPressed((): boolean => {
+      if (this.timerId !== -1) {
+        clearTimeout(this.timerId)
+      }
+      if (this.returnTimerId !== -1) {
+        clearTimeout(this.returnTimerId)
+      }
+      this.pageStack.pop()
+      return true
+    })
+  }
+}
+
+// ===================== SlowLoadPage =====================
+@Component
+struct SlowLoadPage {
+  @State loadingStep: number = 0
+  @State contentReady: boolean = false
+  @State pageStack: NavPathStack = new NavPathStack()
+
+  private animationTimerId: number = -1
+  private contentTimerId: number = -1
+  private returnTimerId: number = -1
+
+  build(): void {
+    NavDestination() {
+      Stack() {
+        Column() {
+          if (!this.contentReady) {
+            Text(this.loadingLabel())
+              .fontSize(24)
+              .fontWeight(FontWeight.Medium)
+              .margin({ bottom: 16 })
+
+            Row() {
+              Row().width(52).height(12).backgroundColor('#E8E8E8').borderRadius(6)
+              Row().width(120).height(12).backgroundColor('#D8D8D8').borderRadius(6).margin({ top: 12 })
+              Row().width(88).height(12).backgroundColor('#E8E8E8').borderRadius(6).margin({ top: 12 })
+            }
+            .width('100%')
+            .margin({ bottom: 24 })
+
+            Text('Content is still loading, but frames keep updating.')
+              .fontSize(16)
+              .fontColor('#666666')
+          } else {
+            Image('https://pic.baike.soso.com/ugc/baikepic2/17155/20220223180002-2131977287_png_512_512_124034.jpg/0')
+              .width('100%')
+              .height(220)
+              .objectFit(ImageFit.Cover)
+              .margin({ bottom: 18 })
+            Text('Content loaded')
+              .fontSize(22)
+              .fontWeight(FontWeight.Medium)
+              .margin({ bottom: 8 })
+            Text('This page simulates a slow-loading business page.')
+              .fontSize(16)
+              .fontColor('#666666')
+          }
+        }
+        .width('100%')
+        .height('100%')
+        .padding(24)
+        .backgroundColor('#FFFFFF')
+      }
+      .width('100%')
+      .height('100%')
+      .id('whiteScreenTestRoot')
+    }
+    .hideTitleBar(true)
+    .onReady((context): void => {
+      this.pageStack = context.pathStack
+
+      let delay: number = 8000
+      const param: string = context.pathInfo.param as string
+      if (param && param.length > 0) {
+        const parsed: number = Number(param)
+        if (!isNaN(parsed)) {
+          delay = parsed
+        }
+      }
+
+      this.animationTimerId = setTimeout((): void => {
+        this.advanceLoading()
+      }, 180)
+      this.contentTimerId = setTimeout((): void => {
+        this.finishLoading()
+      }, delay)
+    })
+    .onBackPressed((): boolean => {
+      this.clearTimers()
+      this.pageStack.pop()
+      return true
+    })
+  }
+
+  private loadingLabel(): string {
+    const labels: Array<string> = ['Loading', 'Loading.', 'Loading..', 'Loading...']
+    const idx: number = this.loadingStep % labels.length
+    return labels[idx]
+  }
+
+  private advanceLoading(): void {
+    if (this.contentReady) {
+      return
+    }
+    this.loadingStep = (this.loadingStep + 1) % 4
+    this.animationTimerId = setTimeout((): void => {
+      this.advanceLoading()
+    }, 180)
+  }
+
+  private finishLoading(): void {
+    if (this.contentReady) {
+      return
+    }
+    this.contentReady = true
+    if (this.animationTimerId !== -1) {
+      clearTimeout(this.animationTimerId)
+      this.animationTimerId = -1
+    }
+    this.returnTimerId = setTimeout((): void => {
+      this.pageStack.pop()
+    }, 1500)
+  }
+
+  private clearTimers(): void {
+    if (this.animationTimerId !== -1) {
+      clearTimeout(this.animationTimerId)
+      this.animationTimerId = -1
+    }
+    if (this.contentTimerId !== -1) {
+      clearTimeout(this.contentTimerId)
+      this.contentTimerId = -1
+    }
+    if (this.returnTimerId !== -1) {
+      clearTimeout(this.returnTimerId)
+      this.returnTimerId = -1
+    }
+  }
+}
+
+// ===================== PageOpenTriggerPage =====================
+@Component
+struct PageOpenTriggerPage {
+  @State pageStack: NavPathStack = new NavPathStack()
+
+  build(): void {
+    NavDestination() {
+      Column() {
+        Text('Page-open white screen trigger page')
+          .fontSize(20)
+          .margin({ bottom: 12 })
+        Text('Expected Positive means the detector should report white screen.')
+          .fontSize(16)
+          .margin({ bottom: 8 })
+        Text('Control pages are for contrast and should not be treated as real white screens.')
+          .fontSize(15)
+          .fontColor('#666666')
+          .margin({ bottom: 20 })
+        Button('Go To TTID Timeout White Screen').onClick((): void => {
+          this.pageStack.pushPath(new NavPathInfo('BlankPage', '8000'))
+        })
+        Button('Go To Half Blank Control Page').margin({ top: 12 }).onClick((): void => {
+          this.pageStack.pushPath(new NavPathInfo('HalfBlankPage', '8000'))
+        })
+        Button('Go To Image Control Page').margin({ top: 12 }).onClick((): void => {
+          this.pageStack.pushPath(new NavPathInfo('ImagePage', '8000'))
+        })
+        Button('Go To Delayed Image Page (Experimental)').margin({ top: 12 }).onClick((): void => {
+          this.pageStack.pushPath(new NavPathInfo('SlowImagePage', '8000'))
+        })
+        Button('Go To Slow Load Control Page').margin({ top: 12 }).onClick((): void => {
+          this.pageStack.pushPath(new NavPathInfo('SlowLoadPage', '8000'))
+        })
+        Button('Back To Home').margin({ top: 16 }).onClick((): void => {
+          this.pageStack.pop()
+        })
+      }
+      .width('100%')
+      .height('100%')
+      .padding(24)
+      .backgroundColor('#F5F5F5')
+    }
+    .hideTitleBar(true)
+    .onReady((context): void => {
+      this.pageStack = context.pathStack
+    })
+    .onBackPressed((): boolean => {
+      this.pageStack.pop()
+      return true
+    })
+  }
+}
+
+// ===================== SwitchResultTriggerPage =====================
+@Component
+struct SwitchResultTriggerPage {
+  @State pageStack: NavPathStack = new NavPathStack()
+
+  build(): void {
+    NavDestination() {
+      Column() {
+        Text('Switch-result white screen trigger page')
+          .fontSize(20)
+          .margin({ bottom: 12 })
+        Text('The first button keeps the next page white for a while before real content appears.')
+          .fontSize(16)
+          .margin({ bottom: 8 })
+        Text('Other buttons are contrast pages for manual comparison.')
+          .fontSize(15)
+          .fontColor('#666666')
+          .margin({ bottom: 20 })
+        Button('Go To Switch-Result White Screen').onClick((): void => {
+          this.pageStack.pushPath(new NavPathInfo('SwitchResultBlankPage', '8000'))
+        })
+        Button('Go To Switch-Result Half Blank Control').margin({ top: 12 }).onClick((): void => {
+          this.pageStack.pushPath(new NavPathInfo('HalfBlankPage', '8000'))
+        })
+        Button('Go To Switch-Result Image Control').margin({ top: 12 }).onClick((): void => {
+          this.pageStack.pushPath(new NavPathInfo('ImagePage', '8000'))
+        })
+        Button('Go To Switch-Result Delayed Image').margin({ top: 12 }).onClick((): void => {
+          this.pageStack.pushPath(new NavPathInfo('SlowImagePage', '8000'))
+        })
+        Button('Go To Switch-Result Slow Load Control').margin({ top: 12 }).onClick((): void => {
+          this.pageStack.pushPath(new NavPathInfo('SlowLoadPage', '8000'))
+        })
+        Button('Back To Home').margin({ top: 16 }).onClick((): void => {
+          this.pageStack.pop()
+        })
+      }
+      .width('100%')
+      .height('100%')
+      .padding(24)
+      .backgroundColor('#F5F5F5')
+    }
+    .hideTitleBar(true)
+    .onReady((context): void => {
+      this.pageStack = context.pathStack
+    })
+    .onBackPressed((): boolean => {
+      this.pageStack.pop()
+      return true
+    })
+  }
+}
+
+// ===================== SwitchResultBlankPage =====================
+@Component
+struct SwitchResultBlankPage {
+  @State pageStack: NavPathStack = new NavPathStack()
+  @State contentReady: boolean = false
+
+  private revealTimer: number = -1
+  private returnTimer: number = -1
+
+  build(): void {
+    NavDestination() {
+      Stack() {
+        Row()
+          .width('100%')
+          .height('100%')
+          .backgroundColor('#FFFFFF')
+
+        if (this.contentReady) {
+          Column() {
+            Text('Recovered From Switch-Result White Screen')
+              .fontSize(22)
+              .fontWeight(FontWeight.Medium)
+              .margin({ bottom: 10 })
+            Text('The destination page stayed fully white before business content appeared.')
+              .fontSize(16)
+              .fontColor('#3D4A5D')
+              .margin({ bottom: 10 })
+            Text('If MetricX is working, switchResultBlankPage should report PAGE_SWITCH_RESULT + CONTENT_MISSING.')
+              .fontSize(15)
+              .fontColor('#56657A')
+          }
+          .width('100%')
+          .height('100%')
+          .padding(24)
+          .backgroundColor('#F6FBFF')
+        }
+      }
+      .width('100%')
+      .height('100%')
+      .backgroundColor('#FFFFFF')
+      .id('whiteScreenTestRoot')
+    }
+    .hideTitleBar(true)
+    .onReady((context): void => {
+      this.pageStack = context.pathStack
+      this.contentReady = false
+
+      let durationMs: number = 8000
+      const param: string = context.pathInfo.param as string
+      if (param && param.length > 0) {
+        const parsed: number = Number(param)
+        if (!isNaN(parsed)) {
+          durationMs = parsed
+        }
+      }
+
+      this.revealTimer = setTimeout((): void => {
+        this.revealContent()
+      }, durationMs)
+    })
+    .onBackPressed((): boolean => {
+      if (this.revealTimer !== -1) {
+        clearTimeout(this.revealTimer)
+        this.revealTimer = -1
+      }
+      if (this.returnTimer !== -1) {
+        clearTimeout(this.returnTimer)
+        this.returnTimer = -1
+      }
+      this.pageStack.pop()
+      return true
+    })
+  }
+
+  private revealContent(): void {
+    if (this.contentReady) {
+      return
+    }
+    this.contentReady = true
+    if (this.revealTimer !== -1) {
+      clearTimeout(this.revealTimer)
+      this.revealTimer = -1
+    }
+    const WHITE_SCREEN_RECOVERY_STAY_MS: number = 1200
+    this.returnTimer = setTimeout((): void => {
+      this.pageStack.pop()
+    }, WHITE_SCREEN_RECOVERY_STAY_MS)
   }
 }
 
