@@ -16,6 +16,7 @@
 
 `hm-metricx-cj` 系统性地采集和分析监控指标数据，帮助开发团队及时发现性能瓶颈和异常，持续优化应用质量，提升用户体验。
 
+** 注意： ** hm-metricx-cj当前处于实验阶段，暂不建议使用，否则可能出现未知问题。
 ## 使用流程，基于DevEco6.0.0.878和相对应的SDK，STDX
 #### noohos_pulish分支
 - 在file -> project structure -> signing Configs: ☑️勾选Automatically generate signature，然后apply再点ok。
