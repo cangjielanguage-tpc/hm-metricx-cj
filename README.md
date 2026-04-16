@@ -20,7 +20,6 @@
 `hm-metricx-cj`当前处于实验阶段，暂不建议使用，否则可能出现未知问题。
 
 ## DevEco Setup
-- 需要tpc: https://gitcode.com/Cangjie-TPC/TPC-HMOS/tree/tpc_5.1_all 下载tpc_5.1_all, 然后改名为tpc_home.
 - 需要对应版本的stdx，在系统环境变量里设置加入变量名“CANGJIE_OHOS_STDX_PATH”，变量值是所对应的stdx-path：~\linux_ohos_aarch64_llvm\dynamic\stdx
 - 需要DevEco对应的sdk plugins, 在DevEco中File -> Setting -> Plugings: 点击installed右边的按键， 然后选择“Install Plugin From Disk...”把plugins的zip file直接导入。
 
