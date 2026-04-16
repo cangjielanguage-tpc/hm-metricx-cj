@@ -16,8 +16,11 @@
 
 `hm-metricx-cj` 系统性地采集和分析监控指标数据，帮助开发团队及时发现性能瓶颈和异常，持续优化应用质量，提升用户体验。
 
-** 注意： **
-`hm-metricx-cj`当前处于实验阶段，暂不建议使用，否则可能出现未知问题。
+
+
+>** 注意： **
+>
+>`hm-metricx-cj`当前处于实验阶段，暂不建议使用，否则可能出现未知问题。
 
 ## DevEco Setup
 - 需要对应版本的stdx，在系统环境变量里设置加入变量名“CANGJIE_OHOS_STDX_PATH”，变量值是所对应的stdx-path：~\linux_ohos_aarch64_llvm\dynamic\stdx
