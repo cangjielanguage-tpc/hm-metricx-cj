@@ -116,7 +116,7 @@ public func sampleThermal(force!: Bool = false): Unit {
         }
 
         let abnormalNow = levelInt >= abnormalThresholdLevel
-        let levelIncreased = prevLevel >= 0 && levelInt > prevLevel
+        let levelChanged = prevLevel >= 0 && levelInt != prevLevel
 
         let shouldReport =
             abnormalNow &&
