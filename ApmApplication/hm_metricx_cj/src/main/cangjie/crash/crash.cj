@@ -279,6 +279,10 @@ class PersistentPaths {
     let lastNHilogPath: Path
     let dumpTimePath: Path
     let memPersistTimePath: Path
+    // rawheap 相关路径 (ArkTS OOM 监控)
+    let rsFlagPath: Path
+    let rawheapInfoPath: Path
+    let rawheapDirPath: String = "/data/log/reliability/resource_leak/memory_leak"
 
     public init(persistentDir: Path) {
         this.dir = persistentDir
@@ -291,6 +295,9 @@ class PersistentPaths {
         this.lastNHilogPath = persistentDir.join("crashLastNHilog.txt")
         this.dumpTimePath = persistentDir.join("dumpTime.txt")
         this.memPersistTimePath = persistentDir.join("crashMemPersistTime.txt")
+        // rawheap 相关路径初始化
+        this.rsFlagPath = persistentDir.join("rs_flag.txt")
+        this.rawheapInfoPath = persistentDir.join("rawheap_info.json")
     }
 }
 
@@ -326,6 +333,185 @@ class ParsedAddr {
     }
 }
 
+/**
+ * ArkTS OOM rawheap 文件信息
+ */
+@Interop[ArkTS]
+public class RawheapInfo {
+    private var filePathValue: String = ""
+    private var fileSizeValue: Int64 = 0
+    private var timestampValue: String = ""
+    private var pidValue: String = ""
+    private var rsEventTimeValue: String = ""
+    private var crashTimeValue: String = ""
+    private var resourceTypeValue: String = ""
+    private var memoryLimitValue: Int64 = 0
+    private var currentMemoryValue: Int64 = 0
+    private var logMessageValue: String = ""
+
+    public mut prop filePath: String {
+        get() { filePathValue }
+        set(value) { filePathValue = value }
+    }
+
+    public mut prop fileSize: Int64 {
+        get() { fileSizeValue }
+        set(value) { fileSizeValue = value }
+    }
+
+    public mut prop timestamp: String {
+        get() { timestampValue }
+        set(value) { timestampValue = value }
+    }
+
+    public mut prop pid: String {
+        get() { pidValue }
+        set(value) { pidValue = value }
+    }
+
+    public mut prop rsEventTime: String {
+        get() { rsEventTimeValue }
+        set(value) { rsEventTimeValue = value }
+    }
+
+    public mut prop crashTime: String {
+        get() { crashTimeValue }
+        set(value) { crashTimeValue = value }
+    }
+
+    public mut prop resourceType: String {
+        get() { resourceTypeValue }
+        set(value) { resourceTypeValue = value }
+    }
+
+    public mut prop memoryLimit: Int64 {
+        get() { memoryLimitValue }
+        set(value) { memoryLimitValue = value }
+    }
+
+    public mut prop currentMemory: Int64 {
+        get() { currentMemoryValue }
+        set(value) { currentMemoryValue = value }
+    }
+    public mut prop logMessage: String {
+        get() { logMessageValue }
+        set(value) { logMessageValue = value }
+    }
+    public init() {}
+
+    func toString(): String {
+        var res = ""
+        res += "filePath:${filePathValue}\n"
+        res += "fileSize:${fileSizeValue}\n"
+        res += "timestamp:${timestampValue}\n"
+        res += "pid:${pidValue}\n"
+        res += "rsEventTime:${rsEventTimeValue}\n"
+        res += "crashTime:${crashTimeValue}\n"
+        res += "resourceType:${resourceTypeValue}\n"
+        res += "memoryLimit:${memoryLimitValue}\n"
+        res += "currentMemory:${currentMemoryValue}"
+        res += "logMessage:${logMessageValue}"
+        res
+    }
+
+    static func fromString(str: String): RawheapInfo {
+        let info = RawheapInfo()
+        let lines = str.split("\n", removeEmpty: true)
+        for (line in lines) {
+            if (line.startsWith("filePath:")) {
+                info.filePath = line.removePrefix("filePath:")
+            } else if (line.startsWith("fileSize:")) {
+                try {
+                    info.fileSize = Int64.parse(line.removePrefix("fileSize:"))
+                } catch (e: Exception) {
+                    info.fileSize = 0
+                }
+            } else if (line.startsWith("timestamp:")) {
+                info.timestamp = line.removePrefix("timestamp:")
+            } else if (line.startsWith("pid:")) {
+                info.pid = line.removePrefix("pid:")
+            } else if (line.startsWith("rsEventTime:")) {
+                info.rsEventTime = line.removePrefix("rsEventTime:")
+            } else if (line.startsWith("crashTime:")) {
+                info.crashTime = line.removePrefix("crashTime:")
+            } else if (line.startsWith("resourceType:")) {
+                info.resourceType = line.removePrefix("resourceType:")
+            } else if (line.startsWith("memoryLimit:")) {
+                try {
+                    info.memoryLimit = Int64.parse(line.removePrefix("memoryLimit:"))
+                } catch (e: Exception) {
+                    info.memoryLimit = 0
+                }
+            } else if (line.startsWith("currentMemory:")) {
+                try {
+                    info.currentMemory = Int64.parse(line.removePrefix("currentMemory:"))
+                } catch (e: Exception) {
+                    info.currentMemory = 0
+                }
+            }
+        }
+        info
+    }
+
+    func toInteropRawheapInfo(): InteropRawheapInfo {
+        let info = InteropRawheapInfo()
+        info.filePath = filePathValue
+        info.fileSize = fileSizeValue
+        info.timestamp = timestampValue
+        info.pid = pidValue
+        info.rsEventTime = rsEventTimeValue
+        info.crashTime = crashTimeValue
+        info.resourceType = resourceTypeValue
+        info.memoryLimit = memoryLimitValue
+        info.currentMemory = currentMemoryValue
+        info.logMessage = logMessage
+        info
+    }
+}
+
+@Interop[ArkTS]
+public class InteropRawheapInfo {
+    public var filePath: Option<String> = None
+    public var fileSize: Option<Int64> = None
+    public var timestamp: Option<String> = None
+    public var pid: Option<String> = None
+    public var rsEventTime: Option<String> = None
+    public var crashTime: Option<String> = None
+    public var resourceType: Option<String> = None
+    public var memoryLimit: Option<Int64> = None
+    public var currentMemory: Option<Int64> = None
+    public var logMessage: Option<String> = None
+
+    public init() {}
+
+    func toJson(): String {
+        var res = "{"
+        if (let Some(v) <- filePath) {
+            res += "\"filePath\":\"${v}\","
+        }
+        if (let Some(v) <- fileSize) {
+            res += "\"fileSize\":${v},"
+        }
+        if (let Some(v) <- timestamp) {
+            res += "\"timestamp\":\"${v}\","
+        }
+        if (let Some(v) <- pid) {
+            res += "\"pid\":\"${v}\","
+        }
+        if (let Some(v) <- rsEventTime) {
+            res += "\"rsEventTime\":\"${v}\","
+        }
+        if (let Some(v) <- crashTime) {
+            res += "\"crashTime\":\"${v}\","
+        }
+        if (res.endsWith(",")) {
+            res = res[0..res.size - 1]
+        }
+        res += "}"
+        res
+    }
+}
+
 @Interop[ArkTS]
 public class CMemMonitorConfig {
     public let shouldBeClusteredToThisSo: (String) -> Bool
@@ -353,6 +539,8 @@ private var OOMHandlerInited = false;
 private let PRIORITY_HIGH: Array<String> = []
 private let PRIORITY_LOW: Array<String> = []
 private var iCollectCrashInfo: () -> String = { => "{}" }
+private var iResourceLeakPersistentPaths: ?PersistentPaths = None
+var crash_init_flag = false
 
 @C
 func collectExtraCrashInfo(): CString {
@@ -365,16 +553,23 @@ func collectExtraCrashInfo(): CString {
 public func initCrashHandler(
     addCrashWatcher: (callback: (time: String, pid: String, exception: String, hilog: String, external_log: String,
             crash_type: String, bundle_version: String) -> Unit) -> Unit,
+    addResourceLeakWatcher: (callback: (pid: String, timestamp: String, resourceType: String, memoryLimit: Int64, currentMemory: Int64, logPath: String) -> Unit) -> Unit,
     onCrash: (() -> Unit) -> Unit,
     exit: () -> Unit,
     collectCrashInfo: () -> String,
     reportCrashInfo: (crashInfo: InteropCrashInfo) -> Unit,
     persistentDir: Path,
     enableDumpOnOOM: Option<OOMHandlerMode>,
-    lastNHilogNumber: Int64,
-    systemLogNumber: Int64,
-    enableMemMonitor: Option<CMemMonitorConfig>
+    enableMemMonitor: Option<CMemMonitorConfig>,
+    reportRawheap: (info: InteropRawheapInfo) -> Unit,
+    lastNHilogNumber!: Int64 = 1000,
+    systemLogNumber!: Int64 = 1000
 ) {
+    if (crash_init_flag) {
+    	return
+    }
+    crash_init_flag = true
+    metricx_warn("hm-metricx-cj error: crash initCrashHandler 4")
     if (inited) {
         return
     }
@@ -397,6 +592,9 @@ public func initCrashHandler(
             => initNativeMemoryWatcher()
         }
     }
+    // 初始化 resourceLeakWatcher (ArkTS OOM 监控)
+    // 通过 ArkTS 侧 hiAppEvent 监听 RESOURCE_OVERLIMIT 事件
+    initResourceLeakWatcherFromArkTS(addResourceLeakWatcher, reportRawheap, persistentPaths)
     if (let Some(handlerMode) <- enableDumpOnOOM) {
         match (handlerMode) {
             case OOMHandlerMode.Sync => initOOMHandler(persistentDir.toString())
@@ -409,6 +607,7 @@ public func initCrashHandler(
 }
 
 private func reportLastCrash(persistentPaths: PersistentPaths, reportCrashInfo: (crashInfo: InteropCrashInfo) -> Unit) {
+    metricx_warn("hm-metricx-cj error: crash reportLastCrash 5")
     if (exists(persistentPaths.lastCrashFilePath)) {
         try {
             let crashInfo = CrashInfo.fromString(readFile(persistentPaths.lastCrashFilePath))
@@ -650,11 +849,15 @@ private func collectMemInfo() {
 private func initCrashWatcher(
     addCrashWatcher: (callback: (time: String, pid: String, exception: String, hilog: String, external_log: String,
             crash_type: String, bundle_version: String) -> Unit) -> Unit,
-    reportCrashInfo: (crashInfo: InteropCrashInfo) -> Unit, persistentPaths: PersistentPaths,
+    reportCrashInfo: (crashInfo: InteropCrashInfo) -> Unit,
+    persistentPaths: PersistentPaths,
     enableMemMonitor: Option<CMemMonitorConfig>) {
+         metricx_warn("hm-metricx-cj error: crash initCrashWatcher 7")
+
     let cb = {
-        time: String, crashPid: String, exception: String, hilog: String, external_log: String, crash_type: String, 
+        time: String, crashPid: String, exception: String, hilog: String, external_log: String, crash_type: String,
             bundle_version: String => try {
+
             var crashInfo = CrashInfo()
             if (exists(persistentPaths.crashFilePath)) {
                 crashInfo = CrashInfo.fromString(readFile(persistentPaths.crashFilePath))
@@ -935,6 +1138,85 @@ private func initNativeMemoryWatcher() {
             metricx_warn("hm-metricx-cj error: registerNativeMemoryCallback failed.")
         }
     }
+}
+
+/**
+ * 初始化 resourceLeakWatcher - 监控 ArkTS 内存 OOM 预警
+ * 当 RESOURCE_OVERLIMIT 事件触发时，设置 rs_flag 并记录 rawheap 信息
+ * 新版本：通过 ArkTS 侧的 addResourceLeakWatcher 回调实现
+ *
+ * 根据官方文档，RESOURCE_OVERLIMIT 事件参数包括：
+ * - pid: 进程 ID
+ * - time: 事件发生时间戳
+ * - resource_type: 资源类型（如 js_heap）
+ * - memory.limit_size: 系统当前设定的内存阈值（KB）
+ * - memory.live_object_size: 触发时进程的实际内存使用量（KB）
+ * - rawheap_path: 系统自动生成的堆内存快照文件路径（可能不存在）
+ */
+private func initResourceLeakWatcherFromArkTS(
+    addResourceLeakWatcher: (callback: (pid: String, timestamp: String, resourceType: String, memoryLimit: Int64, currentMemory: Int64, logPath: String) -> Unit) -> Unit,
+    reportRawheap: (info: InteropRawheapInfo) -> Unit,
+    persistentPaths: PersistentPaths) {
+        metricx_warn("hm-metricx-cj error: crash initResourceLeakWatcherFromArkTS 8")
+    metricx_warn("hm-metricx-cj: initResourceLeakWatcherFromArkTS STARTED")
+    iResourceLeakPersistentPaths = persistentPaths
+    addResourceLeakWatcher({
+        pid, timestamp, resourceType, memoryLimit, currentMemory, logPath =>
+            try {
+                metricx_warn("hm-metricx-cj error: crash initResourceLeakWatcherFromArkTS 8-1")
+                metricx_warn("hm-metricx-cj: RESOURCE_OVERLIMIT ArkTS callback triggered!")
+                metricx_warn("hm-metricx-cj: callback params - pid=${pid}, timestamp=${timestamp}, resourceType=${resourceType}")
+                metricx_warn("hm-metricx-cj: callback params - memoryLimit=${memoryLimit}KB, currentMemory=${currentMemory}KB")
+
+                if (let Some(paths) <- iResourceLeakPersistentPaths) {
+                    metricx_warn("hm-metricx-cj: RESOURCE_OVERLIMIT event received")
+                    metricx_warn("hm-metricx-cj: pid=${pid}, resourceType=${resourceType}, memory_limit=${memoryLimit}KB, current_memory=${currentMemory}KB")
+
+                    // 先清理旧的标志位，确保可以重复触发
+                    if (exists(paths.rsFlagPath)) {
+                        deleteFile(paths.rsFlagPath)
+                        metricx_warn("hm-metricx-cj: cleaned old rs_flag before setting new one")
+                    }
+
+                    // 设置 rs_flag
+                    writeFile(paths.rsFlagPath, "true")
+
+                    // 读取 logPath 文件内容
+                    let logMessage = if (logPath.isEmpty()) {
+                        "hm-metricx-cj error: logPath is empty"
+                    } else if (!exists(logPath)) {
+                        "hm-metricx-cj error: logPath ${logPath} does not exist"
+                    } else {
+                        readResourceFile(Path(logPath))
+                    }
+
+                    // 记录触发时间
+                    let rsEventTime = getCurTimestampMillis()
+
+                    // 记录 rawheap 信息
+                    let rawheapInfo = RawheapInfo()
+                    rawheapInfo.pid = pid
+                    rawheapInfo.rsEventTime = rsEventTime
+                    rawheapInfo.timestamp = timestamp
+                    rawheapInfo.resourceType = resourceType
+                    rawheapInfo.memoryLimit = memoryLimit
+                    rawheapInfo.currentMemory = currentMemory
+                    rawheapInfo.logMessage = logMessage
+                    rawheapInfo.filePath = paths.rawheapDirPath
+                    metricx_warn("hm-metricx-cj: using default rawheap path: ${paths.rawheapDirPath}")
+
+                    // 持久化 rawheap 信息
+                    writeFile(paths.rawheapInfoPath, rawheapInfo.toString())
+                    reportRawheap(rawheapInfo.toInteropRawheapInfo())
+                    metricx_warn("hm-metricx-cj: rawheap info saved: ${rawheapInfo.toString()}")
+                }
+            } catch (e: Exception) {
+                metricx_warn("hm-metricx-cj error: initResourceLeakWatcherFromArkTS error, " + e.toString())
+            } catch (e: OutOfMemoryError) {
+                metricx_warn("hm-metricx-cj error: initResourceLeakWatcherFromArkTS OOM error, " + e.toString())
+            }
+    })
+    metricx_warn("hm-metricx-cj: initResourceLeakWatcherFromArkTS registered successfully")
 }
 
 private func parseMallocLog(filePath: Path): List<MallocModel> {
@@ -1221,3 +1503,10 @@ foreign func installNativeMemoryMonitor(): Int8
 foreign func IsSigCaught(): Bool
 
 foreign func ResetSigCaught(): Unit
+
+/**
+ * 获取当前时间戳（毫秒）
+ */
+private func getCurTimestampMillis(): String {
+    DateTime.now().toUnixTimeStamp().toMilliseconds().toString()
+}

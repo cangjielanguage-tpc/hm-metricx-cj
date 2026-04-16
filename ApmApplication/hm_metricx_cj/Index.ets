@@ -9,6 +9,7 @@ import { wantAgent } from '@kit.AbilityKit';
 import {
   CustomLib,
   InteropCrashInfo as CrashInfo,
+  InteropRawheapInfo as RawheapInfo,
   InteropFreezeInfo as FreezeInfo,
   InteropSampleTrafficInfo as SampleTrafficInfo,
   InteropStorageInfo as StorageInfo,
@@ -99,7 +100,6 @@ export class CMemMonitorConfig {
     this.shouldBeClusteredToThisSo = shouldBeClusteredToThisSo
   }
 }
-
 let uid = bundleManager.getBundleInfoForSelfSync(bundleManager.BundleFlag.GET_BUNDLE_INFO_WITH_APPLICATION).appInfo.uid;
 
 let getUidRxAndTxBytes = (cb: (rxBytes: number, txBytes: number, pageName: string) => void, pageName: string) => {
@@ -275,12 +275,15 @@ export function initCrashHandler(
   applicationContext: common.ApplicationContext,
   collectCrashInfo: () => string,
   reportCrashInfo: (CrashInfo: CrashInfo) => void,
+  reportRawheapInfo: (info: RawheapInfo) => void,
   persistentDir: string,
   enableDumpOnOOM: OOMHandlerMode,
-  lastNHilogNumber: number,
-  systemLogNumber: number,
+  lastNHilogNumber?: number,
+  systemLogNumber?: number,
   enableMemMonitor?: CMemMonitorConfig
 ): void {
+  hilog.warn(DOMAIN, TAG, 'crash 1');
+
   if (!cjLibCrash) {
     hilog.warn(DOMAIN, TAG, 'initCrashHandler called but crash module is disabled');
     return;
@@ -315,6 +318,8 @@ export function initCrashHandler(
           }
         ],
         onReceive: (domain: string, appEventGroups: Array<hiAppEvent.AppEventGroup>) => {
+          hilog.warn(DOMAIN, TAG, 'crash onReceive 2');
+          hilog.warn(DOMAIN, 'hm_metricx_cj', 'crash addCrashWatcher');
           if (domain !== 'OS') {
             return;
           }
@@ -339,13 +344,63 @@ export function initCrashHandler(
         }
       });
     };
+  let addResourceLeakWatcher =
+    (cb: (pid: string, timestamp: string, resourceType: string, memoryLimit: number, currentMemory: number, rawheapPath: string) => void) => {
+      hilog.info(DOMAIN, 'hm_metricx_cj', 'registering resourceLeakWatcher...');
+      hiAppEvent.addWatcher({
+        name: 'resourceLeakWatcher',
+        appEventFilters: [
+          {
+            domain: hiAppEvent.domain.OS,
+            names: [hiAppEvent.event.RESOURCE_OVERLIMIT]
+          }
+        ],
+        onReceive: (domain: string, appEventGroups: Array<hiAppEvent.AppEventGroup>) => {
+          hilog.warn(DOMAIN, TAG, 'crash resourceLeak onReceive 3');
+          hilog.warn(DOMAIN, 'hm_metricx_cj', 'crash resourceLeak addResourceLeakWatcher triggered');
+          if (domain !== 'OS') {
+            hilog.warn(DOMAIN, 'hm_metricx_cj', `resourceLeakWatcher: domain mismatch, expected OS but got ${domain}`);
+            return;
+          }
+          hilog.warn(DOMAIN, 'hm_metricx_cj', `resourceLeakWatcher: received ${appEventGroups.length} event groups`);
+          for (const eventGroup of appEventGroups) {
+            if (eventGroup.name !== 'RESOURCE_OVERLIMIT') {
+              hilog.warn(DOMAIN, 'hm_metricx_cj', `resourceLeakWatcher: skipping event group ${eventGroup.name}`);
+              continue;
+            }
+            hilog.warn(DOMAIN, 'hm_metricx_cj', `resourceLeakWatcher: processing RESOURCE_OVERLIMIT, ${eventGroup.appEventInfos.length} events`);
+            for (const eventInfo of eventGroup.appEventInfos) {
+              let pid: number = eventInfo.params['pid'];
+              let timestamp: number = eventInfo.params['time'];
+              let resourceType: string = eventInfo.params['resource_type'] ?? 'unknown';
+              let memory: Record<string, number> = eventInfo.params['memory'];
+              let memoryLimit: number = memory?.limit_size ?? 0;
+              let currentMemory: number = memory?.live_object_size ?? 0;
+              let external_logs: string[] = eventInfo.params['external_log'];
+
+              hilog.warn(DOMAIN, 'hm_metricx_cj',
+                `RESOURCE_OVERLIMIT: pid=${pid}, resourceType=${resourceType}, memory_limit=${memoryLimit}KB, memory_limit=${memoryLimit}KB, current=${currentMemory}KB, external_logs=${external_logs}`);
+              let log = ''
+              if (external_logs.length !== 0) {
+                log = external_logs[0]
+              }
+              cb(pid.toString(), timestamp.toString(), resourceType, memoryLimit, currentMemory, log);
+              break;
+            }
+            break;
+          }
+        }
+      });
+      hilog.info(DOMAIN, 'hm_metricx_cj', 'resourceLeakWatcher registered successfully');
+    };
   let memMonitor =
     enableMemMonitor !== undefined ? new cjLibCrash.CMemMonitorConfig(enableMemMonitor!.shouldBeClusteredToThisSo) :
       undefined;
-  cjLibCrash.initCrashHandlerInterop(addCrashWatcher, onCrash, exit, collectCrashInfo, reportCrashInfo, persistentDir,
+
+  cjLibCrash.initCrashHandlerInterop(addCrashWatcher, addResourceLeakWatcher, onCrash, exit, collectCrashInfo, reportCrashInfo, persistentDir,
     enableDumpOnOOM,
     lastNHilogNumber,
-    systemLogNumber, memMonitor);
+    systemLogNumber, memMonitor, reportRawheapInfo);
 }
 
 export function getExitInfo(launchParam: AbilityConstant.LaunchParam): ExitInfo {

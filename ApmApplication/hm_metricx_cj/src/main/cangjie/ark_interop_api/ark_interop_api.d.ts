@@ -1,3 +1,19 @@
+
+
+export declare class InteropRawheapInfo {
+    filePath: string | undefined
+    fileSize: number | undefined
+    timestamp: string | undefined
+    pid: string | undefined
+    rsEventTime: string | undefined
+    crashTime: string | undefined
+    resourceType: string | undefined
+    memoryLimit: number | undefined
+    currentMemory: number | undefined
+    logMessage: string | undefined
+}
+
+
 export declare class InteropBackgroundCpuMonitorConfig {
     cpuThreshold: number
     warnDurationMs: number
@@ -374,6 +390,7 @@ export declare interface CustomLib {
     InteropThreadCpuUsageInfo: {new (threadId: number, threadName: string, threadState: string, threadJiffiesPercent: number, threadJiffies: number, totalJiffies: number, st: number, et: number): InteropThreadCpuUsageInfo}
     InteropAllThreadCpuUsageInfo: {new (t: Array<InteropThreadCpuUsageInfo>): InteropAllThreadCpuUsageInfo}
     InteropCrashInfo: {new (): InteropCrashInfo}
+    InteropRawheapInfo: {new (): InteropRawheapInfo}
     CMemMonitorConfig: {new (shouldBeClusteredToThisSo: (funcArg0: string) => boolean): CMemMonitorConfig}
     initCrashHandler(addCrashWatcher: (funcArg0: (funcArgfuncArg0: string, funcArgfuncArg1: string, funcArgfuncArg2: string, funcArgfuncArg3: string, funcArgfuncArg4: string, funcArgfuncArg5: string, funcArgfuncArg6: string) => void) => void, onCrash: (funcArg0: () => void) => void, exit: () => void, collectCrashInfo: () => string, reportCrashInfo: (funcArg0: InteropCrashInfo) => void, persistentDir: string, enableDumpOnOOM: number, lastNHilogNumber: number, systemLogNumber: number, enableMemMonitor: CMemMonitorConfig | undefined): void
     getExitInfo(lastExitMessage: string, lastExitReason: number): ExitInfo
@@ -416,7 +433,6 @@ export declare interface CustomLib {
     destroyMemoryHandlerInterop(): void
     initTrafficHandlerInterop(preference: TrafficPreference, onNavDestinationSwitch: (funcArg0: (funcArgfuncArg0: string) => void) => void, repeatSampleTraffic: (funcArg0: () => void) => void, getUidRxAndTxBytes: (funcArg0: (funcArgfuncArg0: number, funcArgfuncArg1: number, funcArgfuncArg2: string) => void, funcArg1: string) => void, reportTraffic: (funcArg0: InteropSampleTrafficInfo) => void, reportYesterdayTraffic: (funcArg0: InteropDayTrafficInfo) => void, sampleThreshold: number): void
     destroyTrafficHandlerInterop(getUidRxAndTxBytes: (funcArg0: (funcArgfuncArg0: number, funcArgfuncArg1: number) => void) => void): void
-    initCrashHandlerInterop(addCrashWatcher: (funcArg0: (funcArgfuncArg0: string, funcArgfuncArg1: string, funcArgfuncArg2: string, funcArgfuncArg3: string, funcArgfuncArg4: string, funcArgfuncArg5: string, funcArgfuncArg6: string) => void) => void, onCrash: (funcArg0: () => void) => void, exit: () => void, collectCrashInfo: () => string, reportCrashInfo: (funcArg0: InteropCrashInfo) => void, persistentDir: string, enableDumpOnOOM: number, lastNHilogNumber: number, systemLogNumber: number, enableMemMonitor: CMemMonitorConfig | undefined): void
     InteropExitInfo: {new (exitMessage: string, exitReason: string, isBackground: boolean, appState: string, stateChangeTime: number, timestamp: number): InteropExitInfo}
     InteropAppStateInfo: {new (appState: string, stateChangeTime: number, timestamp: number): InteropAppStateInfo}
     initExitInfoHandler(lastExitMessage: string, lastExitReason: string, reportExitInfoHandler: (funcArg0: InteropExitInfo) => void, reportAppStateHandler: (funcArg0: InteropAppStateInfo) => void): void
@@ -435,7 +451,10 @@ export declare interface CustomLib {
     initExitInfoHandlerInterop(lastExitMessage: string, lastExitReasonValue: number, reportExitInfoHandler: (funcArg0: ExitInfo) => void, reportAppStateHandler: (funcArg0: AppStateInfo) => void): void
     destroyExitInfoHandlerInterop(): void
     initMemoryHandlerInterop(memoryPreference: MemoryPreference, getMemoryUsage: () => number, getArkTsMemoryUsage: () => number, getArkTsTotalHeap: () => number, getTotalMemoryLimit: () => number, onNavDestinationSwitch: (funcArg0: (funcArgfuncArg0: string) => void) => void, repeatSampleAndReportMemory: (funcArg0: () => void, funcArg1: () => void, funcArg2: () => void) => void, reporPageMemoryInfo: (funcArg0: InteropPageMemoryInfo) => void, reporProcessMemoryInfo: (funcArg0: InteropProcessMemoryInfo) => void, memoryThreshold: number, totalRatio: number, cjRatio: number, arkTsRatio: number): void
+    initCrashHandlerInterop(addCrashWatcher: (funcArg0: (funcArgfuncArg0: string, funcArgfuncArg1: string, funcArgfuncArg2: string, funcArgfuncArg3: string, funcArgfuncArg4: string, funcArgfuncArg5: string, funcArgfuncArg6: string) => void) => void, addResourceLeakWatcher: (funcArg0: (funcArgfuncArg0: string, funcArgfuncArg1: string, funcArgfuncArg2: string, funcArgfuncArg3: number, funcArgfuncArg4: number, funcArgfuncArg5: string) => void) => void, onCrash: (funcArg0: () => void) => void, exit: () => void, collectCrashInfo: () => string, reportCrashInfo: (funcArg0: InteropCrashInfo) => void, persistentDir: string, enableDumpOnOOM: number, lastNHilogNumber: number, systemLogNumber: number, enableMemMonitor: CMemMonitorConfig | undefined, reportRawheapInfo: (funcArg0: InteropRawheapInfo) => void): void
+    initCrashHandlerInterop(addCrashWatcher: (funcArg0: (funcArgfuncArg0: string, funcArgfuncArg1: string, funcArgfuncArg2: string, funcArgfuncArg3: string, funcArgfuncArg4: string, funcArgfuncArg5: string, funcArgfuncArg6: string) => void) => void, addResourceLeakWatcher: (funcArg0: (funcArgfuncArg0: string, funcArgfuncArg1: string, funcArgfuncArg2: string, funcArgfuncArg3: number, funcArgfuncArg4: number, funcArgfuncArg5: string) => void) => void, onCrash: (funcArg0: () => void) => void, exit: () => void, collectCrashInfo: () => string, reportCrashInfo: (funcArg0: InteropCrashInfo) => void, persistentDir: string, enableDumpOnOOM: number, lastNHilogNumber: number, systemLogNumber: number, enableMemMonitor: CMemMonitorConfig | undefined, reportRawheap: (funcArg0: InteropRawheapInfo) => void): void
     InteropBackgroundCpuMonitorConfig: {new (cpuThreshold: number, warnDurationMs: number, errorDurationMs: number, fatalDurationMs: number, sampleIntervalMs: number, windowSizeMs: number): InteropBackgroundCpuMonitorConfig}
-    initBackgroundCpuMonitorHandlerInterop(config: InteropBackgroundCpuMonitorConfig, getAppThreadCpuUsageJson: () => string, repeatSample: (funcArg0: () => void) => void, clearSample: () => void, reportHighCpuInfoJson: (funcArg0: string) => void): void
+    nitBackgroundCpuMonitorHandlerInterop(config: InteropBackgroundCpuMonitorConfig, getAppThreadCpuUsageJson: () => string, repeatSample: (funcArg0: () => void) => void, clearSample: () => void, reportHighCpuInfoJson: (funcArg0: string) => void): void
     destroyBackgroundCpuMonitorHandlerInterop(): void
+    initBackgroundCpuMonitorHandlerInterop(config: InteropBackgroundCpuMonitorConfig, getAppThreadCpuUsageJson: () => string, repeatSample: (funcArg0: () => void) => void, clearSample: () => void, reportHighCpuInfoJson: (funcArg0: string) => void): void
 }
