@@ -16,8 +16,10 @@ const DEFAULT_ABNORMAL_LEVEL: Int32 = 2
 @Interop[ArkTS]
 public class InteropThermalEventInfo {
     public var pageName: String = ""
+    public var prevLevel: Int32 = -1
     public var level: Int32 = -1
     public var levelName: String = ""
+    public var levelChange: String = "UNKNOWN"
     public var threshold: Int32 = -1
     public var isForeground: Bool = true
     public var durationMs: Int64 = 0
@@ -71,11 +73,42 @@ private func levelIntToName(level: Int32): String {
     }
 }
 
-private func buildEvent(levelInt: Int32, now: Int64): InteropThermalEventInfo {
+private func getSensitiveLevelGroup(level: Int32): Int32 {
+    match (level) {
+        case 0 => 0
+        case 1 => 0
+        case 2 => 1
+        case 3 => 1
+        case 4 => 2
+        case 5 => 2
+        case 6 => 3
+        case 7 => 3
+        case _ => -1
+    }
+}
+
+private func getLevelChange(prevLevel: Int32, levelInt: Int32): String {
+    let prevGroup = getSensitiveLevelGroup(prevLevel)
+    let currentGroup = getSensitiveLevelGroup(levelInt)
+    if (prevGroup < 0 || currentGroup < 0) {
+        return "UNKNOWN"
+    }
+    if (currentGroup > prevGroup) {
+        return "LEVEL UP"
+    }
+    if (currentGroup < prevGroup) {
+        return "LEVEL DOWN"
+    }
+    return "LEVEL UNCHANGE"
+}
+
+private func buildEvent(levelInt: Int32, prevLevel: Int32, now: Int64): InteropThermalEventInfo {
     let info = InteropThermalEventInfo()
     info.pageName = currentPageName
+    info.prevLevel = prevLevel
     info.level = levelInt
     info.levelName = levelIntToName(levelInt)
+    info.levelChange = getLevelChange(prevLevel, levelInt)
     info.threshold = abnormalThresholdLevel
     info.isForeground = isForeground
     info.durationMs = now - levelStartTime
@@ -110,25 +143,33 @@ public func sampleThermal(force!: Bool = false): Unit {
         }
 
         let prevLevel = lastLevelInt
-        if (prevLevel != levelInt) {
+        let prevLevelGroup = getSensitiveLevelGroup(prevLevel)
+        let currentLevelGroup = getSensitiveLevelGroup(levelInt)
+        let levelChanged = prevLevelGroup >= 0 && currentLevelGroup >= 0 && prevLevelGroup != currentLevelGroup
+        if (currentLevelGroup >= 0 && (prevLevelGroup < 0 || levelChanged)) {
             levelStartTime = now
+        }
+        if (currentLevelGroup >= 0 && prevLevel != levelInt) {
             lastLevelInt = levelInt
         }
 
         let abnormalNow = levelInt >= abnormalThresholdLevel
-        let levelChanged = prevLevel >= 0 && levelInt != prevLevel
 
         let shouldReport =
-            abnormalNow &&
             isForeground &&
             (
-                !lastAbnormalState ||
-                levelIncreased ||
-                (now - lastReportTime) >= reportMinIntervalMs
+                levelChanged ||
+                (
+                    abnormalNow &&
+                    (
+                        !lastAbnormalState ||
+                        (now - lastReportTime) >= reportMinIntervalMs
+                    )
+                )
             )
 
         if (shouldReport) {
-            let event = buildEvent(levelInt, now)
+            let event = buildEvent(levelInt, prevLevel, now)
             _reportThermalCallback(event)
             lastReportTime = now
         }
