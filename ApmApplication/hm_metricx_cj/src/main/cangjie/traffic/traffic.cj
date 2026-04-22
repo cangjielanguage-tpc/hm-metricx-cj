@@ -359,12 +359,21 @@ public func initTrafficHandler(
     tPreference = preference
     reportTrafficCallback = reportTraffic
     SAMPLE_THRESHOLD = sampleThreshold
-    let yesterdayTraffic = getYesterdayTraffic()
-    if (let Some(v) <- yesterdayTraffic) {
-        reportYesterdayTraffic(v)
+    let reportPendingYesterdayTraffic = {
+        =>
+            let yesterdayTraffic = getYesterdayTraffic()
+            if (let Some(v) <- yesterdayTraffic) {
+                reportYesterdayTraffic(v)
+            }
     }
+
+    reportPendingYesterdayTraffic()
+
     let doTrafficSample = {
-        => getUidRxAndTxBytes({rxBytes, txBytes, pageName => sampleCallback(rxBytes, txBytes, pageName)}, currentPageName)
+        => getUidRxAndTxBytes({rxBytes, txBytes, pageName =>
+            sampleCallback(rxBytes, txBytes, pageName)
+            reportPendingYesterdayTraffic()
+        }, currentPageName)
     }
     doTrafficSample()
     onNavDestinationSwitch(
