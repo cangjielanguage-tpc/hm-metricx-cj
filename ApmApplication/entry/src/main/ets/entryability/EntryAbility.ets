@@ -72,7 +72,8 @@ export default class EntryAbility extends UIAbility {
       this.context,
       (info) => {
         hilog.error(0x0000, 'thermal',
-          `pageName=${info.pageName}, level=${info.level}, levelName=${info.levelName}, ` +
+          `pageName=${info.pageName}, level=${info.level}, ` +
+            `levelName=${info.levelName}, levelChange=${info.levelChange}, ` +
             `threshold=${info.threshold}, isForeground=${info.isForeground}, durationMs=${info.durationMs}`
         );
       },
