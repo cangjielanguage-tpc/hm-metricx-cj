@@ -46,13 +46,6 @@ const ALWAYS_INCLUDED_FEATURES = new Set([
 const SO_PREFIX = 'libohos_app_cangjie_hm_metricx_cj.';
 const GENERATED_TYPES_PREFIX = 'libohos_app_cangjie_hm_metricx_cj_';
 
-const RUNTIME_DIFF_LIBS = [
-  'libutf16string_diff.z.so',
-  'libark_interop_diff.z.so',
-  'libcangjie-runtime_diff.z.so',
-  'libcj_frontend_ohos_diff.z.so',
-];
-
 const KEEP_CANGJIE_DIRS = new Set([
   'ark_interop_api',
   'loader',
@@ -79,12 +72,6 @@ function safeRemove(target: string) {
   try {
     fs.rmSync(target, { recursive: true, force: true });
   } catch {}
-}
-
-function copyIfExists(src: string, dst: string) {
-  if (!fs.existsSync(src)) return;
-  ensureDir(path.dirname(dst));
-  fs.copyFileSync(src, dst);
 }
 
 function getNodeByName(root: any, name: string): any | null {
@@ -126,10 +113,6 @@ function validateIncludeFeatures(rawIncludeFeatures: string[]): string[] {
   const errors: string[] = [];
   const normalized: string[] = [];
   const firstIndexByName = new Map<string, number>();
-
-  if (rawIncludeFeatures.length === 0) {
-    throw new Error('[feature-pack] INCLUDE_FEATURES cannot be empty');
-  }
 
   rawIncludeFeatures.forEach((rawItem, index) => {
     const featureName = rawItem.trim();
@@ -174,6 +157,34 @@ function removeExcludedFeatureSos(packageRoot: string, includeFeatures: string[]
 
     safeRemove(path.join(libsDir, entry));
     console.log(`[feature-pack] removed feature so from HAR: ${entry}`);
+  }
+}
+
+function copyRuntimeDiffLibsToRuntime(packageRoot: string) {
+  const libsDir = path.join(packageRoot, 'libs', 'arm64-v8a');
+  const ohosDir = path.join(libsDir, 'ohos');
+  const runtimeDir = path.join(libsDir, 'runtime');
+
+  if (!fs.existsSync(ohosDir)) return;
+  ensureDir(runtimeDir);
+
+  const keepLibs = new Set([
+    'libutf16string_diff.z.so',
+    'libark_interop_diff.z.so',
+    'libcangjie-runtime_diff.z.so',
+    'libcj_frontend_ohos_diff.z.so',
+    'libtransform_interaction_ext.z.so',
+    'libohos.base.so',
+  ]);
+
+  for (const lib of keepLibs) {
+    const src = path.join(ohosDir, lib);
+    const dst = path.join(runtimeDir, lib);
+    if (!fs.existsSync(src)) continue;
+    if (fs.existsSync(dst)) continue;
+
+    fs.copyFileSync(src, dst);
+    console.log(`[feature-pack] copied runtime diff lib into runtime: ${lib}`);
   }
 }
 
@@ -283,6 +294,7 @@ function pruneHarByIncludeFeatures(modulePath: string, includeFeatures: string[]
     execFileSync('tar', ['-xzf', harFile, '-C', tempRoot], { stdio: 'pipe' });
 
     removeExcludedFeatureSos(packageRoot, includeFeatures);
+    copyRuntimeDiffLibsToRuntime(packageRoot);
     slimHarSources(packageRoot, includeFeatures);
     prunePackageJsonFiles(packageRoot, includeFeatures);
 
@@ -300,8 +312,6 @@ hvigor.nodesEvaluated(() => {
   const root = hvigor.getRootNode();
 
   const hmNode = getNodeByName(root, 'hm_metricx_cj');
-  const entryNode = getNodeByName(root, 'entry');
-  const hmMetricxPath = hmNode ? hmNode.getNodePath() : '';
 
   if (hmNode) {
     const pkgHarTask = hmNode.getTaskByName('default@PackageHar');
@@ -311,41 +321,6 @@ hvigor.nodesEvaluated(() => {
     });
   } else {
     console.warn('[feature-pack] hm_metricx_cj node not found');
-  }
-
-  if (entryNode) {
-    const task = entryNode.getTaskByName('default@CacheNativeLibs');
-    hookAfterRun(task, () => {
-      if (!hmMetricxPath) return;
-
-      const entryLibsDir = path.join(
-        entryNode.getNodePath(),
-        'build/default/intermediates/stripped_native_libs/default/arm64-v8a'
-      );
-      const entryRuntimeDir = path.join(entryLibsDir, 'runtime');
-      ensureDir(entryRuntimeDir);
-
-      const srcCandidates = [
-        path.join(hmMetricxPath, 'build/default/intermediates/stripped_native_libs/default/arm64-v8a/ohos'),
-        path.join(hmMetricxPath, 'build/default/intermediates/libs/default/arm64-v8a/ohos'),
-        path.join(hmMetricxPath, 'build/default/intermediates/cj/libs/default/arm64-v8a/ohos'),
-      ];
-
-      for (const lib of RUNTIME_DIFF_LIBS) {
-        const dst = path.join(entryRuntimeDir, lib);
-        if (fs.existsSync(dst)) continue;
-
-        for (const srcDir of srcCandidates) {
-          const src = path.join(srcDir, lib);
-          if (fs.existsSync(src)) {
-            copyIfExists(src, dst);
-            break;
-          }
-        }
-      }
-    });
-  } else {
-    console.warn('[feature-pack] entry node not found (skip runtime copy)');
   }
 });
 
