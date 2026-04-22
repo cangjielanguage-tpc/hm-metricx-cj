@@ -160,8 +160,10 @@ export declare class ResponseEvent {
 
 export declare class InteropThermalEventInfo {
     pageName: string
+    prevLevel: number
     level: number
     levelName: string
+    levelChange: string
     threshold: number
     isForeground: boolean
     durationMs: number
