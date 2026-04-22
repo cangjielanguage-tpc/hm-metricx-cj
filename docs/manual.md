@@ -790,7 +790,6 @@ export function destroyTrafficHandler(): void
 
 - `systemInfo` 系统级别流量信息
 - `pageInfoMap` 页面级别的流量信息，键为页面名称，值为对应的流量信息
-- `urlInfoArray` URL级别的流量信息
 
 `TrafficInfo` 包含以下信息
 
@@ -805,10 +804,6 @@ export function destroyTrafficHandler(): void
 `PageTrafficInfo` 在 `TrafficInfo` 基础上，添加如下信息：
 
 - `pageName` 页面名称
-
-`UrlTrafficInfo` 在 `TrafficInfo` 基础上，添加如下信息：
-
-- `url` url地址
 
 `DayTrafficInfo` 在 `TrafficInfo` 基础上，添加如下信息：
 
