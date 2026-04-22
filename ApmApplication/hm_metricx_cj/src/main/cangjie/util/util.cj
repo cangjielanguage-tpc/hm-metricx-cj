@@ -8,6 +8,8 @@ import std.time.*
 import ohos.ark_interop_macro.*
 import ohos.ark_interop.*
 import std.collection.*
+import std.io.ByteBuffer
+import std.io.readString
 
 public const defaultPageName = "mainPage"
 public let PID = unsafe { GetPid() }
@@ -58,7 +60,12 @@ public func deleteFile(path: String) {
         metricx_warn(e.toString())
     }
 }
-
+public func readResourceFile(path: Path): String {
+    if (!exists(path)) {
+        return "hm-metricx-cj error: read file path ${path} does not exist"
+    }
+    return path.toString()
+}
 public func readFile(path: Path, isReturnException!: Bool = false) {
     if (!exists(path)) {
         if (isReturnException) {
@@ -90,6 +97,7 @@ public func readFile(path: Path, isReturnException!: Bool = false) {
     }
     ""
 }
+
 
 public func deleteFile(path: Path) {
     if (!exists(path)) {

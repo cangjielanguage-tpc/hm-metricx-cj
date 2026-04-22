@@ -75,6 +75,7 @@ struct Index {
   private thermalPollTimerId: number = -1
   private uiStressTimerId: number = -1
   private stopStressFlag: boolean = false
+  private leakedArray: number[][] = []
 
   aboutToAppear(): void {
     this.syncFromStore()
@@ -114,6 +115,19 @@ struct Index {
       Button("模拟 Freeze")
         .onClick(() => {
           while(true) {}  // 阻塞事件循环
+        })
+      Button('js leak')
+        .type(ButtonType.Capsule)
+        .margin({
+          top: 20
+        })
+        .backgroundColor('#0D9FFB')
+        .width('80%')
+        .height('5%')
+        .onClick(() => {
+          for (let i = 0; i < 10000; i++) {
+            this.leakedArray.push(new Array(500000).fill(1));
+          }
         })
       Button('模拟 Crash')
         .fontSize($r('app.float.page_text_font_size'))

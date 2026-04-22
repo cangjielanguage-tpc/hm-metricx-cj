@@ -54,6 +54,9 @@ export default class EntryAbility extends UIAbility {
       this.context.getApplicationContext(),
       () => "{}",
       data => hilog.error(DOMAIN, 'hm_metricx_cj', 'crash rawFile: ' + data.rawFile),
+      rawheapInfo => {
+        hilog.error(DOMAIN, 'hm_metricx_cj', `crash rawheap info: filePath=${rawheapInfo.filePath}, log=${rawheapInfo.logMessage}, resourceType=${rawheapInfo.resourceType}, memoryLimit=${rawheapInfo.memoryLimit}KB, currentMemory=${rawheapInfo.currentMemory}KB`);
+      },
       this.context.cacheDir,
       OOMHandlerMode.ASYNC,
       1000,

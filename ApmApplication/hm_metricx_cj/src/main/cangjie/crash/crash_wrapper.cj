@@ -9,6 +9,7 @@ import std.fs.*
 @Interop[ArkTS]
 public func initCrashHandlerInterop(
     addCrashWatcher: ((String, String, String, String, String, String, String) -> Unit) -> Unit,
+    addResourceLeakWatcher: ((String, String, String, Int64, Int64, String) -> Unit) -> Unit,
     onCrash: (() -> Unit) -> Unit,
     exit: () -> Unit,
     collectCrashInfo: () -> String,
@@ -17,12 +18,14 @@ public func initCrashHandlerInterop(
     enableDumpOnOOM: Int8,
     lastNHilogNumber: Int64,
     systemLogNumber: Int64,
-    enableMemMonitor: Option<CMemMonitorConfig>
+    enableMemMonitor: Option<CMemMonitorConfig>,
+    reportRawheap: (InteropRawheapInfo) -> Unit
 ): Unit {
     let jsReportCrashInfo = {crashInfo => JSHelper.postJSTask {reportCrashInfo(crashInfo)}}
     let jsExit = {=> JSHelper.postJSTask {exit()}}
-    initCrashHandler(addCrashWatcher, onCrash, jsExit, collectCrashInfo, jsReportCrashInfo, Path(persistentDir),
-        transEnableDumpOnOOM(enableDumpOnOOM), lastNHilogNumber, systemLogNumber, enableMemMonitor)
+    let jsReportRawheap = {info => JSHelper.postJSTask {reportRawheap(info)}}
+    initCrashHandler(addCrashWatcher, addResourceLeakWatcher, onCrash, jsExit, collectCrashInfo, jsReportCrashInfo, Path(persistentDir),
+        transEnableDumpOnOOM(enableDumpOnOOM), enableMemMonitor, jsReportRawheap, lastNHilogNumber: lastNHilogNumber, systemLogNumber: systemLogNumber)
 }
 
 private func transEnableDumpOnOOM(enableDumpOnOOM: Int8): Option<OOMHandlerMode> {
