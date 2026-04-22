@@ -91,7 +91,9 @@ let logger: Logger = {
   info: (content: string): void => hilog.info(DOMAIN, TAG, content),
 };
 
-cjLib.initLogger(logger);
+if (cjLib) {
+  cjLib.initLogger(logger);
+}
 
 export class CMemMonitorConfig {
   shouldBeClusteredToThisSo: (so: string) => boolean
