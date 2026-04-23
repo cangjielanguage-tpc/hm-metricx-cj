@@ -22,6 +22,28 @@ import std.unicode.UnicodeStringExtension
 import std.convert.*
 import std.sort.*
 
+public class CrashCallbacks {
+    public var collectCrashInfo: Option<() -> JsonValue> = None
+    public var reportCrashInfo: (CrashInfo) -> Unit
+
+    public init(collectCrashInfo!: Option<() -> JsonValue> = None, reportCrashInfo!: (CrashInfo) -> Unit) {
+        this.collectCrashInfo = collectCrashInfo
+        this.reportCrashInfo = reportCrashInfo
+    }
+}
+
+public class CrashConfig {
+    public var memMonitor: Option<CMemMonitorConfig> = None
+    public var lastNHilogNumber: Int64 = 1000
+    public var systemLogNumber: Int64 = 1000
+
+    public init(memMonitor!: Option<CMemMonitorConfig> = None, lastNHilogNumber!: Int64 = 1000, systemLogNumber!: Int64 = 1000) {
+        this.memMonitor = memMonitor
+        this.lastNHilogNumber = lastNHilogNumber
+        this.systemLogNumber = systemLogNumber
+    }
+}
+
 public class CrashInfo {
     private var languageValue: ?String = None
     private var meminfoValue: ?String = None
@@ -46,203 +68,120 @@ public class CrashInfo {
     private var historyRawFilesValue: ?String = None
     private var nativeMemDetailValue: ?String = None
     private var memPersistTimeValue: ?String = None
+    private var rawheapResourceTypeValue: ?String = None
+    private var rawheapMemoryLimitValue: ?String = None
+    private var rawheapCurrentMemoryValue: ?String = None
+    private var rawheapExternalLogsValue: ?String = None
+    private var rawheapFilePathValue: ?String = None
 
     public mut prop language: ?String {
-        get() {
-            languageValue
-        }
-        set(value) {
-            languageValue = value
-        }
+        get() { languageValue }
+        set(value) { languageValue = value }
     }
 
     public mut prop meminfo: ?String {
-        get() {
-            meminfoValue
-        }
-        set(value) {
-            meminfoValue = value
-        }
+        get() { meminfoValue }
+        set(value) { meminfoValue = value }
     }
 
     public mut prop timestamp: ?String {
-        get() {
-            timestampValue
-        }
-        set(value) {
-            timestampValue = value
-        }
+        get() { timestampValue }
+        set(value) { timestampValue = value }
     }
 
     public mut prop pid: ?String {
-        get() {
-            pidValue
-        }
-        set(value) {
-            pidValue = value
-        }
+        get() { pidValue }
+        set(value) { pidValue = value }
     }
 
     public mut prop pname: ?String {
-        get() {
-            pnameValue
-        }
-        set(value) {
-            pnameValue = value
-        }
+        get() { pnameValue }
+        set(value) { pnameValue = value }
     }
 
     public mut prop stacktrace: ?String {
-        get() {
-            stacktraceValue
-        }
-        set(value) {
-            stacktraceValue = value
-        }
+        get() { stacktraceValue }
+        set(value) { stacktraceValue = value }
     }
 
     public mut prop hilog: ?String {
-        get() {
-            hilogValue
-        }
-        set(value) {
-            hilogValue = value
-        }
+        get() { hilogValue }
+        set(value) { hilogValue = value }
     }
 
     public mut prop tid: ?String {
-        get() {
-            tidValue
-        }
-        set(value) {
-            tidValue = value
-        }
-    }
-
-    public mut prop limits: ?String {
-        get() {
-            limitsValue
-        }
-        set(value) {
-            limitsValue = value
-        }
-    }
-
-    public mut prop fds: ?HashMap<String, String> {
-        get() {
-            fdsValue
-        }
-        set(value) {
-            fdsValue = value
-        }
+        get() { tidValue }
+        set(value) { tidValue = value }
     }
 
     public mut prop tname: ?String {
-        get() {
-            tnameValue
-        }
-        set(value) {
-            tnameValue = value
-        }
+        get() { tnameValue }
+        set(value) { tnameValue = value }
+    }
+
+    public mut prop fds: ?HashMap<String, String> {
+        get() { fdsValue }
+        set(value) { fdsValue = value }
+    }
+
+    public mut prop limits: ?String {
+        get() { limitsValue }
+        set(value) { limitsValue = value }
     }
 
     public mut prop threads: ?String {
-        get() {
-            threadsValue
-        }
-        set(value) {
-            threadsValue = value
-        }
+        get() { threadsValue }
+        set(value) { threadsValue = value }
     }
 
     public mut prop crashLogPath: ?String {
-        get() {
-            crashLogPathValue
-        }
-        set(value) {
-            crashLogPathValue = value
-        }
+        get() { crashLogPathValue }
+        set(value) { crashLogPathValue = value }
     }
 
     public mut prop extraInfo: ?JsonValue {
-        get() {
-            extraInfoValue
-        }
-        set(value) {
-            extraInfoValue = value
-        }
+        get() { extraInfoValue }
+        set(value) { extraInfoValue = value }
     }
 
     public mut prop dumpOnOOMPath: ?String {
-        get() {
-            dumpOnOOMPathValue
-        }
-        set(value) {
-            dumpOnOOMPathValue = value
-        }
+        get() { dumpOnOOMPathValue }
+        set(value) { dumpOnOOMPathValue = value }
     }
 
     public mut prop appVersion: ?String {
-        get() {
-            appVersionValue
-        }
-        set(value) {
-            appVersionValue = value
-        }
+        get() { appVersionValue }
+        set(value) { appVersionValue = value }
     }
 
     public mut prop rawFile: ?String {
-        get() {
-            rawFileValue
-        }
-        set(value) {
-            rawFileValue = value
-        }
+        get() { rawFileValue }
+        set(value) { rawFileValue = value }
     }
 
     public mut prop systemLog: ?String {
-        get() {
-            systemLogValue
-        }
-        set(value) {
-            systemLogValue = value
-        }
+        get() { systemLogValue }
+        set(value) { systemLogValue = value }
     }
 
     public mut prop lastNHilog: ?String {
-        get() {
-            lastNHilogValue
-        }
-        set(value) {
-            lastNHilogValue = value
-        }
+        get() { lastNHilogValue }
+        set(value) { lastNHilogValue = value }
     }
 
     public mut prop dumpTime: ?String {
-        get() {
-            dumpTimeValue
-        }
-        set(value) {
-            dumpTimeValue = value
-        }
+        get() { dumpTimeValue }
+        set(value) { dumpTimeValue = value }
     }
 
     public mut prop historyRawFiles: ?String {
-        get() {
-            historyRawFilesValue
-        }
-        set(value) {
-            historyRawFilesValue = value
-        }
+        get() { historyRawFilesValue }
+        set(value) { historyRawFilesValue = value }
     }
 
     public mut prop nativeMemDetail: ?String {
-        get() {
-            nativeMemDetailValue
-        }
-        set(value) {
-            nativeMemDetailValue = value
-        }
+        get() { nativeMemDetailValue }
+        set(value) { nativeMemDetailValue = value }
     }
 
     public mut prop memPersistTime: ?String {
@@ -251,6 +190,51 @@ public class CrashInfo {
         }
         set(value) {
             memPersistTimeValue = value
+        }
+    }
+
+    public mut prop rawheapResourceType: ?String {
+        get() {
+            rawheapResourceTypeValue
+        }
+        set(value) {
+            rawheapResourceTypeValue = value
+        }
+    }
+
+    public mut prop rawheapMemoryLimit: ?String {
+        get() {
+            rawheapMemoryLimitValue
+        }
+        set(value) {
+            rawheapMemoryLimitValue = value
+        }
+    }
+
+    public mut prop rawheapCurrentMemory: ?String {
+        get() {
+            rawheapCurrentMemoryValue
+        }
+        set(value) {
+            rawheapCurrentMemoryValue = value
+        }
+    }
+
+    public mut prop rawheapExternalLogs: ?String {
+        get() {
+            rawheapExternalLogsValue
+        }
+        set(value) {
+            rawheapExternalLogsValue = value
+        }
+    }
+
+    public mut prop rawheapFilePath: ?String {
+        get() {
+            rawheapFilePathValue
+        }
+        set(value) {
+            rawheapFilePathValue = value
         }
     }
 
@@ -324,6 +308,21 @@ public class CrashInfo {
         }
         if (let Some(v) <- memPersistTimeValue) {
             jsonObj.put("memPersistTime", JsonString(v))
+        }
+        if (let Some(v) <- rawheapResourceTypeValue) {
+            jsonObj.put("rawheapResourceType", JsonString(v))
+        }
+        if (let Some(v) <- rawheapMemoryLimitValue) {
+            jsonObj.put("rawheapMemoryLimit", JsonString(v))
+        }
+        if (let Some(v) <- rawheapCurrentMemoryValue) {
+            jsonObj.put("rawheapCurrentMemory", JsonString(v))
+        }
+        if (let Some(v) <- rawheapExternalLogsValue) {
+            jsonObj.put("rawheapExternalLogs", JsonString(v))
+        }
+        if (let Some(v) <- rawheapFilePathValue) {
+            jsonObj.put("rawheapFilePath", JsonString(v))
         }
         jsonObj.toString()
     }
@@ -400,6 +399,21 @@ public class CrashInfo {
         if (let Some(v) <- jsonObject.get("memPersistTime")) {
             crashInfo.memPersistTime = JsonValueToString(v)
         }
+        if (let Some(v) <- jsonObject.get("rawheapResourceType")) {
+            crashInfo.rawheapResourceType = JsonValueToString(v)
+        }
+        if (let Some(v) <- jsonObject.get("rawheapMemoryLimit")) {
+            crashInfo.rawheapMemoryLimit = JsonValueToString(v)
+        }
+        if (let Some(v) <- jsonObject.get("rawheapCurrentMemory")) {
+            crashInfo.rawheapCurrentMemory = JsonValueToString(v)
+        }
+        if (let Some(v) <- jsonObject.get("rawheapExternalLogs")) {
+            crashInfo.rawheapExternalLogs = JsonValueToString(v)
+        }
+        if (let Some(v) <- jsonObject.get("rawheapFilePath")) {
+            crashInfo.rawheapFilePath = JsonValueToString(v)
+        }
         crashInfo
     }
 
@@ -426,6 +440,11 @@ public class CrashInfo {
         this.historyRawFilesValue = None
         this.nativeMemDetailValue = None
         this.memPersistTimeValue = None
+        this.rawheapResourceTypeValue = None
+        this.rawheapMemoryLimitValue = None
+        this.rawheapCurrentMemoryValue = None
+        this.rawheapExternalLogsValue = None
+        this.rawheapFilePathValue = None
     }
 }
 
@@ -503,72 +522,6 @@ public class CMemMonitorConfig {
     }
 }
 
-public enum OOMHandlerMode {
-    | Async | Sync
-}
-
-/**
- * ArkTS OOM rawheap 文件信息
- */
-public class RawheapInfo {
-    private var pidValue: String = ""
-    private var timestampValue: String = ""
-    private var resourceTypeValue: String = ""
-    private var memoryLimitValue: Int64 = 0
-    private var currentMemoryValue: Int64 = 0
-    private var externalLogsValue: String = ""
-    private var filePathValue: String = "/data/log/reliability/resource_leak/memory_leak"
-
-    public mut prop pid: String {
-        get() { pidValue }
-        set(value) { pidValue = value }
-    }
-
-    public mut prop timestamp: String {
-        get() { timestampValue }
-        set(value) { timestampValue = value }
-    }
-
-    public mut prop resourceType: String {
-        get() { resourceTypeValue }
-        set(value) { resourceTypeValue = value }
-    }
-
-    public mut prop memoryLimit: Int64 {
-        get() { memoryLimitValue }
-        set(value) { memoryLimitValue = value }
-    }
-
-    public mut prop currentMemory: Int64 {
-        get() { currentMemoryValue }
-        set(value) { currentMemoryValue = value }
-    }
-
-    public mut prop externalLogs: String {
-        get() { externalLogsValue }
-        set(value) { externalLogsValue = value }
-    }
-
-    public mut prop filePath: String {
-        get() { filePathValue }
-        set(value) { filePathValue = value }
-    }
-
-    public init() {}
-
-    public func toString(): String {
-        let jsonObj = JsonObject()
-        jsonObj.put("pid", JsonString(pidValue))
-        jsonObj.put("timestamp", JsonString(timestampValue))
-        jsonObj.put("resourceType", JsonString(resourceTypeValue))
-        jsonObj.put("memoryLimit", JsonString(memoryLimitValue.toString()))
-        jsonObj.put("currentMemory", JsonString(currentMemoryValue.toString()))
-        jsonObj.put("externalLogs", JsonString(externalLogsValue))
-        jsonObj.put("filePath", JsonString(filePathValue))
-        jsonObj.toString()
-    }
-}
-
 @C
 struct DumpTime {
     var total: Int64 = 0
@@ -589,15 +542,9 @@ var crash_init_flag = false
 
 public func initCrashHandler(
     applicationContext: ApplicationContext,
-    collectCrashInfo: () -> JsonValue,
-    collectNativeCrashInfo: CFunc<() -> CString>,
-    reportCrashInfo: (crashInfo: CrashInfo) -> Unit,
     persistentDir: Path,
-    enableDumpOnOOM: Option<OOMHandlerMode>,
-    enableMemMonitor: Option<CMemMonitorConfig>,
-    reportRawheap: (info: RawheapInfo) -> Unit,
-    lastNHilogNumber!: Int64 = 1000,
-    systemLogNumber!: Int64 = 1000
+    callbacks: CrashCallbacks,
+    config!: CrashConfig
 ) {
     if (crash_init_flag) {
     	return
@@ -608,35 +555,38 @@ public func initCrashHandler(
     }
     let persistentPaths = PersistentPaths(persistentDir)
     cleanHistoryLogFiles({name => name.startsWith("APP_CRASH")}, persistentPaths.cleanFileRecordPath, "initCrashHandler")
+    let lastNHilogNumber = config.lastNHilogNumber
+    let systemLogNumber = config.systemLogNumber
     let hilogNumber = max(lastNHilogNumber, 0)
     let systemLogNum = max(systemLogNumber, 0)
     spawn { =>
-        reportLastCrash(persistentPaths, reportCrashInfo)
+        reportLastCrash(persistentPaths, callbacks.reportCrashInfo)
     }
     let crashInfo = CrashInfo()
     crashInfo.limits = collectLimits()
-    initErrorObserver(crashInfo, applicationContext, collectCrashInfo, enableDumpOnOOM, persistentPaths)
+    // 设置 collectCrashInfo
+    var optCollectCrashInfo = callbacks.collectCrashInfo
+    if (let Some(cb) <- optCollectCrashInfo) {
+        initErrorObserver(crashInfo, applicationContext, cb, persistentPaths)
+
+    } else {
+        initErrorObserver(crashInfo, applicationContext, {=> JsonValue.fromStr("{}")}, persistentPaths)
+    }
+    var collectNativeCrashInfo = unsafe { LibC.mallocCString("{}") }
     initNativeSignalHandler(applicationContext, crashInfo.limits.getOrThrow(),
-        collectNativeCrashInfo, persistentPaths, hilogNumber, systemLogNum)
-    initCrashWatcher(applicationContext, reportCrashInfo, persistentPaths, enableMemMonitor)
-    // 初始化 resourceLeakWatcher (ArkTS OOM 监控)
-    initResourceLeakWatcher(applicationContext, persistentPaths, reportRawheap)
+        {=> unsafe { LibC.mallocCString("{}") }}, persistentPaths, hilogNumber, systemLogNum)
+    initCrashWatcher(applicationContext, callbacks.reportCrashInfo, persistentPaths, config.memMonitor)
+    initResourceLeakWatcher(applicationContext, persistentPaths, callbacks.reportCrashInfo)
 
     initHilogWatcher()
-    if(enableMemMonitor.isSome()){
+    let optMemMonitor = config.memMonitor
+    if(let Some(v) <- optMemMonitor){
         spawn { =>
             initNativeMemoryWatcher()
         }
     }
-    if (let Some(handlerMode) <- enableDumpOnOOM) {
-        match (handlerMode) {
-            case OOMHandlerMode.Sync =>
-                initOOMHandler(persistentDir.toString())
-            case OOMHandlerMode.Async =>
-                spawn { =>
-                    initOOMHandler(persistentDir.toString())
-                }
-        }
+    spawn { =>
+        initOOMHandler(persistentDir.toString())
     }
     inited = true
 }
@@ -784,7 +734,7 @@ private func waitOOMDumping(applicationContext: ApplicationContext, dumpTimePath
 }
 
 private func initErrorObserver(crashInfo: CrashInfo, applicationContext: ApplicationContext,
-    collectCrashInfo: () -> JsonValue, enableDumpOnOOM: Option<OOMHandlerMode>, persistentPaths: PersistentPaths) {
+    collectCrashInfo: () -> JsonValue, persistentPaths: PersistentPaths) {
     let errorObserver = ErrorObserver(
         {errMsg: String =>},
         onException: {
@@ -1062,7 +1012,7 @@ private func compressOOMFile(pid: String, dir: Path): Option<String> {
  */
 private func initResourceLeakWatcher(applicationContext: ApplicationContext,
     persistentPaths: PersistentPaths,
-    reportResourceLeak: (info: RawheapInfo) -> Unit) {
+    reportCrashInfo: (crashInfo: CrashInfo) -> Unit) {
     let watcher = Watcher(
         "resourceLeakWatcher",
         appEventFilters: [AppEventFilter(OS, names: [RESOURCE_OVERLIMIT], eventTypes: [FAULT])],
@@ -1080,17 +1030,18 @@ private func initResourceLeakWatcher(applicationContext: ApplicationContext,
                         continue
                     }
                     for (eventInfo in eventGroup.appEventInfos) {
-                        let pid = match (eventInfo.params.get("pid")) {
+                        let crashInfo = CrashInfo()
+                        crashInfo.pid = match (eventInfo.params.get("pid")) {
                             case Some(value) => value.toString().removeSuffix(".000000")
                             case _ => "unknown"
                         }
                         
-                        let timestamp = match (eventInfo.params.get("time")) {
+                        crashInfo.dumpTime = match (eventInfo.params.get("time")) {
                             case Some(value) => value.toString()
                             case _ => getCurTimestampMillis()
                         }
                         
-                        let resourceType = match (eventInfo.params.get("resource_type")) {
+                        crashInfo.rawheapResourceType = match (eventInfo.params.get("resource_type")) {
                             case Some(value) => value.toString()
                             case _ => "unknown"
                         }
@@ -1104,22 +1055,15 @@ private func initResourceLeakWatcher(applicationContext: ApplicationContext,
                             memoryLimit = extractInt64FromJsonValue(memJson.get("limit_size"))
                             currentMemory = extractInt64FromJsonValue(memJson.get("live_object_size"))
                         }
-                        
-                        var externalLogs: String = match (eventInfo.params.get("external_log")) {
+                        crashInfo.rawheapMemoryLimit = memoryLimit.toString()
+                        crashInfo.rawheapCurrentMemory = currentMemory.toString()
+                        crashInfo.rawheapExternalLogs = match (eventInfo.params.get("external_log")) {
                             case Some(value) => value.toString()
                             case _ => "unknown"
                         }
-
-                        let rawheapInfo = RawheapInfo()
-                        rawheapInfo.pid = pid
-                        rawheapInfo.timestamp = timestamp
-                        rawheapInfo.resourceType = resourceType
-                        rawheapInfo.memoryLimit = memoryLimit
-                        rawheapInfo.currentMemory = currentMemory
-                        rawheapInfo.externalLogs = externalLogs
-                        reportResourceLeak(rawheapInfo)
+                        reportCrashInfo(crashInfo)
                         
-                        AppLog.info("hm-metricx-cj: RESOURCE_OVERLIMIT: pid=${pid}, resourceType=${resourceType}, memoryLimit=${memoryLimit}KB, currentMemory=${currentMemory}KB, externalLogs=${externalLogs}")
+                        AppLog.info("hm-metricx-cj: RESOURCE_OVERLIMIT: pid=${crashInfo.pid}, resourceType=${crashInfo.rawheapResourceType}, memoryLimit=${memoryLimit}KB, currentMemory=${currentMemory}KB, externalLogs=${crashInfo.rawheapExternalLogs}")
                     }
                 }
             } catch (e: Exception) {

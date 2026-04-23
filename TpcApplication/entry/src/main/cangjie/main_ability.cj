@@ -53,10 +53,12 @@ class EntryAbility <: UIAbility {
         )
         initCrashHandler(this
             .context
-            .getApplicationContext(), {=> JsonValue.fromStr("{}")}, {=> unsafe { LibC.mallocCString("{}") }}, {data => AppLog.error("xxx: " + data.rawFile.toString())},
+            .getApplicationContext(),
             Path(this
                 .context
-                .cacheDir), OOMHandlerMode.Async, CMemMonitorConfig({soName:String =>false}), {data => AppLog.error("resourceLeak: " + data.toString())}, lastNHilogNumber: 1000, systemLogNumber: 1000)
+                .cacheDir),
+            CrashCallbacks(collectCrashInfo: {=> JsonValue.fromStr("{}")}, reportCrashInfo: {data => AppLog.error("xxx: " + data.toString())}),
+            config: CrashConfig(memMonitor: CMemMonitorConfig({soName:String =>false}), lastNHilogNumber: 1000, systemLogNumber: 1000))
         initFreezeHandler(
             this
                 .context
