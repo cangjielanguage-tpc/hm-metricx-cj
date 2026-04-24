@@ -18,14 +18,13 @@ public func initCrashHandlerInterop(
     enableDumpOnOOM: Int8,
     lastNHilogNumber: Int64,
     systemLogNumber: Int64,
-    enableMemMonitor: Option<CMemMonitorConfig>,
-    reportRawheap: (InteropRawheapInfo) -> Unit
+    enableMemMonitor: Option<CMemMonitorConfig>
 ): Unit {
     let jsReportCrashInfo = {crashInfo => JSHelper.postJSTask {reportCrashInfo(crashInfo)}}
     let jsExit = {=> JSHelper.postJSTask {exit()}}
-    let jsReportRawheap = {info => JSHelper.postJSTask {reportRawheap(info)}}
+//    let jsReportRawheap = {info => JSHelper.postJSTask {reportRawheap(info)}}
     initCrashHandler(addCrashWatcher, addResourceLeakWatcher, onCrash, jsExit, collectCrashInfo, jsReportCrashInfo, Path(persistentDir),
-        transEnableDumpOnOOM(enableDumpOnOOM), enableMemMonitor, jsReportRawheap, lastNHilogNumber: lastNHilogNumber, systemLogNumber: systemLogNumber)
+        transEnableDumpOnOOM(enableDumpOnOOM), enableMemMonitor, lastNHilogNumber: lastNHilogNumber, systemLogNumber: systemLogNumber)
 }
 
 private func transEnableDumpOnOOM(enableDumpOnOOM: Int8): Option<OOMHandlerMode> {

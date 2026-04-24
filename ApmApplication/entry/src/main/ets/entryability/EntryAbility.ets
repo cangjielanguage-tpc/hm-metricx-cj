@@ -7,6 +7,8 @@ import {
   OOMHandlerMode,
   initCpuHandler,
   initCrashHandler,
+  CrashCallbacks,
+  CrashConfig,
   initStorageHandler,
   initTrafficHandler,
   initExitInfoHandler,
@@ -50,18 +52,27 @@ export default class EntryAbility extends UIAbility {
       }
     );
 
-    initCrashHandler(
+initCrashHandler(
       this.context.getApplicationContext(),
-      () => "{}",
-      data => hilog.error(DOMAIN, 'hm_metricx_cj', 'crash rawFile: ' + data.rawFile),
-      rawheapInfo => {
-        hilog.error(DOMAIN, 'hm_metricx_cj', `crash rawheap info: filePath=${rawheapInfo.filePath}, log=${rawheapInfo.logMessage}, resourceType=${rawheapInfo.resourceType}, memoryLimit=${rawheapInfo.memoryLimit}KB, currentMemory=${rawheapInfo.currentMemory}KB`);
-      },
       this.context.cacheDir,
-      OOMHandlerMode.ASYNC,
-      1000,
-      1000,
-      new CMemMonitorConfig(data => false)
+      new CrashCallbacks(
+        data => {
+          hilog.error(DOMAIN, 'hm_metricx_cj', 'crash fix === Crash Info ===');
+          hilog.error(DOMAIN, 'hm_metricx_cj', 'crash fix rawFile: %{public}s', data.rawFile);
+
+          if (data.rawheapFilePath) {
+            hilog.error(DOMAIN, 'hm_metricx_cj', 'crash fix === OOM Info ===');
+            hilog.error(DOMAIN, 'hm_metricx_cj', 'crash fix rawheapFilePath: %{public}s', data.rawheapFilePath);
+            hilog.error(DOMAIN, 'hm_metricx_cj', 'crash fix rawheapTimestamp: %{public}s', data.rawheapTimestamp);
+            hilog.error(DOMAIN, 'hm_metricx_cj', 'crash fix rawheapResourceType: %{public}s', data.rawheapResourceType);
+            hilog.error(DOMAIN, 'hm_metricx_cj', 'crash fix rawheapMemoryLimit: ' + data.rawheapMemoryLimit);
+            hilog.error(DOMAIN, 'hm_metricx_cj', 'crash fix rawheapCurrentMemory: ' + data.rawheapCurrentMemory);
+            hilog.error(DOMAIN, 'hm_metricx_cj', 'crash fix rawheapLogMessage: %{public}s', data.rawheapLogMessage);
+          }
+        },
+        () => "{}"
+      ),
+      new CrashConfig(new CMemMonitorConfig(data => false), 1000, 1000)
     );
     initFreezeHandler(
       () => "{}",

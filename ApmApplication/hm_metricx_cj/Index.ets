@@ -9,7 +9,6 @@ import { wantAgent } from '@kit.AbilityKit';
 import {
   CustomLib,
   InteropCrashInfo as CrashInfo,
-  InteropRawheapInfo as RawheapInfo,
   InteropFreezeInfo as FreezeInfo,
   InteropSampleTrafficInfo as SampleTrafficInfo,
   InteropStorageInfo as StorageInfo,
@@ -269,21 +268,39 @@ function getTargetPageName(info: uiObserver.NavDestinationSwitchInfo): string {
 
 export enum OOMHandlerMode {
   NONE,
-  SYMC,
+  SYNC,
   ASYNC
+}
+
+export class CrashCallbacks {
+  collectCrashInfo?: () => string
+  reportCrashInfo: (info: CrashInfo) => void
+
+  constructor(reportCrashInfo: (info: CrashInfo) => void, collectCrashInfo?: () => string) {
+    this.collectCrashInfo = collectCrashInfo ?? undefined
+    this.reportCrashInfo = reportCrashInfo
+  }
+}
+
+export class CrashConfig {
+  memMonitor?: CMemMonitorConfig
+  lastNHilogNumber: number = 1000
+  systemLogNumber: number = 1000
+
+  constructor(memMonitor?: CMemMonitorConfig, lastNHilogNumber?: number, systemLogNumber?: number) {
+    this.memMonitor = memMonitor ?? undefined
+    this.lastNHilogNumber = lastNHilogNumber ?? 1000
+    this.systemLogNumber = systemLogNumber ?? 1000
+  }
 }
 
 export function initCrashHandler(
   applicationContext: common.ApplicationContext,
-  collectCrashInfo: () => string,
-  reportCrashInfo: (CrashInfo: CrashInfo) => void,
-  reportRawheapInfo: (info: RawheapInfo) => void,
   persistentDir: string,
-  enableDumpOnOOM: OOMHandlerMode,
-  lastNHilogNumber?: number,
-  systemLogNumber?: number,
-  enableMemMonitor?: CMemMonitorConfig
+  callbacks: CrashCallbacks,
+  config?: CrashConfig
 ): void {
+  let finalConfig = config ?? new CrashConfig();
   hilog.warn(DOMAIN, TAG, 'crash 1');
 
   if (!cjLibCrash) {
@@ -396,13 +413,16 @@ export function initCrashHandler(
       hilog.info(DOMAIN, 'hm_metricx_cj', 'resourceLeakWatcher registered successfully');
     };
   let memMonitor =
-    enableMemMonitor !== undefined ? new cjLibCrash.CMemMonitorConfig(enableMemMonitor!.shouldBeClusteredToThisSo) :
+    finalConfig.memMonitor !== undefined ? new cjLibCrash.CMemMonitorConfig(finalConfig.memMonitor!.shouldBeClusteredToThisSo) :
       undefined;
 
-  cjLibCrash.initCrashHandlerInterop(addCrashWatcher, addResourceLeakWatcher, onCrash, exit, collectCrashInfo, reportCrashInfo, persistentDir,
-    enableDumpOnOOM,
-    lastNHilogNumber,
-    systemLogNumber, memMonitor, reportRawheapInfo);
+  cjLibCrash.initCrashHandlerInterop(addCrashWatcher, addResourceLeakWatcher, onCrash, exit,
+    callbacks.collectCrashInfo,
+    callbacks.reportCrashInfo,
+    persistentDir,
+    OOMHandlerMode.ASYNC,
+    finalConfig.lastNHilogNumber,
+    finalConfig.systemLogNumber, memMonitor);
 }
 
 export function getExitInfo(launchParam: AbilityConstant.LaunchParam): ExitInfo {

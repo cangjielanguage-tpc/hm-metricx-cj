@@ -24,27 +24,22 @@ export declare class InteropCrashInfo {
     lastNHilog: string | undefined
     dumpTime: string | undefined
     historyRawFiles: string | undefined
-    nativeMemDetail: string | undefined
+nativeMemDetail: string | undefined
     memPersistTime: string | undefined
+    rawheapFilePath: string | undefined
+    rawheapTimestamp: string | undefined
+    rawheapPid: string | undefined
+    rawheapRsEventTime: string | undefined
+    rawheapCrashTime: string | undefined
+    rawheapResourceType: string | undefined
+    rawheapMemoryLimit: number | undefined
+    rawheapCurrentMemory: number | undefined
+    rawheapLogMessage: string | undefined
     constructor ()
 }
 
-export declare class InteropRawheapInfo {
-    filePath: string | undefined
-    fileSize: number | undefined
-    timestamp: string | undefined
-    pid: string | undefined
-    rsEventTime: string | undefined
-    crashTime: string | undefined
-    resourceType: string | undefined
-    memoryLimit: number | undefined
-    currentMemory: number | undefined
-    logMessage: string | undefined
-    constructor ()
-}
+export declare function initCrashHandlerInterop(exit: () => void, collectCrashInfo: () => string | undefined, reportCrashInfo: (funcArg0: InteropCrashInfo) => void, persistentDir: string, enableDumpOnOOM: number, lastNHilogNumber: number, systemLogNumber: number, enableMemMonitor: CMemMonitorConfig | undefined): void
+export declare function initCrashHandlerInterop(onCrash: (funcArg0: () => void) => void, exit: () => void, collectCrashInfo: () => string | undefined, reportCrashInfo: (funcArg0: InteropCrashInfo) => void, persistentDir: string, enableDumpOnOOM: number, lastNHilogNumber: number, systemLogNumber: number, enableMemMonitor: CMemMonitorConfig | undefined): void
 
-export declare function initCrashHandlerInterop(exit: () => void, collectCrashInfo: () => string, reportCrashInfo: (funcArg0: InteropCrashInfo) => void, persistentDir: string, enableDumpOnOOM: number, lastNHilogNumber: number, systemLogNumber: number, enableMemMonitor: CMemMonitorConfig | undefined, reportRawheap: (funcArg0: InteropRawheapInfo) => void): void
-export declare function initCrashHandlerInterop(onCrash: (funcArg0: () => void) => void, exit: () => void, collectCrashInfo: () => string, reportCrashInfo: (funcArg0: InteropCrashInfo) => void, persistentDir: string, enableDumpOnOOM: number, lastNHilogNumber: number, systemLogNumber: number, enableMemMonitor: CMemMonitorConfig | undefined, reportRawheap: (funcArg0: InteropRawheapInfo) => void): void
-
-export declare function initCrashHandlerInterop(addCrashWatcher: (funcArg0: (funcArgfuncArg0: string, funcArgfuncArg1: string, funcArgfuncArg2: string, funcArgfuncArg3: string, funcArgfuncArg4: string, funcArgfuncArg5: string, funcArgfuncArg6: string) => void) => void, onCrash: (funcArg0: () => void) => void, exit: () => void, collectCrashInfo: () => string, reportCrashInfo: (funcArg0: InteropCrashInfo) => void, persistentDir: string, enableDumpOnOOM: number, lastNHilogNumber: number, systemLogNumber: number, enableMemMonitor: CMemMonitorConfig | undefined, reportRawheapInfo: (funcArg0: InteropRawheapInfo) => void): void
+export declare function initCrashHandlerInterop(addCrashWatcher: (funcArg0: (funcArgfuncArg0: string, funcArgfuncArg1: string, funcArgfuncArg2: string, funcArgfuncArg3: string, funcArgfuncArg4: string, funcArgfuncArg5: string, funcArgfuncArg6: string) => void) => void, onCrash: (funcArg0: () => void) => void, exit: () => void, collectCrashInfo: () => string | undefined, reportCrashInfo: (funcArg0: InteropCrashInfo) => void, persistentDir: string, enableDumpOnOOM: number, lastNHilogNumber: number, systemLogNumber: number, enableMemMonitor: CMemMonitorConfig | undefined): void
 
