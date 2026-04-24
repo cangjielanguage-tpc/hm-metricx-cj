@@ -72,7 +72,7 @@ public class CrashInfo {
     private var rawheapMemoryLimitValue: ?String = None
     private var rawheapCurrentMemoryValue: ?String = None
     private var rawheapExternalLogsValue: ?String = None
-    private var rawheapFilePathValue: ?String = None
+    private var rawheapFilePathValue: ?String = "/data/log/reliability/resource_leak/memory_leak"
 
     public mut prop language: ?String {
         get() { languageValue }
