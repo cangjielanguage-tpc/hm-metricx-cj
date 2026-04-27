@@ -47,20 +47,10 @@ const INCLUDE_FEATURES: string[] = [
 ```arkts
 export function initCrashHandler(
   applicationContext: common.ApplicationContext,
-  collectCrashInfo: () => string,
-  reportCrashInfo: (CrashInfo: CrashInfo) => void,
   persistentDir: string,
-  enableDumpOnOOM: OOMHandlerMode,
-  lastNHilogNumber: number,
-  systemLogNumber: number,
-  enableMemMonitor?: CMemMonitorConfig
+  callbacks: CrashCallbacks,
+  config?: CrashConfig
 ): void
-
-export enum OOMHandlerMode {
-  NONE,
-  SYMC,
-  ASYNC
-}
 
 export class CMemMonitorConfig {
   shouldBeClusteredToThisSo: (so: string) => boolean
@@ -74,14 +64,22 @@ export class CMemMonitorConfig {
 
 `initCrashHandler` 需要的入参说明如下：
 
-- `applicationContext: common.ApplicationContext` 指定应用上下文。
-- `collectCrashInfo: () => string` 用于在发生ArkTS/仓颉层/Native层引发的crash时，收集若干自定义的业务/系统信息(比如页面浏览路径等)，以json字符串形式返回。
-- `reportCrashInfo: (CrashInfo: CrashInfo) => void` 用于在发生ArkTS/仓颉层/Native层引发的crash时，将收集完毕的崩溃信息进行上报，入参为 `CrashInfo` 类型对象。 
-- `persistentDir: string` 指定中间日志文件和内存快照的持久化目录。
-- `enableDumpOnOOM: OOMHandlerMode` 指定是否在发生OOM时导出仓颉内存快照, `OOMHandlerMode.None`表示不导出仓颉内存快照，`OOMHandlerMode`枚举类型可选`Async`异步导出或`Sync`同步导出。
-- `lastNHilogNumber: number` 指定lastNHilog的条数。
-- `systemLogNumber: number` 指定系统级日志systemLog的条数。
-- `enableMemMonitor?: CMemMonitorConfig` 指定是否开启C内存详情监控，`CMemMonitorConfig`类表示C内存详情监控的配置项。
+- `applicationContext: ApplicationContext` 指定应用上下文。
+- `persistentDir: Path` 指定中间日志文件和内存快照的持久化目录。
+- `callbacks`：CrashCallbacks 回调类入参，里面包括：
+ 1. `collectCrashInfo: () -> JsonValue`  
+     用于在发生 ArkTS / 仓颉层引发的 crash 时，收集若干自定义的业务 / 系统信息，例如页面浏览路径等，并以 JSON 形式返回。
+
+  2. `reportCrashInfo: (crashInfo: CrashInfo) -> Unit`  
+     用于在发生 ArkTS / 仓颉层引发的 crash 时，将收集完毕的崩溃信息进行上报，入参为 `CrashInfo` 类型对象。
+
+- `crashconfig！`: CrashConfig = CrashConfig()：配置类入参，里面包括：
+ 1. `lastNHilogNumber: Int64` 
+指定lastNHilog的条数。
+2. `systemLogNumber: Int64` 
+指定系统级日志systemLog的条数。
+ 3. `memMonitor: Option<CMemMonitorConfig>` 
+指定是否开启C内存详情监控，Option.None表示不开启，传入`CMemMonitorConfig`对象表示开启，`CMemMonitorConfig`类表示C内存详情监控的配置项。
 
 `CMemMonitorConfig` 参数说明：
 - `shouldBeClusteredToThisSo` 用于在按照so聚合类别中，指定内存分配数据是否被聚合到该so。
@@ -100,7 +98,8 @@ export class CMemMonitorConfig {
 - `fds` FD及其对应路径
 - `limits` 进程资源限制
 - `threads` OS线程ID与线程名
-- `extraInfo` `collectCrashInfo` 收集的自定义的业务/系统信息
+- `extraInfo` `collectCrashInfo/reportNativeCrashInfo` 收集的自定义的业务/系统信息
+- `crashLogPath` 系统生成的faultlog文件路径
 - `dumpOnOOMPath` 导出的仓颉内存快照地址
 - `appVersion` 应用版本
 - `rawFile` 系统生成的faultlog文件的原始内容
@@ -111,6 +110,7 @@ export class CMemMonitorConfig {
 - `nativeMemDetail` C层内存详情
 - `memPersistTime` C层内存详情持久化时间
 
+
 使用示例：
 
 i.
@@ -118,15 +118,27 @@ i.
 ```arkts
 export default class EntryAbility extends UIAbility {
   onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): void {
-    initCrashHandler(
+   initCrashHandler(
       this.context.getApplicationContext(),
-      () => "{}",
-      data => hilog.error(DOMAIN, 'hm_metricx_cj', 'crash rawFile: ' + data.rawFile),
       this.context.cacheDir,
-      OOMHandlerMode.ASYNC,
-      1000,
-      1000,
-      new CMemMonitorConfig(data => false)
+      new CrashCallbacks(
+        data => {
+          hilog.error(DOMAIN, 'hm_metricx_cj', 'crash fix === Crash Info ===');
+          hilog.error(DOMAIN, 'hm_metricx_cj', 'crash fix rawFile: %{public}s', data.rawFile);
+
+          if (data.rawheapFilePath) {
+            hilog.error(DOMAIN, 'hm_metricx_cj', 'crash fix === OOM Info ===');
+            hilog.error(DOMAIN, 'hm_metricx_cj', 'crash fix rawheapFilePath: %{public}s', data.rawheapFilePath);
+            hilog.error(DOMAIN, 'hm_metricx_cj', 'crash fix rawheapTimestamp: %{public}s', data.rawheapTimestamp);
+            hilog.error(DOMAIN, 'hm_metricx_cj', 'crash fix rawheapResourceType: %{public}s', data.rawheapResourceType);
+            hilog.error(DOMAIN, 'hm_metricx_cj', 'crash fix rawheapMemoryLimit: ' + data.rawheapMemoryLimit);
+            hilog.error(DOMAIN, 'hm_metricx_cj', 'crash fix rawheapCurrentMemory: ' + data.rawheapCurrentMemory);
+            hilog.error(DOMAIN, 'hm_metricx_cj', 'crash fix rawheapLogMessage: %{public}s', data.rawheapLogMessage);
+          }
+        },
+        () => "{}"
+      ),
+      new CrashConfig(new CMemMonitorConfig(data => false), 1000, 1000)
     );
   }
 }
@@ -161,6 +173,12 @@ export default class EntryAbility extends UIAbility {
 > ```
 > 
 > 由于内联优化和基础块合并优化的影响，抛出异常点的行号信息为0，并且调用栈长度会少于程序实际递归次数。
+> ** 注意: **
+> ArkTS 内存监控通过 `hidebug.setAppResourceLimit` 设置应用内存资源阈值，用于在应用发生内存泄漏并达到阈值条件时触发系统资源泄漏日志。
+>该能力存在以下使用约束：
+>1. 需在设备“开发者选项”中开启“系统资源泄漏日志”开关，且开关状态变更后需重启设备后生效。
+>2. 系统对同一应用的资源泄漏事件存在频控限制，同一应用在 24 小时内最多上报一次。
+>3. 若需要在短时间内重复验证资源泄漏事件上报，需要重启设备后重新触发测试。
 
 
 ### 监控Freeze
