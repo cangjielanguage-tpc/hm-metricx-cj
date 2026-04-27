@@ -49,20 +49,12 @@ const INCLUDE_FEATURES: string[] = [
 `hm_metricx_cj` 提供
 ```text
 public func initCrashHandler(
-    applicationContext: ApplicationContext,
-    collectCrashInfo: () -> JsonValue,
-    collectNativeCrashInfo: CFunc<() -> CString>,
-    reportCrashInfo: (crashInfo: CrashInfo) -> Unit,
-    persistentDir: Path,
-    enableDumpOnOOM: Option<OOMHandlerMode>,
-    lastNHilogNumber: Int64,
-    systemLogNumber: Int64,
-    enableMemMonitor: Option<CMemMonitorConfig>
+  applicationContext: common.ApplicationContext,   -- 上下文
+  persistentDir: Path, --自定义存入地址
+  callbacks：CrashCallbacks,  -- 回调类
+  config!: CrashConfig = CrashConfig()   -- 配置类
 ): Unit
 
-public enum OOMHandlerMode {
-    | Async | Sync
-}
 
 public class CMemMonitorConfig {
     let shouldBeClusteredToThisSo: (soName: String) -> Bool
