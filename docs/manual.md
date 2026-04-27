@@ -76,14 +76,21 @@ public class CMemMonitorConfig {
 `initCrashHandler` 需要的入参说明如下：
 
 - `applicationContext: ApplicationContext` 指定应用上下文。
-- `collectCrashInfo: () -> JsonValue` 用于在发生ArkTS/仓颉层引发的crash时，收集若干自定义的业务/系统信息(比如页面浏览路径等)，以json形式返回。
-- `collectNativeCrashInfo: CFunc<() -> CString` 用于在发生Native层引发的crash时，收集若干自定义的业务/系统信息(比如页面浏览路径等)，以json字符串形式返回。
-- `reportCrashInfo: (crashInfo: CrashInfo) -> Unit` 用于在发生ArkTS/仓颉层引发的crash时，将收集完毕的崩溃信息进行上报，入参为 `CrashInfo` 类型对象。 
 - `persistentDir: Path` 指定中间日志文件和内存快照的持久化目录。
-- `enableDumpOnOOM: Option<OOMHandlerMode>` 指定是否在发生OOM时导出仓颉内存快照, Option.None表示不导出仓颉内存快照，`OOMHandlerMode`枚举类型可选`Async`异步导出或`Sync`同步导出。
-- `lastNHilogNumber: Int64` 指定lastNHilog的条数。
-- `systemLogNumber: Int64` 指定系统级日志systemLog的条数。
-- `enableMemMonitor: Option<CMemMonitorConfig>` 指定是否开启C内存详情监控，Option.None表示不开启，传入`CMemMonitorConfig`对象表示开启，`CMemMonitorConfig`类表示C内存详情监控的配置项。
+- `callbacks`：CrashCallbacks 回调类入参，里面包括：
+ 1. `collectCrashInfo: () -> JsonValue`  
+     用于在发生 ArkTS / 仓颉层引发的 crash 时，收集若干自定义的业务 / 系统信息，例如页面浏览路径等，并以 JSON 形式返回。
+
+  2. `reportCrashInfo: (crashInfo: CrashInfo) -> Unit`  
+     用于在发生 ArkTS / 仓颉层引发的 crash 时，将收集完毕的崩溃信息进行上报，入参为 `CrashInfo` 类型对象。
+
+- `crashconfig！`: CrashConfig = CrashConfig()：配置类入参，里面包括：
+ 1. `lastNHilogNumber: Int64` 
+指定lastNHilog的条数。
+2. `systemLogNumber: Int64` 
+指定系统级日志systemLog的条数。
+ 3. `memMonitor: Option<CMemMonitorConfig>` 
+指定是否开启C内存详情监控，Option.None表示不开启，传入`CMemMonitorConfig`对象表示开启，`CMemMonitorConfig`类表示C内存详情监控的配置项。
 
 `CMemMonitorConfig` 参数说明：
 - `shouldBeClusteredToThisSo` 用于在按照so聚合类别中，指定内存分配数据是否被聚合到该so。
@@ -126,18 +133,14 @@ class EntryAbility <: UIAbility {
             case AbilityConstant.LaunchReason.START_ABILITY => AppLog.info("START_ABILITY")
             case _ => ()
         }
-        initCrashHandler(
-            this.context.getApplicationContext(), 
-            {=> JsonValue.fromStr("{}")}, 
-            {=> unsafe { LibC.mallocCString("{}") }}, 
-            {data => AppLog.error("testTag: " + data.rawFile.toString())},
-            Path(this.context.cacheDir), 
-            OOMHandlerMode.Async, 
-            1000, 
-            1000, 
-            CMemMonitorConfig({soName:String =>false}))
-    }
-}
+        initCrashHandler(this
+            .context
+            .getApplicationContext(),
+            Path(this
+                .context
+                .cacheDir),
+            CrashCallbacks(collectCrashInfo: {=> JsonValue.fromStr("{}")}, reportCrashInfo: {data => AppLog.error("xxx: " + data.toString())}),
+            config: CrashConfig(memMonitor: CMemMonitorConfig({soName:String =>false}), lastNHilogNumber: 1000, systemLogNumber: 1000))
 ```
 
 > ** 注意: **
