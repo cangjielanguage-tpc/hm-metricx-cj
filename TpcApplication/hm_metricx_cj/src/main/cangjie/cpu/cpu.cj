@@ -498,8 +498,10 @@ var isAppForeground: Bool = true
 // --- 采样数据 ---
 // 线程采样数据：tid -> ThreadStackInfo 记录每个高占用线程的统计信息
 var threadSamples: HashMap<Int64, ThreadStackInfo> = HashMap()
-// 进程 CPU 采样列表
-var processCpuSamples: ArrayList<Float64> = ArrayList()
+// 进程 CPU 统计（O(1) 内存）
+var processCpuSum: Float64 = 0.0
+var processCpuMax: Float64 = 0.0
+var processCpuCount: Int64 = 0
 
 // --- Cooldown 记录（限流机制） ---
 // 线程 cooldown 记录：tid -> 上次抓取时间戳（毫秒）
@@ -534,6 +536,16 @@ var highCpuSampleCount: Int64 = 0
 var abilityLifecycleCallback: Option<AbilityLifecycleCallback> = None
 // 应用上下文 用于注册生命周期回调
 var applicationContext: Option<ApplicationContext> = None
+// 生命周期回调 ID（用于解注册）
+var highCpuLifecycleCallbackId: Int32 = 0
+
+private func highCpuSampleTick(_: Array<String>): Unit {
+    doHighCpuSample()
+}
+
+private func highCpuReportTick(_: Array<String>): Unit {
+    doHighCpuReport()
+}
 
 /**
  * 获取当前时间戳（毫秒）
@@ -620,6 +632,19 @@ private func canSampleGlobal(currentTime: Int64): Bool {
  */
 private func updateThreadCooldown(tid: Int64, currentTime: Int64): Unit {
     threadCooldownMap.add(tid, currentTime)
+    if (let Some(config) <- highCpuConfig) {
+        let expired = ArrayList<Int64>()
+        for (entry in threadCooldownMap) {
+            let savedTid = entry[0]
+            let ts = entry[1]
+            if (currentTime - ts > config.threadCooldownMs * 2) {
+                expired.add(savedTid)
+            }
+        }
+        for (expiredTid in expired) {
+            threadCooldownMap.remove(expiredTid)
+        }
+    }
 }
 
 /**
@@ -672,7 +697,11 @@ private func doHighCpuSample(): Unit {
 
     // 获取当前进程 CPU 使用率
     let processCpuUsage = getCpuUsage()
-    processCpuSamples.add(processCpuUsage)
+    processCpuSum += processCpuUsage
+    if (processCpuUsage > processCpuMax) {
+        processCpuMax = processCpuUsage
+    }
+    processCpuCount++
     totalSampleCount++
 
     // 统计高 CPU 采样次数（使用动态阈值）
@@ -931,16 +960,10 @@ private func doHighCpuReport(): Unit {
 
     // 计算进程平均 CPU 使用率和最大 CPU 使用率
     var avgProcessCpu: Float64 = 0.0
-    var maxProcessCpu: Float64 = 0.0
-    if (!processCpuSamples.isEmpty()) {
-        var sum: Float64 = 0.0
-        for (sample in processCpuSamples) {
-            sum += sample
-            if (sample > maxProcessCpu) {
-                maxProcessCpu = sample
-            }
-        }
-        avgProcessCpu = sum / Float64(processCpuSamples.size)
+    var maxProcessCpu: Float64 = processCpuMax
+
+    if (processCpuCount > 0) {
+        avgProcessCpu = processCpuSum / Float64(processCpuCount)
     }
 
     // 筛选出平均 CPU 使用率超过阈值且高采样比例达标的线程
@@ -991,7 +1014,9 @@ private func doHighCpuReport(): Unit {
 private func resetSamplingData(): Unit {
     AppLog.info("hm-metricx-cj: [DEBUG] Resetting sampling data. Before reset: totalSampleCount=${totalSampleCount}, threadSamples.size=${threadSamples.size}, monitorStartTime=${monitorStartTime}")
     threadSamples.clear()
-    processCpuSamples.clear()
+    processCpuSum = 0.0
+    processCpuMax = 0.0
+    processCpuCount = 0
     totalSampleCount = 0
     highCpuSampleCount = 0
     AppLog.info("hm-metricx-cj: [DEBUG] Sampling data reset. After reset: totalSampleCount=${totalSampleCount}, threadSamples.size=${threadSamples.size}")
@@ -1012,10 +1037,10 @@ private func startHighCpuMonitor(): Unit {
         monitorEndTime = monitorStartTime + config.monitorDurationMs
 
         // 启动采样定时器（使用前台间隔，实际间隔会根据前后台切换动态调整）
-        highCpuSampleTimerId = Some(setInterval({ _ => doHighCpuSample() }, config.foregroundIntervalMs, Array<String>()))
+        highCpuSampleTimerId = Some(setInterval(highCpuSampleTick, config.foregroundIntervalMs, Array<String>()))
 
         // 启动上报定时器
-        highCpuReportTimerId = Some(setInterval({ _ => doHighCpuReport() }, config.monitorDurationMs, Array<String>()))
+        highCpuReportTimerId = Some(setInterval(highCpuReportTick, config.monitorDurationMs, Array<String>()))
 
         AppLog.info("hm-metricx-cj: High CPU monitoring started, foregroundInterval=${config.foregroundIntervalMs}ms, backgroundInterval=${config.backgroundIntervalMs}ms, duration=${config.monitorDurationMs}ms")
     }
@@ -1061,7 +1086,7 @@ private func updateSampleInterval(): Unit {
     if (let Some(timerId) <- highCpuSampleTimerId) {
         clearInterval(timerId)
     }
-    highCpuSampleTimerId = Some(setInterval({ _ => doHighCpuSample() }, newInterval, Array<String>()))
+    highCpuSampleTimerId = Some(setInterval(highCpuSampleTick, newInterval, Array<String>()))
 }
 
 /**
@@ -1139,7 +1164,7 @@ public func initHighCpuMonitorHandler(
     // 注册生命周期回调
     let appContext = context.getApplicationContext()
     applicationContext = Some(appContext)
-    appContext.on(ApplicationContextType.ABILITY_LIFECYCLE, abilityLifecycleCallback.getOrThrow())
+    highCpuLifecycleCallbackId = appContext.on(ApplicationContextType.ABILITY_LIFECYCLE, abilityLifecycleCallback.getOrThrow())
 
     startHighCpuMonitor() // 启动监控
 
@@ -1170,14 +1195,17 @@ public func destroyHighCpuMonitorHandler(): Unit {
 
     // 注销生命周期回调
     if (let Some(appContext) <- applicationContext) {
-        if (let Some(callback) <- abilityLifecycleCallback) {
-            AppLog.info("hm-metricx-cj: High CPU monitor lifecycle callback unregistered")
+        if (highCpuLifecycleCallbackId != 0) {
+            appContext.off(ApplicationContextType.ABILITY_LIFECYCLE, highCpuLifecycleCallbackId, {err, data => AppLog.info("hm-metricx-cj: High CPU monitor lifecycle callback unregistered")})
         }
     }
 
     highCpuMonitorInited = false
     highCpuConfig = None
     reportHighCpuCallback = None
+    abilityLifecycleCallback = None
+    applicationContext = None
+    highCpuLifecycleCallbackId = 0
     resetSamplingData()
     threadCooldownMap.clear()
     globalLastCaptureTime = 0
@@ -1474,6 +1502,12 @@ var fatalReported: Bool = false
 // --- 抓栈锁 ---
 // 后台抓栈锁
 var isBackgroundCapturingStack: Bool = false
+
+// --- 后台生命周期回调 ---
+// 后台生命周期回调 ID（用于解注册）
+var backgroundLifecycleCallbackId: Int32 = 0
+// 后台应用上下文（用于注销回调）
+var backgroundAppContext: Option<ApplicationContext> = None
 
 // --- 后台延时任务 ---
 // 后台延时任务 ID，用于保持定时器在后台运行
@@ -1830,7 +1864,8 @@ public func initBackgroundCpuMonitorHandler(
 
     // 注册生命周期回调
     let appContext = context.getApplicationContext()
-    appContext.on(ApplicationContextType.ABILITY_LIFECYCLE, callback)
+    backgroundLifecycleCallbackId = appContext.on(ApplicationContextType.ABILITY_LIFECYCLE, callback)
+    backgroundAppContext = Some(appContext)
 
     AppLog.info("hm-metricx-cj: Background CPU monitor initialized with config: cpuThreshold=${config.cpuThreshold}, " +
                 "warnDuration=${config.warnDurationMs}ms, errorDuration=${config.errorDurationMs}ms, " +
@@ -1849,6 +1884,15 @@ public func destroyBackgroundCpuMonitorHandler(): Unit {
     stopBackgroundMonitor()
     // 取消后台延时任务
     cancelBackgroundDelayTask()
+
+    // 注销生命周期回调
+    if (let Some(appContext) <- backgroundAppContext) {
+        if (backgroundLifecycleCallbackId != 0) {
+            appContext.off(ApplicationContextType.ABILITY_LIFECYCLE, backgroundLifecycleCallbackId, {err, data => ()})
+            AppLog.info("hm-metricx-cj: Background CPU monitor lifecycle callback unregistered")
+        }
+    }
+
     resetBackgroundMonitorData()
 
     // 重置上报标志（修复问题 5：在销毁时才重置）
@@ -1859,6 +1903,8 @@ public func destroyBackgroundCpuMonitorHandler(): Unit {
     backgroundCpuMonitorInited = false
     backgroundCpuConfig = None
     backgroundCpuCallback = None
+    backgroundLifecycleCallbackId = 0
+    backgroundAppContext = None
 
     AppLog.info("hm-metricx-cj: Background CPU monitor destroyed")
 }
