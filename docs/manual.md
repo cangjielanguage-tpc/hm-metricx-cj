@@ -577,21 +577,50 @@ export default class EntryAbility extends UIAbility {
 ```arkts
 // 注册CPU监控
 export function initCpuHandler(
-  context: UIAbilityContext,
-    config: HighCpuMonitorConfig,
-    reportHighCpuInfo: (info: HighCpuReportInfo) -> Unit
+  context: common.UIAbilityContext,
+  reportPageCpuInfo: (data: PageCpuInfo) => void,
+  reportProcessCpuInfo: (data: ProcessCpuInfo) => void
 ): void
 // 取消CPU监控
-public func destroyCpuHandler(): Unit
-// 获取页面CPU信息
-public func HighCpuMonitorConfig(): HighCpuMonitorConfig
-// 获取进程CPU信息
-public func reportHighCpuInfo(): HighCpuReportInfo/highCpuThreads
+ export function destroyCpuHandler(): void	 
+ // 获取页面CPU信息	 
+ export function getPageCpuInfo(): PageCpuInfo	 
+ // 获取进程CPU信息	 
+ export function getProcessCpuInfo(): ProcessCpuInfo
 ```
-
 接口对应用的CPU使用情况进行监控。
 
 `initCpuHandler` 需要的入参说明如下：
+ - `context: UIAbilityContext` 指定UIAbility上下文。	 
+ - `reportPageCpuInfo: (info: PageCpuInfo) -> Unit` 将当前页面的CPU的使用情况进行上报，入参为 `PageCpuInfo` 类型对象。	 
+ - `reportProcessCpuInfo: (info: ProcessCpuInfo) -> Unit` 将进程的CPU的使用情况进行上报，入参为 `ProcessCpuInfo` 类型对象。	 
+ 
+ 
+ `PageCpuInfo` 包含以下信息：	 
+ - `avgCpu` CPU使用率平均值，以比例值表示（如使用率50%，则返回0.5）	 
+ - `maxCpu` CPU使用率最大值，以比例值表示	 
+ - `sampleCount` CPU采样次数	 
+ - `pageName` 当前页面名称	 
+
+ `ProcessCpuInfo` 包含以下信息：	 
+ - `avgCpu` CPU使用率平均值，以比例值表示（如使用率50%，则返回0.5）	 
+ - `maxCpu` CPU使用率最大值，以比例值表示	 
+ - `sampleCount` CPU采样次数 
+ - `pid` 进程ID
+
+#### 新增CPU异常监控 : 1）3分钟线程栈异常监控
+```text
+//注册CPU异常监控
+export function initHighCpuMonitorHandler(
+  context: common.UIAbilityContext,
+  config: HighCpuMonitorConfig,
+  reportHighCpuInfo: (data: HighCpuReportInfo) => void
+): void
+// 取消CPU监控
+export function destroyHighCpuMonitorHandler(): void
+```
+
+`initHighCpuMonitorHandler` 需要的入参说明如下：
 
 - `context: UIAbilityContext` 指定UIAbility上下文。
 - `config: HighCpuMonitorConfig` 将当前页面的CPU的使用入参为 `HighCpuMonitorConfig` 类型对象。
@@ -628,13 +657,9 @@ public func reportHighCpuInfo(): HighCpuReportInfo/highCpuThreads
 
 使用示例：
 
-i.
+i.在主模块的 `EntryAbility.ets` 的 `onCreate` 回调中调用 `initCpuHandler` ：
 
-在主模块的 `EntryAbility.ets` 的 `onCreate` 回调中调用 `initCpuHandler` ：
-
-ii.
-
-在主模块的 `EntryAbility.ets` 的 `onDestroy` 回调中调用 `destroyCpuHandler` ：
+ii.在主模块的 `EntryAbility.ets` 的 `onDestroy` 回调中调用 `destroyCpuHandler` ：
 
 ```arkts
 export default class EntryAbility extends UIAbility {
@@ -679,6 +704,83 @@ export default class EntryAbility extends UIAbility {
     destroyCpuHandler();
   }
 }
+```
+#### 新增CPU异常监控 : 2）CPU后台活动率异常监控
+```text
+//注册CPU异常监控
+public func initBackgroundCpuMonitorHandler(
+    context: UIAbilityContext,
+    config: BackgroundCpuMonitorConfig,
+    reportCallback: (info: BackgroundCpuReportInfo) -> Unit
+): unit
+// 取消CPU监控
+public func destroyBackgroundCpuMonitorHandler(): Unit
+// 手动触发后台 CPU 上报
+public func triggerBackgroundCpuReport(): Unit
+// 检查后台监控是否正在运行
+public func isBackgroundCpuMonitoringActive(): Bool
+//获取后台监控配置
+public func getBackgroundCpuConfig(): Option<BackgroundCpuMonitorConfig>
+```
+
+接口对应用的CPU使用情况进行监控。
+
+`initBackgroundCpuMonitorHandler` 需要的入参说明如下：
+
+- `context: UIAbilityContext` 指定UIAbility上下文。
+- `config: BackgroundCpuMonitorConfig` 将当前页面的CPU的使用入参为 `BackgroundCpuMonitorConfig` 类型对象。
+- `reportCallback: (info: BackgroundCpuReportInfo) -> Unit` 回调配置，将进程的CPU的异常使用情况进行上报。
+
+`BackgroundCpuMonitorConfig` 的入参包含信息：
+- `cpuThreshold` CPU使用率平均值，以比例值表示（如使用率50%，则返回0.5），范围是0-1，如果是负数或者超过1，会调用系统设置的默认值
+- `warnDurationMs`: (int64) 最小异常上报时长（ms），超过此时长触发warn级别上报。
+- `errorDurationMs`: (int64) 最小异常上报时长（ms），超过此时长触发error级别上报。
+- `errorDurationMs`: (int64) 最小异常上报时长（ms），超过此时长触发fatal级别上报。
+- `sampleIntervalMs`: (int64) 采样间隔(ms)。
+- `windowSizeMs`: (int64) 滑动窗口大小(ms)。
+
+`BackgroundCpuReportInfo` 包含以下信息：
+- `timestamp` timestamp
+- `processName` 进程
+- `pid` 进程ID
+- `level` 当前异常等级
+- `pageName` 当前页面
+- `avgProcessCpu` CPU平均值
+- `backgroundDuration` 监控时长
+- `windowSamples.size` 滑动窗口采样数
+
+```arkts
+export default class EntryAbility extends UIAbility {
+  onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): void {
+    initBackgroundCpuMonitorHandler(
+      this.context,
+      new BackgroundCpuMonitorConfig(
+        0.05,           // CPU 利用率阈值 5%
+        10000,           // 10 秒触发 WARN
+        30000,           // 30 秒触发 ERROR
+        60000,          // 60 秒触发 FATAL
+        1000,            // 1 秒采样一次
+        5000            // 5 秒滑动窗口
+      ),
+      (reportInfo: BackgroundCpuReportInfo) => {
+        hilog.warn(DOMAIN, 'BackgroundCpuMonitor', '===== 后台 CPU 活动超长率上报 =====');
+        hilog.warn(DOMAIN, 'BackgroundCpuMonitor', `时间：${reportInfo.timestamp}`);
+        hilog.warn(DOMAIN, 'BackgroundCpuMonitor', `进程：${reportInfo.processName} (PID: ${reportInfo.pid})`);
+        hilog.warn(DOMAIN, 'BackgroundCpuMonitor', `异常级别：${reportInfo.level}`);
+        hilog.warn(DOMAIN, 'BackgroundCpuMonitor', `后台时长：${reportInfo.backgroundDuration}ms`);
+        hilog.warn(DOMAIN, 'BackgroundCpuMonitor', `平均 CPU: ${reportInfo.avgCpuUsage}`);
+        hilog.warn(DOMAIN, 'BackgroundCpuMonitor', `最大 CPU: ${reportInfo.maxCpuUsage}`);
+        hilog.warn(DOMAIN, 'BackgroundCpuMonitor', `滑动窗口采样数：${reportInfo.windowSamples.length}`);
+
+        // 打印滑动窗口数据
+        for (const sample of reportInfo.windowSamples) {
+          hilog.warn(DOMAIN, 'BackgroundCpuMonitor', '--- 窗口采样 ---');
+          hilog.warn(DOMAIN, 'BackgroundCpuMonitor', `  时间戳：${sample.timestamp}`);
+          hilog.warn(DOMAIN, 'BackgroundCpuMonitor', `  CPU 使用率：${sample.cpuUsage}`);
+          hilog.warn(DOMAIN, 'BackgroundCpuMonitor', `  后台时长：${sample.duration}ms`);
+        }
+      }
+    );
 ```
 
 ### 监控电量
