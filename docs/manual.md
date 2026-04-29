@@ -623,15 +623,71 @@ class EntryAbility <: UIAbility {
 
 `hm_metricx_cj` 提供
 
+ ```text	 
+ // 注册CPU监控	 
+ public func initCpuHandler(	 
+     ability: UIAbility,	 
+     reportPageCpuInfo: (info: PageCpuInfo) -> Unit,	 
+     reportProcessCpuInfo: (info: ProcessCpuInfo) -> Unit	 
+ ): Unit	 
+ // 取消CPU监控	 
+ public func destroyCpuHandler(): Unit	 
+ // 获取页面CPU信息	 
+ public func getPageCpuInfo(): PageCpuInfo	 
+ // 获取进程CPU信息	 
+ public func getProcessCpuInfo(): ProcessCpuInfo	 
+ ```
+接口对应用的CPU使用情况进行监控。
+
+`initCpuHandler` 需要的入参说明如下：
+ - `context: UIAbilityContext` 指定UIAbility上下文。	 
+ - `reportPageCpuInfo: (info: PageCpuInfo) -> Unit` 将当前页面的CPU的使用情况进行上报，入参为 `PageCpuInfo` 类型对象。	 
+ - `reportProcessCpuInfo: (info: ProcessCpuInfo) -> Unit` 将进程的CPU的使用情况进行上报，入参为 `ProcessCpuInfo` 类型对象。	 
+ 
+ 
+ `PageCpuInfo` 包含以下信息：	 
+ - `avgCpu` CPU使用率平均值，以比例值表示（如使用率50%，则返回0.5）	 
+ - `maxCpu` CPU使用率最大值，以比例值表示	 
+ - `sampleCount` CPU采样次数	 
+ - `pageName` 当前页面名称	 
+
+ `ProcessCpuInfo` 包含以下信息：	 
+ - `avgCpu` CPU使用率平均值，以比例值表示（如使用率50%，则返回0.5）	 
+ - `maxCpu` CPU使用率最大值，以比例值表示	 
+ - `sampleCount` CPU采样次数 
+ - `pid` 进程ID
+使用示例：
+
+i.在主模块的 `main_ability.cj` 的 `onCreate` 回调中调用 `initCpuHandler`
+
+ii.在主模块的 `main_ability.cj` 的 `onDestroy` 回调中调用 `destroyCpuHandler` ：
+ ```text	 
+ class EntryAbility <: UIAbility {	 
+     public override func onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): Unit {	 
+         AppLog.info("Ability OnCreated.${want.abilityName}")	 
+         match (launchParam.launchReason) {	 
+             case AbilityConstant.LaunchReason.START_ABILITY => AppLog.info("START_ABILITY")	 
+             case _ => ()	 
+         }	 
+         initCpuHandler(this.context, {data =>}, {data =>})	 
+     }	 
+     public override func onDestroy(): Unit {	 
+         destroyCpuHandler()	 
+         AppLog.info("myAbility onDestroy.")	 
+     }	 
+ }
+ ```
+
+#### 新增CPU异常监控 : 1）3分钟线程栈异常监控
 ```text
-// 注册CPU监控
+//注册CPU异常监控
 public func initHighCpuMonitorHandler(
     context: UIAbilityContext,
     config: HighCpuMonitorConfig,
     reportHighCpuInfo: (info: HighCpuReportInfo) -> Unit
 ): unit
 // 取消CPU监控
-public func destroyCpuHandler(): Unit
+public func destroyHighCpuMonitorHandler(): Unit
 // 获取页面CPU信息
 public func HighCpuMonitorConfig(): PageCpuInfo
 // 获取进程CPU信息
@@ -640,11 +696,11 @@ public func reportHighCpuInfo(): ProcessCpuInfo
 
 接口对应用的CPU使用情况进行监控。
 
-`initCpuHandler` 需要的入参说明如下：
+`initHighCpuMonitorHandler` 需要的入参说明如下：
 
 - `context: UIAbilityContext` 指定UIAbility上下文。
 - `config: HighCpuMonitorConfig` 将当前页面的CPU的使用入参为 `HighCpuMonitorConfig` 类型对象。
-- `reportHighCpuInfo: (info: HighCpuReportInfo) -> Unit` 将进程的CPU的使用情况进行上报，入参为 `reportHighCpuInfo` 类型对象。
+- `reportHighCpuInfo: (info: HighCpuReportInfo) -> Unit` 回调配置，将进程的CPU的异常使用情况进行上报。
 
 `HighCpuMonitorConfig` 的入参包含信息：
 - `cpuThreshold` CPU使用率平均值，以比例值表示（如使用率50%，则返回0.5），范围是0-1，如果是负数或者超过1，会调用系统设置的默认值
@@ -677,13 +733,9 @@ public func reportHighCpuInfo(): ProcessCpuInfo
 
 使用示例：
 
-i.
+i.在主模块的 `main_ability.cj` 的 `onCreate` 回调中调用 `initCpuHandler`
 
-在主模块的 `main_ability.cj` 的 `onCreate` 回调中调用 `initCpuHandler`
-
-ii.
-
-在主模块的 `main_ability.cj` 的 `onDestroy` 回调中调用 `destroyCpuHandler` ：
+ii.在主模块的 `main_ability.cj` 的 `onDestroy` 回调中调用 `destroyCpuHandler` ：
 
 ```text
 initHighCpuMonitorHandler(
@@ -718,6 +770,86 @@ initHighCpuMonitorHandler(
                 }
             }
         )；
+```
+#### 新增CPU异常监控 : 2）CPU后台活动率异常监控
+```text
+//注册CPU异常监控
+public func initBackgroundCpuMonitorHandler(
+    context: UIAbilityContext,
+    config: BackgroundCpuMonitorConfig,
+    reportCallback: (info: BackgroundCpuReportInfo) -> Unit
+): unit
+// 取消CPU监控
+public func destroyBackgroundCpuMonitorHandler(): Unit
+// 手动触发后台 CPU 上报
+public func triggerBackgroundCpuReport(): Unit
+// 检查后台监控是否正在运行
+public func isBackgroundCpuMonitoringActive(): Bool
+//获取后台监控配置
+public func getBackgroundCpuConfig(): Option<BackgroundCpuMonitorConfig>
+```
+接口对应用的CPU使用情况进行监控。
+
+`initBackgroundCpuMonitorHandler` 需要的入参说明如下：
+
+- `context: UIAbilityContext` 指定UIAbility上下文。
+- `config: BackgroundCpuMonitorConfig` 将当前页面的CPU的使用入参为 `BackgroundCpuMonitorConfig` 类型对象。
+- `reportCallback: (info: BackgroundCpuReportInfo) -> Unit` 回调配置，将进程的CPU的异常使用情况进行上报。
+
+`BackgroundCpuMonitorConfig` 的入参包含信息：
+- `cpuThreshold` CPU使用率平均值，以比例值表示（如使用率50%，则返回0.5），范围是0-1，如果是负数或者超过1，会调用系统设置的默认值
+- `warnDurationMs`: (int64) 最小异常上报时长（ms），超过此时长触发warn级别上报。
+- `errorDurationMs`: (int64) 最小异常上报时长（ms），超过此时长触发error级别上报。
+- `errorDurationMs`: (int64) 最小异常上报时长（ms），超过此时长触发fatal级别上报。
+- `sampleIntervalMs`: (int64) 采样间隔(ms)。
+- `windowSizeMs`: (int64) 滑动窗口大小(ms)。
+
+`BackgroundCpuReportInfo` 包含以下信息：
+- `timestamp` timestamp
+- `processName` 进程
+- `pid` 进程ID
+- `level` 当前异常等级
+- `pageName` 当前页面
+- `avgProcessCpu` CPU平均值
+- `backgroundDuration` 监控时长
+- `windowSamples.size` 滑动窗口采样数
+
+使用示例：
+
+i.在主模块的 `main_ability.cj` 的 `onCreate` 回调中调用 `initCpuHandler`
+
+ii.在主模块的 `main_ability.cj` 的 `onDestroy` 回调中调用 `destroyCpuHandler` ：
+
+```text
+initBackgroundCpuMonitorHandler(
+            this.context,
+            BackgroundCpuMonitorConfig(
+                cpuThreshold: 0.05,           // CPU 利用率阈值 5%
+                warnDurationMs: 10000,       // 10 秒触发 WARN 级别
+                errorDurationMs: 30000,      // 30 秒触发 ERROR 级别
+                fatalDurationMs: 60000,      // 60 秒触发 FATAL 级别
+                sampleIntervalMs: 1000,      // 1 秒采样一次
+                windowSizeMs: 5000           // 5 秒滑动窗口
+            ),
+            { reportInfo =>
+                AppLog.warn("===== 后台 CPU 活动超长率上报 =====")
+                AppLog.warn("时间：${reportInfo.timestamp}")
+                AppLog.warn("进程：${reportInfo.processName} (PID: ${reportInfo.pid})")
+                AppLog.warn("异常级别：${reportInfo.level.toString()}")
+                AppLog.warn("后台时长：${reportInfo.backgroundDuration}毫秒")
+                AppLog.warn("平均 CPU: ${reportInfo.avgCpuUsage}")
+                AppLog.warn("最大 CPU: ${reportInfo.maxCpuUsage}")
+                AppLog.warn("滑动窗口采样数：${reportInfo.windowSamples.size}")
+
+                // 打印滑动窗口数据
+                for (sample in reportInfo.windowSamples) {
+                    AppLog.warn("--- 窗口采样 ---")
+                    AppLog.warn("  时间戳：${sample.timestamp}")
+                    AppLog.warn("  CPU 使用率：${sample.cpuUsage}")
+                    AppLog.warn("  后台时长：${sample.duration}毫秒")
+                }
+            }
+        )
 ```
 
 ### 监控电量
