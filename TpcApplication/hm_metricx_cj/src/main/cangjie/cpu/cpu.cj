@@ -414,10 +414,6 @@ public class HighCpuMonitorConfig {
     private static let DEFAULT_GLOBAL_COOLDOWN_MS: Int64 = 180000   // 3 分钟
     private static let DEFAULT_HIGH_SAMPLE_RATIO_THRESHOLD: Float64 = 0.85
     private static let DEFAULT_TOP_N_THREADS: Int64 = 10
-    
-    // 边界值常量
-    private static let MAX_MONITOR_DURATION_MS: Int64 = 15000000  // 15 分钟
-    private static let MAX_TOP_N_THREADS: Int64 = 50
 
     public init(
         cpuThreshold!: Float64 = DEFAULT_CPU_THRESHOLD,
@@ -429,58 +425,58 @@ public class HighCpuMonitorConfig {
         highSampleRatioThreshold!: Float64 = DEFAULT_HIGH_SAMPLE_RATIO_THRESHOLD,
         topNThreads!: Int64 = DEFAULT_TOP_N_THREADS
     ) {
-        // 校验 cpuThreshold: 必须在 (0, 1] 范围内
-        this.cpuThreshold = if (cpuThreshold <= 0.0 || cpuThreshold > 1.0) {
-            DEFAULT_CPU_THRESHOLD
+        // 校验 cpuThreshold: 必须在 [0.0, 1.0] 范围内
+        this.cpuThreshold = if (cpuThreshold < 0.0 || cpuThreshold > 1.0) {
+            throw Exception("Invalid cpuThreshold: ${cpuThreshold}, expected [0.0, 1.0]")
         } else {
             cpuThreshold
         }
         
-        // 校验 foregroundIntervalMs: 必须在 (0, MAX_MONITOR_DURATION_MS] 范围内
-        this.foregroundIntervalMs = if (foregroundIntervalMs <= 0 || foregroundIntervalMs > MAX_MONITOR_DURATION_MS) {
-            DEFAULT_FOREGROUND_INTERVAL_MS
+        // 校验 foregroundIntervalMs: 必须在 [0, Int64.Max] 范围内
+        this.foregroundIntervalMs = if (foregroundIntervalMs < 0 || foregroundIntervalMs > Int64.Max) {
+            throw Exception("Invalid foregroundIntervalMs: ${foregroundIntervalMs}, expected [0, Int64.Max]")
         } else {
             foregroundIntervalMs
         }
         
-        // 校验 backgroundIntervalMs: 必须在 (0, MAX_MONITOR_DURATION_MS] 范围内
-        this.backgroundIntervalMs = if (backgroundIntervalMs <= 0 || backgroundIntervalMs > MAX_MONITOR_DURATION_MS) {
-            DEFAULT_BACKGROUND_INTERVAL_MS
+        // 校验 backgroundIntervalMs: 必须在 [0, Int64.Max] 范围内
+        this.backgroundIntervalMs = if (backgroundIntervalMs < 0 || backgroundIntervalMs > Int64.Max) {
+            throw Exception("Invalid backgroundIntervalMs: ${backgroundIntervalMs}, expected [0, Int64.Max]")
         } else {
             backgroundIntervalMs
         }
-        
-        // 校验 monitorDurationMs: 必须在 (0, MAX_MONITOR_DURATION_MS] 范围内
-        this.monitorDurationMs = if (monitorDurationMs <= 0 || monitorDurationMs > MAX_MONITOR_DURATION_MS) {
-            DEFAULT_MONITOR_DURATION_MS
+
+        // 校验 monitorDurationMs: 必须在 (0, Int64.Max] 范围内
+        this.monitorDurationMs = if (monitorDurationMs <= 0 || monitorDurationMs > Int64.Max) {
+            throw Exception("Invalid monitorDurationMs: ${monitorDurationMs}, expected (0, Int64.Max]")
         } else {
             monitorDurationMs
         }
-        
-        // 校验 threadCooldownMs: 必须在 (0, MAX_MONITOR_DURATION_MS] 范围内
-        this.threadCooldownMs = if (threadCooldownMs <= 0 || threadCooldownMs > MAX_MONITOR_DURATION_MS) {
-            DEFAULT_THREAD_COOLDOWN_MS
+
+        // 校验 threadCooldownMs: 必须在 [0, Int64.Max] 范围内
+        this.threadCooldownMs = if (threadCooldownMs < 0 || threadCooldownMs > Int64.Max) {
+            throw Exception("Invalid threadCooldownMs: ${threadCooldownMs}, expected [0, Int64.Max]")
         } else {
             threadCooldownMs
         }
-        
-        // 校验 globalCooldownMs: 必须在 (0, MAX_MONITOR_DURATION_MS] 范围内
-        this.globalCooldownMs = if (globalCooldownMs <= 0 || globalCooldownMs > MAX_MONITOR_DURATION_MS) {
-            DEFAULT_GLOBAL_COOLDOWN_MS
+
+        // 校验 globalCooldownMs: 必须在 [0, Int64.Max] 范围内
+        this.globalCooldownMs = if (globalCooldownMs < 0 || globalCooldownMs > Int64.Max) {
+            throw Exception("Invalid globalCooldownMs: ${globalCooldownMs}, expected [0, Int64.Max]")
         } else {
             globalCooldownMs
         }
-        
-        // 校验 highSampleRatioThreshold: 必须在 (0, 1] 范围内
-        this.highSampleRatioThreshold = if (highSampleRatioThreshold <= 0.0 || highSampleRatioThreshold > 1.0) {
-            DEFAULT_HIGH_SAMPLE_RATIO_THRESHOLD
+
+        // 校验 highSampleRatioThreshold: 必须在 [0.0, 1.0] 范围内
+        this.highSampleRatioThreshold = if (highSampleRatioThreshold < 0.0 || highSampleRatioThreshold > 1.0) {
+            throw Exception("Invalid highSampleRatioThreshold: ${highSampleRatioThreshold}, expected [0.0, 1.0]")
         } else {
             highSampleRatioThreshold
         }
-        
-        // 校验 topNThreads: 必须在 (0, MAX_TOP_N_THREADS] 范围内
-        this.topNThreads = if (topNThreads <= 0 || topNThreads > MAX_TOP_N_THREADS) {
-            DEFAULT_TOP_N_THREADS
+
+        // 校验 topNThreads: 必须在 (0, Int64.Max] 范围内
+        this.topNThreads = if (topNThreads <= 0 || topNThreads > Int64.Max) {
+            throw Exception("Invalid topNThreads: ${topNThreads}, expected (0, Int64.Max]")
         } else {
             topNThreads
         }
@@ -1391,9 +1387,6 @@ public class BackgroundCpuMonitorConfig {
     private static let DEFAULT_SAMPLE_INTERVAL_MS: Int64 = 1000     // 1 秒
     private static let DEFAULT_WINDOW_SIZE_MS: Int64 = 5000         // 5 秒窗口
 
-    // 边界值常量
-    private static let MAX_DURATION_MS: Int64 = 15000000  // 15 分钟
-
     public init(
         cpuThreshold!: Float64 = DEFAULT_CPU_THRESHOLD,
         warnDurationMs!: Int64 = DEFAULT_WARN_DURATION_MS,
@@ -1402,44 +1395,44 @@ public class BackgroundCpuMonitorConfig {
         sampleIntervalMs!: Int64 = DEFAULT_SAMPLE_INTERVAL_MS,
         windowSizeMs!: Int64 = DEFAULT_WINDOW_SIZE_MS
     ) {
-        // 校验 cpuThreshold: 必须在 (0, 1] 范围内
-        this.cpuThreshold = if (cpuThreshold <= 0.0 || cpuThreshold > 1.0) {
-            DEFAULT_CPU_THRESHOLD
+        // 校验 cpuThreshold: 必须在 [0.0, 1.0] 范围内
+        this.cpuThreshold = if (cpuThreshold < 0.0 || cpuThreshold > 1.0) {
+            throw Exception("Invalid cpuThreshold: ${cpuThreshold}, expected [0.0, 1.0]")
         } else {
             cpuThreshold
         }
 
-        // 校验 warnDurationMs: 必须在 (0, MAX_DURATION_MS] 范围内
-        this.warnDurationMs = if (warnDurationMs <= 0 || warnDurationMs > MAX_DURATION_MS) {
-            DEFAULT_WARN_DURATION_MS
+        // 校验 warnDurationMs: 必须在 (0, Int64.Max] 范围内
+        this.warnDurationMs = if (warnDurationMs <= 0 || warnDurationMs > Int64.Max) {
+            throw Exception("Invalid warnDurationMs: ${warnDurationMs}, expected (0, Int64.Max]")
         } else {
             warnDurationMs
         }
 
-        // 校验 errorDurationMs: 必须在 (0, MAX_DURATION_MS] 范围内
-        this.errorDurationMs = if (errorDurationMs <= 0 || errorDurationMs > MAX_DURATION_MS) {
-            DEFAULT_ERROR_DURATION_MS
+        // 校验 errorDurationMs: 必须在 (0, Int64.Max] 范围内
+        this.errorDurationMs = if (errorDurationMs <= 0 || errorDurationMs > Int64.Max) {
+            throw Exception("Invalid errorDurationMs: ${errorDurationMs}, expected (0, Int64.Max]")
         } else {
             errorDurationMs
         }
 
-        // 校验 fatalDurationMs: 必须在 (0, MAX_DURATION_MS] 范围内
-        this.fatalDurationMs = if (fatalDurationMs <= 0 || fatalDurationMs > MAX_DURATION_MS) {
-            DEFAULT_FATAL_DURATION_MS
+        // 校验 fatalDurationMs: 必须在 (0, Int64.Max] 范围内
+        this.fatalDurationMs = if (fatalDurationMs <= 0 || fatalDurationMs > Int64.Max) {
+            throw Exception("Invalid fatalDurationMs: ${fatalDurationMs}, expected (0, Int64.Max]")
         } else {
             fatalDurationMs
         }
 
-        // 校验 sampleIntervalMs: 必须在 (0, MAX_DURATION_MS] 范围内
-        this.sampleIntervalMs = if (sampleIntervalMs <= 0 || sampleIntervalMs > MAX_DURATION_MS) {
-            DEFAULT_SAMPLE_INTERVAL_MS
+        // 校验 sampleIntervalMs: 必须在 (0, Int64.Max] 范围内
+        this.sampleIntervalMs = if (sampleIntervalMs <= 0 || sampleIntervalMs > Int64.Max) {
+            throw Exception("Invalid sampleIntervalMs: ${sampleIntervalMs}, expected (0, Int64.Max]")
         } else {
             sampleIntervalMs
         }
 
-        // 校验 windowSizeMs: 必须在 (0, MAX_DURATION_MS] 范围内
-        this.windowSizeMs = if (windowSizeMs <= 0 || windowSizeMs > MAX_DURATION_MS) {
-            DEFAULT_WINDOW_SIZE_MS
+        // 校验 windowSizeMs: 必须在 (0, Int64.Max] 范围内
+        this.windowSizeMs = if (windowSizeMs <= 0 || windowSizeMs > Int64.Max) {
+            throw Exception("Invalid windowSizeMs: ${windowSizeMs}, expected (0, Int64.Max]")
         } else {
             windowSizeMs
         }
