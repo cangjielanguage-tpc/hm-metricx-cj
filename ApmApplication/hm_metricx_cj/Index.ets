@@ -1111,10 +1111,6 @@ export class HighCpuMonitorConfig {
   highSampleRatioThreshold: number = 0.85;
   topNThreads: number = 10;
 
-  // 边界值常量
-  private MAX_MONITOR_DURATION_MS = 15000000;  // 15 分钟
-  private MAX_TOP_N_THREADS = 50;
-
   constructor(
     cpuThreshold?: number,
     foregroundIntervalMs?: number,
@@ -1125,36 +1121,28 @@ export class HighCpuMonitorConfig {
     highSampleRatioThreshold?: number,
     topNThreads?: number
   ) {
-    // 校验 cpuThreshold: 必须在 (0, 1] 范围内
-    if (cpuThreshold !== undefined && cpuThreshold > 0 && cpuThreshold <= 1) {
+    if (cpuThreshold !== undefined) {
       this.cpuThreshold = cpuThreshold;
     }
-    // 校验 foregroundIntervalMs: 必须在 (0, MAX_MONITOR_DURATION_MS] 范围内
-    if (foregroundIntervalMs !== undefined && foregroundIntervalMs > 0 && foregroundIntervalMs <= this.MAX_MONITOR_DURATION_MS) {
+    if (foregroundIntervalMs !== undefined) {
       this.foregroundIntervalMs = foregroundIntervalMs;
     }
-    // 校验 backgroundIntervalMs: 必须在 (0, MAX_MONITOR_DURATION_MS] 范围内
-    if (backgroundIntervalMs !== undefined && backgroundIntervalMs > 0 && backgroundIntervalMs <= this.MAX_MONITOR_DURATION_MS) {
+    if (backgroundIntervalMs !== undefined) {
       this.backgroundIntervalMs = backgroundIntervalMs;
     }
-    // 校验 monitorDurationMs: 必须在 (0, MAX_MONITOR_DURATION_MS] 范围内
-    if (monitorDurationMs !== undefined && monitorDurationMs > 0 && monitorDurationMs <= this.MAX_MONITOR_DURATION_MS) {
+    if (monitorDurationMs !== undefined) {
       this.monitorDurationMs = monitorDurationMs;
     }
-    // 校验 threadCooldownMs: 必须在 (0, MAX_MONITOR_DURATION_MS] 范围内
-    if (threadCooldownMs !== undefined && threadCooldownMs > 0 && threadCooldownMs <= this.MAX_MONITOR_DURATION_MS) {
+    if (threadCooldownMs !== undefined) {
       this.threadCooldownMs = threadCooldownMs;
     }
-    // 校验 globalCooldownMs: 必须在 (0, MAX_MONITOR_DURATION_MS] 范围内
-    if (globalCooldownMs !== undefined && globalCooldownMs > 0 && globalCooldownMs <= this.MAX_MONITOR_DURATION_MS) {
+    if (globalCooldownMs !== undefined) {
       this.globalCooldownMs = globalCooldownMs;
     }
-    // 校验 highSampleRatioThreshold: 必须在 (0, 1] 范围内
-    if (highSampleRatioThreshold !== undefined && highSampleRatioThreshold > 0 && highSampleRatioThreshold <= 1) {
+    if (highSampleRatioThreshold !== undefined) {
       this.highSampleRatioThreshold = highSampleRatioThreshold;
     }
-    // 校验 topNThreads: 必须在 (0, MAX_TOP_N_THREADS] 范围内
-    if (topNThreads !== undefined && topNThreads > 0 && topNThreads <= this.MAX_TOP_N_THREADS) {
+    if (topNThreads !== undefined) {
       this.topNThreads = topNThreads;
     }
   }
@@ -1369,8 +1357,6 @@ export class BackgroundCpuMonitorConfig {
   sampleIntervalMs: number = 1000;
   windowSizeMs: number = 5000;
 
-  private static readonly MAX_DURATION_MS = 15000000;
-
   constructor(
     cpuThreshold?: number,
     warnDurationMs?: number,
@@ -1379,12 +1365,12 @@ export class BackgroundCpuMonitorConfig {
     sampleIntervalMs?: number,
     windowSizeMs?: number
   ) {
-    if (cpuThreshold !== undefined && cpuThreshold > 0 && cpuThreshold <= 1) this.cpuThreshold = cpuThreshold;
-    if (warnDurationMs !== undefined && warnDurationMs > 0 && warnDurationMs <= BackgroundCpuMonitorConfig.MAX_DURATION_MS) this.warnDurationMs = warnDurationMs;
-    if (errorDurationMs !== undefined && errorDurationMs > 0 && errorDurationMs <= BackgroundCpuMonitorConfig.MAX_DURATION_MS) this.errorDurationMs = errorDurationMs;
-    if (fatalDurationMs !== undefined && fatalDurationMs > 0 && fatalDurationMs <= BackgroundCpuMonitorConfig.MAX_DURATION_MS) this.fatalDurationMs = fatalDurationMs;
-    if (sampleIntervalMs !== undefined && sampleIntervalMs > 0 && sampleIntervalMs <= BackgroundCpuMonitorConfig.MAX_DURATION_MS) this.sampleIntervalMs = sampleIntervalMs;
-    if (windowSizeMs !== undefined && windowSizeMs > 0 && windowSizeMs <= BackgroundCpuMonitorConfig.MAX_DURATION_MS) this.windowSizeMs = windowSizeMs;
+    if (cpuThreshold !== undefined) this.cpuThreshold = cpuThreshold;
+    if (warnDurationMs !== undefined) this.warnDurationMs = warnDurationMs;
+    if (errorDurationMs !== undefined) this.errorDurationMs = errorDurationMs;
+    if (fatalDurationMs !== undefined) this.fatalDurationMs = fatalDurationMs;
+    if (sampleIntervalMs !== undefined) this.sampleIntervalMs = sampleIntervalMs;
+    if (windowSizeMs !== undefined) this.windowSizeMs = windowSizeMs;
   }
 
   toInteropConfig(): InteropBackgroundCpuMonitorConfig {
@@ -1407,7 +1393,7 @@ let backgroundDelayTaskId: number = -1; // 后台延时任务ID
 
 /**
  * 申请后台延时任务
- * 
+ *
  * 应用进入后台时调用,申请3分钟的延时任务,保持定时器和采样继续运行
  * 3分钟后系统会自动恢复正常的后台挂起行为
  */
@@ -1427,10 +1413,10 @@ function requestBackgroundDelayTask(): void {
       // 取消后台任务
       cancelBackgroundDelayTask();
     });
-    
+
     backgroundDelayTaskId = delayInfo.requestId;
     const actualTime = delayInfo.actualDelayTime;
-    
+
     hilog.warn(DOMAIN, TAG, `===== Background delay task requested =====`);
     hilog.warn(DOMAIN, TAG, `Request ID: ${backgroundDelayTaskId}`);
     hilog.warn(DOMAIN, TAG, `System approved actualDelayTime: ${actualTime}ms (${actualTime / 1000}s)`);
@@ -1444,7 +1430,7 @@ function requestBackgroundDelayTask(): void {
 
 /**
  * 取消后台延时任务
- * 
+ *
  * 应用回到前台或3分钟到期时调用,停止延时任务
  */
 function cancelBackgroundDelayTask(): void {
