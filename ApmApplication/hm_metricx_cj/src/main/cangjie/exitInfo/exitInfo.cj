@@ -4,6 +4,10 @@ import ohos.base.AppLog
 import std.time.*
 import ohos.ark_interop.*
 import ohos.ark_interop_macro.*
+import std.fs.*
+import std.convert.*
+import stdx.encoding.json.*
+import ohos_app_cangjie_hm_metricx_cj.util.readFile
 
 // ---------------- 全局状态 ----------------
 var currentAppState: String = "foreground"
@@ -179,4 +183,144 @@ public enum LastExitReason {
             case _ => throw IllegalArgumentException("unknown value ${val}")
         }
     }
+}
+
+// ==================== SwipeKill 相关代码 ====================
+
+let DEFAULT_SWIPE_KILL_THRESHOLD_MS: Int64 = 5000
+
+private var lastBackgroundTime: Int64 = 0
+var swipeKillThresholdMs: Int64 = 0
+private var swipeKillInited = false
+private var exitInfoStr: String = "unknown"
+
+var reportSwipeKillInfoCallback: (data: SwipeKillInfo) -> Unit = {data: SwipeKillInfo =>}
+
+@Interop[ArkTS]
+public class SwipeKillInfo {
+    public let timestamp: Int64
+    public let isUserSwipeKill: Bool
+    public let exitInfo: String
+
+    public init(timestamp: Int64, isUserSwipeKill: Bool, exitInfo: String) {
+        this.timestamp = timestamp
+        this.isUserSwipeKill = isUserSwipeKill
+        this.exitInfo = exitInfo
+    }
+
+    public func toString(): String {
+        let jsonObj = JsonObject()
+        jsonObj.put("timestamp", JsonString(timestamp.toString()))
+        jsonObj.put("isUserSwipeKill", JsonString(isUserSwipeKill.toString()))
+        jsonObj.put("exitInfo", JsonString(exitInfo))
+        return jsonObj.toString()
+    }
+}
+
+private func saveBackgroundTime() {
+    try {
+        writeFile(getPersistencePath(), lastBackgroundTime.toString())
+    } catch (e: Exception) {
+        AppLog.error("[SwipeKill] Save failed: ${e.message}")
+    }
+}
+
+private func writeFile(path: Path, data: String) {
+    try {
+        File.writeTo(path, data.toArray())
+    } catch (e: FSException) {
+        AppLog.error("hm-metricx-cj error: " + e.toString())
+    } catch (e: IllegalArgumentException) {
+        AppLog.error("hm-metricx-cj error: " + e.toString())
+    }
+}
+
+private func loadBackgroundTime() {
+    try {
+        if (exists(getPersistencePath())) {
+            lastBackgroundTime = Int64.parse(readFile(getPersistencePath()).trimAscii())
+        }
+    } catch (e: Exception) {
+        AppLog.error("[SwipeKill] Load failed: ${e.message}")
+    }
+}
+
+private func getPersistencePath(): Path {
+    return Path("/data/storage/el2/log/hiappevent/swipe_kill_data.txt")
+}
+
+private func clearBackgroundTime() {
+    try {
+        let path = getPersistencePath()
+        if (exists(path)) {
+            removeIfExists(path)
+        }
+    } catch (e: Exception) {}
+}
+
+private func lastExitReasonToStr(lastExitReason: Int32): String {
+   return match (lastExitReason) {
+        case 1 => "ability_not_responding"
+        case 2 => "normal"
+        case 3 => "cpp_crash"
+        case 4 => "js_error"
+        case 5 => "app_freeze"
+        case 6 => "performance_control"
+        case 7 => "resource_control"
+        case 8 => "upgrade"
+        case _ => "unknown"
+    }
+}
+
+public func onBackgroundSwipeKill() {
+    lastBackgroundTime = getCurrentTimeMillis()
+    AppLog.info("[SwipeKill] Background time: ${lastBackgroundTime}")
+    saveBackgroundTime()
+}
+
+private func reportSwipeKill(launchParamLastExitReason: Int32): Unit {
+    let now = getCurrentTimeMillis()
+    let timeSinceBg = now - lastBackgroundTime
+    let isQuickRestart = timeSinceBg < swipeKillThresholdMs && lastBackgroundTime > 0
+
+    exitInfoStr = lastExitReasonToStr(launchParamLastExitReason)
+    AppLog.info("[SwipeKill] getLastExitInfo: ${exitInfoStr}")
+
+    let isUserSwipeKill = isQuickRestart && (exitInfoStr == "unknown" || exitInfoStr == "normal")
+    if (isUserSwipeKill) {
+        AppLog.warn("[SwipeKill] User swipe kill detected! timeSinceBg: ${timeSinceBg}ms")
+    }
+
+    clearBackgroundTime()
+    let info = SwipeKillInfo(now, isUserSwipeKill, exitInfoStr)
+    reportSwipeKillInfoCallback(info)
+}
+
+public func initSwipeKillHandler(
+    launchParamLastExitReason: Int32,
+    reportSwipeKillHandler: (SwipeKillInfo) -> Unit,
+    onAbilityBackground: (cb: () -> Unit) -> Unit,
+    thresholdMs: Int64
+): Unit {
+    if (swipeKillInited) {
+        return
+    }
+    swipeKillInited = true
+    swipeKillThresholdMs = thresholdMs
+    reportSwipeKillInfoCallback = reportSwipeKillHandler
+    loadBackgroundTime()
+
+    onAbilityBackground({=> onBackgroundSwipeKill()})
+
+    AppLog.info("[SwipeKill] Initialized")
+    reportSwipeKill(launchParamLastExitReason)
+}
+
+public func destroySwipeKillHandler(): Unit {
+    reportSwipeKillInfoCallback = {data: SwipeKillInfo =>}
+    swipeKillInited = false
+}
+
+private func getCurrentTimeMillis(): Int64 {
+    DateTime.now().toUnixTimeStamp().toMilliseconds()
 }

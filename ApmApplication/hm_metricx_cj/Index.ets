@@ -33,6 +33,7 @@ import {
   Logger,
   ExitInfo,
   AppStateInfo,
+  SwipeKillInfo,
   InteropDayTrafficInfo as DayTrafficInfo,
   InteropHighCpuMonitorConfig,
   InteropBackgroundCpuMonitorConfig
@@ -475,6 +476,69 @@ export function initExitInfoHandler(
 export function destroyExitInfoHandler(): void {
   exitInfoWrapperDestroyed = true;
   cjLibExitInfo!.destroyExitInfoHandlerInterop();
+}
+
+// ==================== SwipeKill 相关接口 ====================
+
+let swipeKillWrapperDestroyed = false;
+
+/**
+ * 初始化 SwipeKill Handler
+ * @param context UIAbilityContext，用于注册生命周期监听
+ * @param lastExitReason 上次的退出原因（来自 launchParam.lastExitReason）
+ * @param reportSwipeKillInfoHandler 上报回调
+ * @param thresholdMs 划杀判断阈值（毫秒），默认 5000ms
+ */
+export function initSwipeKillHandler(
+  context: common.UIAbilityContext,
+  lastExitReason: number,
+  reportSwipeKillInfoHandler: (data: SwipeKillInfo) => void,
+  thresholdMs?: number
+): void {
+  if (!cjLibExitInfo) {
+    hilog.warn(DOMAIN, TAG, 'initSwipeKillHandler called but exitInfo module is disabled');
+    return;
+  }
+  swipeKillWrapperDestroyed = false;
+  const validthresholdMs = (thresholdMs === undefined || thresholdMs < 0) ? 5000 : thresholdMs;
+
+  const jsReportSwipeKillInfo: (data: SwipeKillInfo) => void = (data: SwipeKillInfo) => {
+    if (swipeKillWrapperDestroyed) return;
+    reportSwipeKillInfoHandler(data);
+  };
+
+  // 定义 onAbilityBackground 回调，传给仓颉层注册生命周期监听
+  const onAbilityBackgroundCallback = (cb: () => void) => {
+    context.getApplicationContext().on('abilityLifecycle', {
+      onAbilityCreate() {},
+      onWindowStageCreate() {},
+      onWindowStageActive() {},
+      onWindowStageInactive() {},
+      onWindowStageDestroy() {},
+      onAbilityDestroy() {},
+      onAbilityForeground() {},
+      onAbilityBackground() {
+        cb();
+      },
+      onAbilityContinue() {}
+    })
+  };
+
+  cjLibExitInfo.initSwipeKillHandlerInterop(
+    lastExitReason,
+    jsReportSwipeKillInfo,
+    onAbilityBackgroundCallback,
+    validthresholdMs
+  );
+}
+
+/**
+ * 销毁 SwipeKill Handler
+ */
+export function destroySwipeKillHandler(): void {
+  swipeKillWrapperDestroyed = true;
+  if (!cjLibExitInfo) return;
+  cjLibExitInfo!.destroySwipeKillHandlerInterop();
 }
 
 export function initFreezeHandler(

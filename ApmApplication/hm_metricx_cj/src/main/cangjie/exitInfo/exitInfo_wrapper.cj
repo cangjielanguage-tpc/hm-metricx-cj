@@ -51,3 +51,27 @@ public func destroyExitInfoHandlerInterop(): Unit {
     exitInfoWrapperDestroyed = true
     destroyExitInfoHandler()
 }
+
+// ==================== SwipeKill 互操作接口 ====================
+
+@Interop[ArkTS]
+public func initSwipeKillHandlerInterop(
+    lastExitReason: Int32,
+    reportSwipeKillInfoHandler: (SwipeKillInfo) -> Unit,
+    onAbilityBackground: (() -> Unit) -> Unit,
+    thresholdMs: Int64
+): Unit {
+    let jsReportSwipeKillInfo: (SwipeKillInfo) -> Unit = { data: SwipeKillInfo =>
+        if (exitInfoWrapperDestroyed) {
+            return
+        }
+        reportSwipeKillInfoHandler(data)
+    }
+
+    initSwipeKillHandler(lastExitReason, jsReportSwipeKillInfo, onAbilityBackground, thresholdMs)
+}
+
+@Interop[ArkTS]
+public func destroySwipeKillHandlerInterop(): Unit {
+    destroySwipeKillHandler()
+}
