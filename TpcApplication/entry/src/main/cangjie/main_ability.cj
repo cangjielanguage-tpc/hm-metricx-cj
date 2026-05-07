@@ -28,10 +28,24 @@ import ohos.hilog.*
 import ohos.base.BusinessException
 import tpc.UIKit.UIContext.fromUIContextBase
 import tpc.UIKit.UIContext.*
+import tpc.UIKit.ObserverListenerType
+import tpc.UIKit.NavDestinationSwitchInfo
+import ohos.base.Callback0Argument
+import ohos.base.Callback1Argument
+import ohos.resource_manager.AppResource
+import tpc.UIKit.component_interop.ClickEventEnhanced
+import tpc.UIKit.arkui_node.FrameNode
+import tpc.UIKit.NavDestinationInfo
+import tpc.UIKit.NavBar
 
 let ENTRYABILITY_REGISTER_RESULT = UIAbility.registerCreator("EntryAbility", {=> EntryAbility()})
 
 class EntryAbility <: UIAbility {
+
+    // ==================== FRT 状态（防串数据） ====================
+    private var currentPageId: Int64 = 0
+    private var hasDraw: Bool = false
+
     public override func onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): Unit {
         AppLog.info("Ability OnCreated.${want.abilityName}")
         match (launchParam.launchReason) {
@@ -203,24 +217,60 @@ class EntryAbility <: UIAbility {
             {
                 err: ?BusinessException, data: ?window.Window => match (data) {
                     case Some(x) =>
-                        initLaggyHandler(this
-                            .context
-                            .getApplicationContext(), fromUIContextBase(x.getUIContext()), 10, 10, {data =>})
-                        AppLog.info("initLaggyHandle")
-                        initPageEventHandler(
-                            this.context,
-                            {
-                                data => AppLog.error("page fps: " + data.toString())
+                        let uiContext = fromUIContextBase(x.getUIContext())
+                        let observer = uiContext.getUIObserver()
+
+                        // ==================== FRT 初始化 ====================
+                        initFirstRenderTimeMonitor(
+                            FirstRenderTimeConfig(true, 1000),
+                            { info =>
+                                AppLog.info("[FRT] ${info.toString()}")
                             }
                         )
-                        initPageEventHandler(windowStage, {data => AppLog.error("window fps: " + data.toString())})
-                        AppLog.info("initScrollEventHandler")
-                        initScrollEventHandler(this.context, {data => AppLog.error("scroll fps: " + data.toString())})
+                        let dispatcher = FRTDispatcher.GetInstance()
+                        // ==================== draw监听（无需重复注册标记） ====================
+                        let inspector = uiContext.getUIInspector()
+                        let componentObserver = inspector.createComponentObserver("root")
+                        componentObserver.on("draw", onDrawCallback())
+                        // ==================== 点击监听 ====================
+                        observer.on(ObserverListenerType.willClick, onClickCallback())
+                        // ==================== 路由监听 ====================
+                        observer.on(ObserverListenerType.navDestinationSwitch, onNavCallback())
+                        // ==================== 原有性能监控（不动） ====================
+                        initLaggyHandler(
+                            this.context.getApplicationContext(),
+                            uiContext,
+                            10,
+                            10,
+                            {data =>}
+                        )
+                        initPageEventHandler(
+                            this.context,
+                            { data => AppLog.error("page fps: " + data.toString()) }
+                        )
+                        initPageEventHandler(
+                            windowStage,
+                            { data => AppLog.error("window fps: " + data.toString()) }
+                        )
+                        initScrollEventHandler(
+                            this.context,
+                            { data => AppLog.error("scroll fps: " + data.toString()) }
+                        )
+                        let whiteScreenConfig = WhiteScreenConfig()
+                        initWhiteScreenHandler(
+                            this.context,
+                            windowStage,
+                            fromUIContextBase(x.getUIContext()),
+                            whiteScreenConfig,
+                            { data: JsonObject =>
+                                AppLog.error("[MetricX][WhiteScreen][TestBench] " + data.toString())
+                            }
+                        )
                     case None =>
                         AppLog.info("initLaggyHandle error")
-                        AppLog.info("initScrollEventHandler error")
                 }
-            })
+            }
+        )
     }
 
     public override func onWindowStageDestroy(): Unit {
@@ -240,5 +290,34 @@ class EntryAbility <: UIAbility {
         CJPageEntry
             .getInstance()
             .forceRerenderAllEntry()
+    }
+}
+
+public class onDrawCallback <: Callback0Argument {
+    public override func invoke(): Unit {
+        let dispatcher = FRTDispatcher.GetInstance()
+        dispatcher.onDraw()
+    }
+}
+
+public class onClickCallback <: ClickEventListenerCallback {
+    public override func invoke(event: ClickEventEnhanced, node: Option<FrameNode>): Unit {
+        AppLog.info("[FRT] click")
+        let dispatcher = FRTDispatcher.GetInstance()
+        dispatcher.onClick()
+    }
+}
+
+public class onNavCallback <: Callback1Argument<NavDestinationSwitchInfo> {
+    public override func invoke(info: NavDestinationSwitchInfo): Unit {
+        let dispatcher = FRTDispatcher.GetInstance()
+        let toName: String = match (info.to) {
+            case to: NavDestinationInfo => to.navDestinationId
+            case to: NavBar => to.str
+            case _ => ""
+        }
+        AppLog.info("[FRT] nav -> ${toName}")
+        dispatcher.reset()
+        dispatcher.onNav(toName)
     }
 }
