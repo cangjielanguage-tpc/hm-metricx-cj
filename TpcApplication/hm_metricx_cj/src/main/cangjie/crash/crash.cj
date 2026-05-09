@@ -545,7 +545,7 @@ public func initCrashHandler(
     applicationContext: ApplicationContext,
     persistentDir: Path,
     callbacks: CrashCallbacks,
-    config!: CrashConfig
+    config!: CrashConfig = CrashConfig()
 ) {
     if (crash_init_flag) {
     	return
