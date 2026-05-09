@@ -175,6 +175,15 @@ class EntryAbility <: UIAbility {
             .context
             .cacheDir), {pageInfo, typeInfos => true}, {typeInfos => false},
             {dumpFilePath => AppLog.info("dumpFilePath : ${dumpFilePath.toString()}")})
+        
+        initSwipeKillHandler(
+            this.context,
+            launchParam,
+            { info: SwipeKillInfo =>
+                AppLog.warn("[MetricX] SwipeKill: User killed app and restarted quickly! timeSinceBg: ${info.toString()}")
+            },
+            thresholdMs: 5000
+        )
     }
 
     public override func onDestroy(): Unit {
