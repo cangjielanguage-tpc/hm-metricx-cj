@@ -547,8 +547,8 @@ function getArkTsMemoryUsage(): number {
 
 function getArkTsTotalHeap(): number {
   try {
-    const vmMemoryInfo = hidebug.getAppVMMemoryInfo();
-    return Number(vmMemoryInfo.totalHeap);
+    const appMemoryLimit = hidebug.getAppMemoryLimit();
+    return Number(appMemoryLimit.vmHeapLimit);
   } catch (e) {
     hilog.warn(DOMAIN, TAG, 'getArkTsTotalHeap failed: ' + JSON.stringify(e));
     return 0;
@@ -558,7 +558,7 @@ function getArkTsTotalHeap(): number {
 function getTotalMemoryLimit(): number {
   try {
     const appMemoryLimit = hidebug.getAppMemoryLimit();
-    return Number(appMemoryLimit.vmHeapLimit);
+    return Number(appMemoryLimit.rssLimit);
   } catch (e) {
     hilog.warn(DOMAIN, TAG, 'getTotalMemoryLimit failed: ' + JSON.stringify(e));
     return 0;
