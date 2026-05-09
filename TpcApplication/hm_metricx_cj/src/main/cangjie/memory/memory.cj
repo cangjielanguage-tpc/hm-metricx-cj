@@ -138,7 +138,7 @@ public open class MemoryInfo {
 
         // 系统总内存限制 (只设置一次)
         if (totalMemoryLimitValue <= 0) {
-            this.totalMemoryLimitValue = getAppMemoryLimit().vmHeapLimit.toInt64()
+            this.totalMemoryLimitValue = getAppMemoryLimit().rssLimit.toInt64()
         }
 
         // CJ 最大堆内存 (只设置一次，getMaxHeapSize 返回 byte，转 KB)
@@ -547,8 +547,7 @@ public func getArkTsHeapSize(): Int64 {
  */
 public func getArkTsTotalHeap(): Int64 {
     try {
-        let vmMemoryInfo: VMMemoryInfo = getAppVMMemoryInfo()
-        return vmMemoryInfo.totalHeap.toInt64()
+        return getAppMemoryLimit().vmHeapLimit.toInt64()
     } catch (e: Exception) {
         AppLog.warn("hm-metricx-cj error: getArkTsTotalHeap failed - " + e.toString())
     }
