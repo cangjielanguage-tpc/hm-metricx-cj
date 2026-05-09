@@ -30,7 +30,9 @@ import {
   initBackgroundCpuMonitorHandler,
   destroyBackgroundCpuMonitorHandler,
   BackgroundCpuMonitorConfig,
-  BackgroundCpuReportInfo
+  BackgroundCpuReportInfo,
+  initSwipeKillHandler,
+  destroySwipeKillHandler
 } from '@cangjie-tpc/hm_metricx_cj_hybrid';
 
 const DOMAIN = 0x0000;
@@ -50,6 +52,15 @@ export default class EntryAbility extends UIAbility {
       (appStateInfo) => {
         hilog.error(0x0000, 'exitInfo', `AppStateInfo: state=${appStateInfo.appState}, timestamp=${appStateInfo.timestamp}`);
       }
+    );
+
+    initSwipeKillHandler(
+      this.context,
+      lastExitReasonValue,
+      (swipeKillInfo) => {
+        hilog.error(0x0000, 'swipeKill', `SwipeKillInfo: timestamp=${swipeKillInfo.timestamp}, isUserSwipeKill=${swipeKillInfo.isUserSwipeKill}, exitInfo=${swipeKillInfo.exitInfo}`);
+      },
+      5000
     );
 
 initCrashHandler(

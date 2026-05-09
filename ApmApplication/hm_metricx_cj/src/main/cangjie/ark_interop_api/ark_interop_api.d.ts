@@ -1,3 +1,10 @@
+export declare class SwipeKillInfo {
+    timestamp: number
+    isUserSwipeKill: boolean
+    exitInfo: string
+    toString(): string
+}
+
 export declare class InteropRawheapInfo {
     filePath: string | undefined
     fileSize: number | undefined
@@ -389,6 +396,7 @@ export declare class AppStateInfo {
 export declare interface CustomLib {
     ExitInfo: {new (exitMessage: string, exitReason: string, isBackground: boolean, appState: string, stateChangeTime: number, timestamp: number): ExitInfo}
     AppStateInfo: {new (appState: string, stateChangeTime: number, timestamp: number): AppStateInfo}
+    SwipeKillInfo: {new (timestamp: number, isUserSwipeKill: boolean, exitInfo: string): SwipeKillInfo}
     InteropStorageFileInfo: {new (p: string, s: number, ss: Array<InteropStorageFileInfo>, i: boolean): InteropStorageFileInfo}
     InteropStorageInfo: {new (a: number, c: number, d: number, t: number, ts: Array<InteropStorageFileInfo>, es: Array<InteropStorageFileInfo>): InteropStorageInfo}
     InteropSystemTrafficInfo: {new (u: number, d: number, t: string): InteropSystemTrafficInfo}
@@ -469,6 +477,8 @@ export declare interface CustomLib {
 
     initExitInfoHandlerInterop(lastExitMessage: string, lastExitReasonValue: number, reportExitInfoHandler: (funcArg0: ExitInfo) => void, reportAppStateHandler: (funcArg0: AppStateInfo) => void): void
     destroyExitInfoHandlerInterop(): void
+    initSwipeKillHandlerInterop(lastExitReason: number, reportSwipeKillInfoHandler: (funcArg0: SwipeKillInfo) => void, onAbilityBackground: (cb: () => void) => void, thresholdMs: number): void
+    destroySwipeKillHandlerInterop(): void
     initMemoryHandlerInterop(memoryPreference: MemoryPreference, getMemoryUsage: () => number, getArkTsMemoryUsage: () => number, getArkTsTotalHeap: () => number, getTotalMemoryLimit: () => number, onNavDestinationSwitch: (funcArg0: (funcArgfuncArg0: string) => void) => void, repeatSampleAndReportMemory: (funcArg0: () => void, funcArg1: () => void, funcArg2: () => void) => void, reporPageMemoryInfo: (funcArg0: InteropPageMemoryInfo) => void, reporProcessMemoryInfo: (funcArg0: InteropProcessMemoryInfo) => void, memoryThreshold: number, totalRatio: number, cjRatio: number, arkTsRatio: number): void
     InteropBackgroundCpuMonitorConfig: {new (cpuThreshold: number, warnDurationMs: number, errorDurationMs: number, fatalDurationMs: number, sampleIntervalMs: number, windowSizeMs: number): InteropBackgroundCpuMonitorConfig}
     nitBackgroundCpuMonitorHandlerInterop(config: InteropBackgroundCpuMonitorConfig, getAppThreadCpuUsageJson: () => string, repeatSample: (funcArg0: () => void) => void, clearSample: () => void, reportHighCpuInfoJson: (funcArg0: string) => void): void
@@ -477,4 +487,5 @@ export declare interface CustomLib {
     initCrashHandlerInterop(addCrashWatcher: (funcArg0: (funcArgfuncArg0: string, funcArgfuncArg1: string, funcArgfuncArg2: string, funcArgfuncArg3: string, funcArgfuncArg4: string, funcArgfuncArg5: string, funcArgfuncArg6: string) => void) => void, addResourceLeakWatcher: (funcArg0: (funcArgfuncArg0: string, funcArgfuncArg1: string, funcArgfuncArg2: string, funcArgfuncArg3: number, funcArgfuncArg4: number, funcArgfuncArg5: string) => void) => void, onCrash: (funcArg0: () => void) => void, exit: () => void, collectCrashInfo: () => string, reportCrashInfo: (funcArg0: InteropCrashInfo) => void, persistentDir: string, enableDumpOnOOM: number, lastNHilogNumber: number, systemLogNumber: number, enableMemMonitor: CMemMonitorConfig | undefined): void
     RawheapInfo: {new (): RawheapInfo}
     InteropRawheapInfo: {new (): InteropRawheapInfo}
+    initSwipeKillHandlerInterop(lastExitReason: number, reportSwipeKillInfoHandler: (funcArg0: SwipeKillInfo) => void, onAbilityBackground: (funcArg0: () => void) => void, thresholdMs: number): void
 }
