@@ -416,7 +416,9 @@ export function initCrashHandler(
   let memMonitor =
     finalConfig.memMonitor !== undefined ? new cjLibCrash.CMemMonitorConfig(finalConfig.memMonitor!.shouldBeClusteredToThisSo) :
       undefined;
-
+  if (finalConfig.lastNHilogNumber < 0 || finalConfig.systemLogNumber < 0) {
+    throw new Error(`negative value ${finalConfig.lastNHilogNumber} or ${finalConfig.systemLogNumber}`);
+  }
   cjLibCrash.initCrashHandlerInterop(addCrashWatcher, addResourceLeakWatcher, onCrash, exit,
     callbacks.collectCrashInfo,
     callbacks.reportCrashInfo,
