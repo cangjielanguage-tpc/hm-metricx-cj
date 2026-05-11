@@ -558,8 +558,10 @@ public func initCrashHandler(
     cleanHistoryLogFiles({name => name.startsWith("APP_CRASH")}, persistentPaths.cleanFileRecordPath, "initCrashHandler")
     let lastNHilogNumber = config.lastNHilogNumber
     let systemLogNumber = config.systemLogNumber
-    let hilogNumber = max(lastNHilogNumber, 0)
-    let systemLogNum = max(systemLogNumber, 0)
+    if (lastNHilogNumber < 0 || systemLogNumber < 0) {
+    	throw IllegalArgumentException("negative value ${lastNHilogNumber} or ${systemLogNumber}")
+    }
+
     spawn { =>
         reportLastCrash(persistentPaths, callbacks.reportCrashInfo)
     }
@@ -575,7 +577,7 @@ public func initCrashHandler(
     }
     var collectNativeCrashInfo = unsafe { LibC.mallocCString("{}") }
     initNativeSignalHandler(applicationContext, crashInfo.limits.getOrThrow(),
-        {=> unsafe { LibC.mallocCString("{}") }}, persistentPaths, hilogNumber, systemLogNum)
+        {=> unsafe { LibC.mallocCString("{}") }}, persistentPaths, lastNHilogNumber, systemLogNumber)
     initCrashWatcher(applicationContext, callbacks.reportCrashInfo, persistentPaths, config.memMonitor)
     initResourceLeakWatcher(applicationContext, persistentPaths, callbacks.reportCrashInfo)
 
