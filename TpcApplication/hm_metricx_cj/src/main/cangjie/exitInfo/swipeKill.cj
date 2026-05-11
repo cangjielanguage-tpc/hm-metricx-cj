@@ -1,6 +1,4 @@
-/*
- * Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
- */
+
 package ohos_app_cangjie_hm_metricx_cj.exitInfo
 
 import ohos.base.AppLog
@@ -150,6 +148,9 @@ public func initSwipeKillHandler(
         return
     }
     swipeKillInited = true
+    if (thresholdMs < 0) {
+        throw IllegalArgumentException("negative value ${thresholdMs}")
+    }
     swipeKillThresholdMs = thresholdMs
     loadBackgroundTime()
 
