@@ -502,7 +502,10 @@ export function initSwipeKillHandler(
     return;
   }
   swipeKillWrapperDestroyed = false;
-  const validthresholdMs = (thresholdMs === undefined || thresholdMs < 0) ? 5000 : thresholdMs;
+  if (thresholdMs !== undefined && thresholdMs < 0) {
+    throw new Error(`negative value ${thresholdMs}`);
+  }
+  const validthresholdMs = (thresholdMs === undefined) ? 5000 : thresholdMs;
 
   const jsReportSwipeKillInfo: (data: SwipeKillInfo) => void = (data: SwipeKillInfo) => {
     if (swipeKillWrapperDestroyed) return;
