@@ -31,6 +31,13 @@ import {
   destroyBackgroundCpuMonitorHandler,
   BackgroundCpuMonitorConfig,
   BackgroundCpuReportInfo,
+  WhiteScreenConfig,
+  WhiteScreenEventInfo,
+  initWhiteScreenHandler,
+  destroyWhiteScreenHandler,
+  FirstRenderTimeConfig,
+  initFirstRenderTimeHandler,
+  destroyFirstRenderTimeHandler,
   initSwipeKillHandler,
   destroySwipeKillHandler
 } from '@cangjie-tpc/hm_metricx_cj_hybrid';
@@ -283,20 +290,73 @@ initCrashHandler(
       hilog.info(DOMAIN, 'testTag', 'Succeeded in loading the content.');
     });
 
-    windowStage.getMainWindow().then(() => {
+    windowStage.getMainWindow().then((win) => {
       initPageEventHandler(this.context, windowStage, data => {
-      });
-      initScrollEventHandler(this.context, data => {
-      });
-      initLaggyHandler(this.context, windowStage, 100, 100, data => {
-      }, data => {
-      });
+    });
+    initScrollEventHandler(this.context, data => {
+    });
+    initLaggyHandler(this.context, windowStage, 100, 100, data => {
+    }, data => {
+    });
+
+    // 初始化白屏检测
+    initWhiteScreenHandler(
+      this.context,
+      windowStage,
+      win,
+      new WhiteScreenConfig(
+        'whiteScreenTestRoot',  // rootComponentId
+        1000,                   // ttidTimeoutMs
+        3000,                   // frameCheckDurationMs
+        800,                    // backgroundFirstSnapshotDelayMs
+        1800,                   // backgroundSecondSnapshotDelayMs
+        3000,                   // backgroundRecentPageEnterThresholdMs
+        30,                     // minFrameCountThreshold
+        2,                      // maxDistinctColorCount
+        245,                    // whiteRgbThreshold
+        0.1,                    // snapshotScale
+        0.08,                   // snapshotRegionTop
+        0.08,                   // snapshotRegionBottom
+        true                    // autoWriteFaultLog
+      ),
+      (info: WhiteScreenEventInfo) => {
+        hilog.warn(DOMAIN, 'WhiteScreen', `===== 白屏检测上报 =====`);
+        hilog.warn(DOMAIN, 'WhiteScreen', `页面：${info.pageName}`);
+        hilog.warn(DOMAIN, 'WhiteScreen', `类型：${info.whiteScreenType}`);
+        hilog.warn(DOMAIN, 'WhiteScreen', `场景：${info.whiteScreenScene}`);
+        hilog.warn(DOMAIN, 'WhiteScreen', `应用状态：${info.appState}`);
+        hilog.warn(DOMAIN, 'WhiteScreen', `TTID：${info.ttid}ms`);
+        hilog.warn(DOMAIN, 'WhiteScreen', `后台耗时：${info.backgroundElapsedMs}ms`);
+        hilog.warn(DOMAIN, 'WhiteScreen', `前台去重颜色数：${info.foregroundDistinctColorCount}`);
+        hilog.warn(DOMAIN, 'WhiteScreen', `前台主色白色：${info.foregroundMainColorWhite}`);
+        hilog.warn(DOMAIN, 'WhiteScreen', `后台第1次去重颜色数：${info.backgroundFirstDistinctColorCount}`);
+        hilog.warn(DOMAIN, 'WhiteScreen', `后台第2次去重颜色数：${info.backgroundSecondDistinctColorCount}`);
+        hilog.warn(DOMAIN, 'WhiteScreen', `后台第1次主色白色：${info.backgroundFirstMainColorWhite}`);
+        hilog.warn(DOMAIN, 'WhiteScreen', `后台第2次主色白色：${info.backgroundSecondMainColorWhite}`);
+        hilog.warn(DOMAIN, 'WhiteScreen', `后台检测原因：${info.backgroundDetectionReason}`);
+        hilog.warn(DOMAIN, 'WhiteScreen', `N秒内帧数：${info.frameCountInNSeconds}`);
+      }
+    );
+
+    // 初始化首帧渲染时间监控
+    initFirstRenderTimeHandler(
+      this.context,
+      win,
+      new FirstRenderTimeConfig(),
+      (info) => {
+        hilog.warn(DOMAIN, 'firstRenderTime', `===== 首帧渲染上报 =====`);
+        hilog.warn(DOMAIN, 'firstRenderTime', `First Render Time: startTime=${info.startTime}, endTime=${info.endTime}, duration=${info.duration}ms, page=${info.targetPage}`);
+      }
+    );
     });
   }
 
   onWindowStageDestroy(): void {
     // Main window is destroyed, release UI related resources
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onWindowStageDestroy');
+
+    // 销毁首帧渲染时间监控
+    destroyFirstRenderTimeHandler();
   }
 
   onForeground(): void {

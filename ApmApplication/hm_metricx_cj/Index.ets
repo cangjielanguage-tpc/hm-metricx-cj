@@ -4,7 +4,7 @@ import {thermal} from '@kit.BasicServicesKit';
 import { requireCJLib } from 'libark_interop_loader.so';
 import { process } from '@kit.ArkTS';
 import { backgroundTaskManager } from '@kit.BackgroundTasksKit';
-import { wantAgent } from '@kit.AbilityKit';
+import inspector from '@ohos.arkui.inspector';
 
 import {
   CustomLib,
@@ -36,7 +36,10 @@ import {
   SwipeKillInfo,
   InteropDayTrafficInfo as DayTrafficInfo,
   InteropHighCpuMonitorConfig,
-  InteropBackgroundCpuMonitorConfig
+  InteropBackgroundCpuMonitorConfig,
+  InteropWhiteScreenConfig,
+  InteropWhiteScreenEventInfo,
+  InteropFirstRenderTimeConfig
 } from 'libark_interop_api.so';
 import { preferences } from '@kit.ArkData';
 import { uiObserver, window } from '@kit.ArkUI';
@@ -51,7 +54,8 @@ import {
   settings,
   systemDateTime
 } from '@kit.BasicServicesKit';
-import { displaySync } from '@kit.ArkGraphics2D';
+import { displaySync, effectKit } from '@kit.ArkGraphics2D';
+import { image } from '@kit.ImageKit';
 
 
 // ==================== 仓颉库动态加载 ====================
@@ -1632,4 +1636,719 @@ export function destroyBackgroundCpuMonitorHandler(): void {
 export function isHighCpuMonitoringActive(): boolean {
   if (!cjLibCpu) return false;
   return cjLibCpu.isHighCpuMonitoringActiveInterop();
+}
+
+// ==================== 白屏检测 ====================
+
+let whiteScreenTimerMap: Map<number, number> = new Map();
+let whiteScreenTimerCounter: number = 0;
+let whiteScreenInited: boolean = false;
+let whiteScreenOffNavSwitch: () => void = () => {};
+let whiteScreenOffLifecycle: () => void = () => {};
+let whiteScreenDisplaySync: displaySync.DisplaySync | null = null;
+let whiteScreenFrameCallback: ((timestamp: number, targetTimestamp: number) => void) | null = null;
+
+/**
+ * 初始化白屏检测
+ */
+export function initWhiteScreenHandler(
+  context: common.UIAbilityContext,
+  windowStage: window.WindowStage,
+  win: window.Window,
+  config: WhiteScreenConfig,
+  reportWhiteScreenInfo: (data: InteropWhiteScreenEventInfo) => void
+): void {
+  const cjLibFps = loadCJLibSafe('fps');
+  if (!cjLibFps) {
+    hilog.warn(DOMAIN, TAG, 'initWhiteScreenHandler called but fps module is disabled');
+    return;
+  }
+
+  if (whiteScreenInited) {
+    hilog.warn(DOMAIN, TAG, 'WhiteScreen handler already initialized');
+    return;
+  }
+
+  // setTimeout 包装函数
+  const setTimeoutFunc = (timerType: string, delayMs: number): number => {
+    const timerId: number = ++whiteScreenTimerCounter;
+    const nativeTimerId: number = setTimeout(() => {
+      cjLibFps!.handleWhiteScreenTimerCallbackInterop(timerType);
+      whiteScreenTimerMap.delete(timerId);
+    }, delayMs);
+    whiteScreenTimerMap.set(timerId, nativeTimerId);
+    return timerId;
+  };
+
+  // clearTimeout 包装函数
+  const clearTimeoutFunc = (timerId: number): void => {
+    const nativeTimerId: number | undefined = whiteScreenTimerMap.get(timerId);
+    if (nativeTimerId !== undefined) {
+      clearTimeout(nativeTimerId);
+      whiteScreenTimerMap.delete(timerId);
+    }
+  };
+
+  // 首帧标记（用于区分首帧和后续帧）
+  let isFirstFrame: boolean = true;
+
+  // 帧事件回调
+  const onFrameCallback = (timestamp: number, targetTimestamp: number): void => {
+    if (isFirstFrame) {
+      isFirstFrame = false;
+      cjLibFps!.onFirstFrameReceivedInterop();
+    } else {
+      cjLibFps!.onFrameReceivedInterop();
+    }
+  };
+
+  // 创建 DisplaySync 用于帧监听
+  whiteScreenDisplaySync = displaySync.create();
+  whiteScreenFrameCallback = onFrameCallback;
+  whiteScreenDisplaySync.on('frame', (info: displaySync.IntervalInfo) => {
+    if (whiteScreenFrameCallback) {
+      whiteScreenFrameCallback(info.timestamp, info.targetTimestamp);
+    }
+  });
+  whiteScreenDisplaySync.start();
+
+  // 应用生命周期监听
+  let whiteScreenIsBackground = false;
+  let lifecycleCallback: ApplicationStateChangeCallback = {
+    onApplicationForeground() {
+      if (whiteScreenIsBackground && whiteScreenDisplaySync) {
+        whiteScreenDisplaySync.start();
+        isFirstFrame = true;
+      }
+      whiteScreenIsBackground = false;
+      cjLibFps!.onWhiteScreenForegroundInterop();
+    },
+    onApplicationBackground() {
+      whiteScreenIsBackground = true;
+      if (whiteScreenDisplaySync) {
+        whiteScreenDisplaySync.stop();
+      }
+      cjLibFps!.onWhiteScreenBackgroundInterop();
+    }
+  };
+  whiteScreenOffLifecycle = () => {
+    context.getApplicationContext().off('applicationStateChange', lifecycleCallback);
+  };
+  context.getApplicationContext().on('applicationStateChange', lifecycleCallback);
+
+  // 异步快照触发函数
+  const performSnapshotFunc = (): void => {
+    hilog.info(DOMAIN, TAG, 'performSnapshotFunc triggered');
+    performWindowSnapshotAsync(win, (colorData: string) => {
+      cjLibFps!.onSnapshotAnalysisResultInterop(colorData);
+    });
+  };
+
+  // 后台检测快照触发函数（带 sampleIndex 参数）
+  const performBackgroundSnapshotFunc = (sampleIndex: number): void => {
+    hilog.info(DOMAIN, TAG, 'performBackgroundSnapshotFunc triggered, sampleIndex=' + sampleIndex);
+    performWindowSnapshotAsync(win, (colorData: string) => {
+      cjLibFps!.onBackgroundSnapshotAnalysisResultInterop(sampleIndex, colorData);
+    });
+  };
+
+  // 注册路由切换监听
+  const onNavDestinationSwitch = (cb: (targetPageName: string) => void) => {
+    const navSwitchCallback = (info: uiObserver.NavDestinationSwitchInfo) => {
+      const fromPageName: string = getSourcePageName(info);
+      const toPageName: string = getTargetPageName(info);
+      const fromHidden: boolean = info.from !== null && typeof info.from !== 'string' &&
+        (info.from as NavDestinationInfo).state === uiObserver.NavDestinationState.ON_HIDDEN;
+      const toShown: boolean = info.to !== null && typeof info.to !== 'string' &&
+        (info.to as NavDestinationInfo).state === uiObserver.NavDestinationState.ON_SHOWN;
+
+      cjLibFps!.onNavDestinationSwitchInterop(fromPageName, toPageName, fromHidden, toShown);
+      cb(toPageName);
+    };
+    uiObserver.on('navDestinationSwitch', context, navSwitchCallback);
+    whiteScreenOffNavSwitch = () => uiObserver.off('navDestinationSwitch', context, navSwitchCallback);
+  };
+
+  // 调用仓颉侧初始化
+  const interopConfig = config.toInteropConfig();
+  cjLibFps.initWhiteScreenHandlerInterop(
+    interopConfig,
+    reportWhiteScreenInfo,
+    setTimeoutFunc,
+    clearTimeoutFunc,
+    performSnapshotFunc,
+    performBackgroundSnapshotFunc
+  );
+
+  onNavDestinationSwitch((targetPageName: string) => {
+    isFirstFrame = true;
+    hilog.info(DOMAIN, TAG, 'Nav destination switched to: ' + targetPageName);
+  });
+
+  whiteScreenInited = true;
+  hilog.info(DOMAIN, TAG, 'WhiteScreen handler initialized');
+}
+
+/**
+ * 销毁白屏检测
+ */
+export function destroyWhiteScreenHandler(): void {
+  const cjLibFps = loadCJLibSafe('fps');
+  if (!cjLibFps) return;
+
+  // 停止 DisplaySync 帧监听
+  if (whiteScreenDisplaySync) {
+    whiteScreenDisplaySync.stop();
+    whiteScreenDisplaySync.off('frame');
+    whiteScreenDisplaySync = null;
+    whiteScreenFrameCallback = null;
+  }
+
+  // 清除所有定时器
+  const timerEntries: Array<[number, number]> = Array.from(whiteScreenTimerMap.entries());
+  for (const entry of timerEntries) {
+    const timerId: number = entry[0];
+    const nativeTimerId: number = entry[1];
+    clearTimeout(nativeTimerId);
+  }
+  whiteScreenTimerMap.clear();
+  whiteScreenTimerCounter = 0;
+
+  // 取消路由监听
+  whiteScreenOffNavSwitch();
+
+  // 取消生命周期监听
+  whiteScreenOffLifecycle();
+
+  cjLibFps.destroyWhiteScreenHandlerInterop();
+  whiteScreenInited = false;
+  hilog.info(DOMAIN, TAG, 'WhiteScreen handler destroyed');
+}
+
+/**
+ * 通知首帧到达
+ */
+export function notifyFirstFrameReceived(): void {
+  const cjLibFps = loadCJLibSafe('fps');
+  if (!cjLibFps) return;
+  cjLibFps.onFirstFrameReceivedInterop();
+}
+
+/**
+ * 通知帧到达
+ */
+export function notifyFrameReceived(): void {
+  const cjLibFps = loadCJLibSafe('fps');
+  if (!cjLibFps) return;
+  cjLibFps.onFrameReceivedInterop();
+}
+
+/**
+ * 触发快照分析
+ */
+export function notifyPerformSnapshotAnalyze(): void {
+  const cjLibFps = loadCJLibSafe('fps');
+  if (!cjLibFps) return;
+  cjLibFps.performSnapshotAndAnalyzeInterop();
+}
+
+/**
+ * 触发快照分析
+ */
+export function notifyPerformSwitchResultSnapshotAnalyze(): void {
+  const cjLibFps = loadCJLibSafe('fps');
+  if (!cjLibFps) return;
+  cjLibFps.performSnapshotAndAnalyzeInterop();
+}
+
+/**
+ * 白屏检测配置（用户侧类）
+ */
+export class WhiteScreenConfig {
+  rootComponentId: string = 'root';
+  ttidTimeoutMs: number = 1000;
+  frameCheckDurationMs: number = 3000;
+  backgroundFirstSnapshotDelayMs: number = 800;
+  backgroundSecondSnapshotDelayMs: number = 1800;
+  backgroundRecentPageEnterThresholdMs: number = 3000;
+  minFrameCountThreshold: number = 30;
+  maxDistinctColorCount: number = 2;
+  whiteRgbThreshold: number = 245;
+  snapshotScale: number = 0.1;
+  snapshotRegionTop: number = 0.08;
+  snapshotRegionBottom: number = 0.08;
+  autoWriteFaultLog: boolean = true;
+
+  constructor(
+    rootComponentId?: string,
+    ttidTimeoutMs?: number,
+    frameCheckDurationMs?: number,
+    backgroundFirstSnapshotDelayMs?: number,
+    backgroundSecondSnapshotDelayMs?: number,
+    backgroundRecentPageEnterThresholdMs?: number,
+    minFrameCountThreshold?: number,
+    maxDistinctColorCount?: number,
+    whiteRgbThreshold?: number,
+    snapshotScale?: number,
+    snapshotRegionTop?: number,
+    snapshotRegionBottom?: number,
+    autoWriteFaultLog?: boolean
+  ) {
+    if (rootComponentId !== undefined) {
+      this.rootComponentId = rootComponentId;
+    }
+    if (ttidTimeoutMs !== undefined) {
+      this.ttidTimeoutMs = ttidTimeoutMs;
+    }
+    if (frameCheckDurationMs !== undefined) {
+      this.frameCheckDurationMs = frameCheckDurationMs;
+    }
+    if (backgroundFirstSnapshotDelayMs !== undefined) {
+      this.backgroundFirstSnapshotDelayMs = backgroundFirstSnapshotDelayMs;
+    }
+    if (backgroundSecondSnapshotDelayMs !== undefined) {
+      this.backgroundSecondSnapshotDelayMs = backgroundSecondSnapshotDelayMs;
+    }
+    if (backgroundRecentPageEnterThresholdMs !== undefined) {
+      this.backgroundRecentPageEnterThresholdMs = backgroundRecentPageEnterThresholdMs;
+    }
+    if (minFrameCountThreshold !== undefined) {
+      this.minFrameCountThreshold = minFrameCountThreshold;
+    }
+    if (maxDistinctColorCount !== undefined) {
+      this.maxDistinctColorCount = maxDistinctColorCount;
+    }
+    if (whiteRgbThreshold !== undefined) {
+      this.whiteRgbThreshold = whiteRgbThreshold;
+    }
+    if (snapshotScale !== undefined) {
+      this.snapshotScale = snapshotScale;
+    }
+    if (snapshotRegionTop !== undefined) {
+      this.snapshotRegionTop = snapshotRegionTop;
+    }
+    if (snapshotRegionBottom !== undefined) {
+      this.snapshotRegionBottom = snapshotRegionBottom;
+    }
+    if (autoWriteFaultLog !== undefined) {
+      this.autoWriteFaultLog = autoWriteFaultLog;
+    }
+  }
+
+  toInteropConfig(): InteropWhiteScreenConfig {
+    if (!cjLibFps) {
+      throw new Error('cjLibFps is not available');
+    }
+    return new cjLibFps.InteropWhiteScreenConfig(
+      this.rootComponentId,
+      this.ttidTimeoutMs,
+      this.frameCheckDurationMs,
+      this.backgroundFirstSnapshotDelayMs,
+      this.backgroundSecondSnapshotDelayMs,
+      this.backgroundRecentPageEnterThresholdMs,
+      this.minFrameCountThreshold,
+      this.maxDistinctColorCount,
+      this.whiteRgbThreshold,
+      this.snapshotScale,
+      this.snapshotRegionTop,
+      this.snapshotRegionBottom,
+      this.autoWriteFaultLog
+    );
+  }
+}
+
+/**
+ * 白屏检测事件信息（用户侧类）
+ */
+export class WhiteScreenEventInfo {
+  pageName: string = '';
+  whiteScreenType: string = '';
+  whiteScreenScene: string = '';
+  appState: string = '';
+  ttid: number = 0;
+  backgroundElapsedMs: number = 0;
+  foregroundDistinctColorCount: number = -1;
+  foregroundMainColorWhite: boolean = false;
+  backgroundFirstDistinctColorCount: number = -1;
+  backgroundSecondDistinctColorCount: number = -1;
+  backgroundFirstMainColorWhite: boolean = false;
+  backgroundSecondMainColorWhite: boolean = false;
+  backgroundDetectionReason: string = '';
+  frameCountInNSeconds: number = 0;
+
+  constructor(
+    pageName?: string,
+    whiteScreenType?: string,
+    whiteScreenScene?: string,
+    appState?: string,
+    ttid?: number,
+    backgroundElapsedMs?: number,
+    foregroundDistinctColorCount?: number,
+    foregroundMainColorWhite?: boolean,
+    backgroundFirstDistinctColorCount?: number,
+    backgroundSecondDistinctColorCount?: number,
+    backgroundFirstMainColorWhite?: boolean,
+    backgroundSecondMainColorWhite?: boolean,
+    backgroundDetectionReason?: string,
+    frameCountInNSeconds?: number
+  ) {
+    if (pageName !== undefined) {
+      this.pageName = pageName;
+    }
+    if (whiteScreenType !== undefined) {
+      this.whiteScreenType = whiteScreenType;
+    }
+    if (whiteScreenScene !== undefined) {
+      this.whiteScreenScene = whiteScreenScene;
+    }
+    if (appState !== undefined) {
+      this.appState = appState;
+    }
+    if (ttid !== undefined) {
+      this.ttid = ttid;
+    }
+    if (backgroundElapsedMs !== undefined) {
+      this.backgroundElapsedMs = backgroundElapsedMs;
+    }
+    if (foregroundDistinctColorCount !== undefined) {
+      this.foregroundDistinctColorCount = foregroundDistinctColorCount;
+    }
+    if (foregroundMainColorWhite !== undefined) {
+      this.foregroundMainColorWhite = foregroundMainColorWhite;
+    }
+    if (backgroundFirstDistinctColorCount !== undefined) {
+      this.backgroundFirstDistinctColorCount = backgroundFirstDistinctColorCount;
+    }
+    if (backgroundSecondDistinctColorCount !== undefined) {
+      this.backgroundSecondDistinctColorCount = backgroundSecondDistinctColorCount;
+    }
+    if (backgroundFirstMainColorWhite !== undefined) {
+      this.backgroundFirstMainColorWhite = backgroundFirstMainColorWhite;
+    }
+    if (backgroundSecondMainColorWhite !== undefined) {
+      this.backgroundSecondMainColorWhite = backgroundSecondMainColorWhite;
+    }
+    if (backgroundDetectionReason !== undefined) {
+      this.backgroundDetectionReason = backgroundDetectionReason;
+    }
+    if (frameCountInNSeconds !== undefined) {
+      this.frameCountInNSeconds = frameCountInNSeconds;
+    }
+  }
+}
+
+/**
+ * 同步获取窗口快照
+ */
+function getWindowSnapshotSync(
+  windowStage: window.WindowStage,
+  rootComponentId: string
+): string {
+  hilog.info(DOMAIN, TAG, 'getWindowSnapshotSync called');
+  return '{"distinctCount": 1}';
+}
+
+function performWindowSnapshotAsync(
+  win: window.Window,
+  callback: (colorData: string) => void
+): void {
+  const MAX_RETRY = 1;
+  const trySnapshot = (retry: number): void => {
+    try {
+      win.snapshot((err: BusinessError, pixelMap: image.PixelMap) => {
+        if (!pixelMap) {
+          hilog.warn(DOMAIN, TAG,
+            `Window snapshot failed, retry=${retry}, err=` + JSON.stringify(err));
+          if (retry > 0) {
+            setTimeout(() => {
+              trySnapshot(retry - 1);
+            }, 120);
+            return;
+          }
+          callback('{"distinctCount": 999, "mainColorWhite": false}');
+          return;
+        }
+        hilog.info(DOMAIN, TAG, 'Window snapshot succeed, analyzing color...');
+        try {
+          effectKit.createColorPicker(pixelMap, [0, 0, 1, 1])
+            .then((colorPicker: effectKit.ColorPicker) => {
+              const topColors = colorPicker.getTopProportionColors(10);
+              const distinctCount =
+                topColors && topColors.length > 0
+                  ? countDistinctColors(topColors as Array<effectKit.Color>)
+                  : 999;
+              const mainColorWhite =
+                topColors && topColors.length > 0
+                  ? isMainColorWhite(topColors as Array<effectKit.Color>)
+                  : false;
+              hilog.info(
+                DOMAIN,
+                TAG,
+                'Color analysis complete, distinctCount=' + distinctCount + ', mainColorWhite=' + mainColorWhite
+              );
+
+              callback('{"distinctCount": ' + distinctCount + ', "mainColorWhite": ' + mainColorWhite + '}');
+
+            })
+            .catch((colorErr: Error) => {
+              hilog.warn(DOMAIN, TAG,
+                'Color analysis failed: ' + JSON.stringify(colorErr));
+              callback('{"distinctCount": 999, "mainColorWhite": false}');
+            });
+        } catch (colorErr) {
+          hilog.warn(DOMAIN, TAG,
+            'Color analysis exception: ' + JSON.stringify(colorErr));
+          callback('{"distinctCount": 999, "mainColorWhite": false}');
+        }
+      });
+    } catch (e) {
+      hilog.warn(DOMAIN, TAG,
+        'performWindowSnapshotAsync exception: ' + JSON.stringify(e));
+      callback('{"distinctCount": 999, "mainColorWhite": false}');
+    }
+  };
+  trySnapshot(MAX_RETRY);
+}
+
+/**
+ * 计算不同颜色的数量（RGB量化去重）
+ */
+function countDistinctColors(colors: Array<effectKit.Color>): number {
+  if (!colors || colors.length === 0) {
+    return 999;
+  }
+  const keys = new Set<number>();
+  for (let i = 0; i < colors.length; i++) {
+    const c = colors[i];
+    if (c) {
+      const key = Math.floor(c.red / 32) * 64 + Math.floor(c.green / 32) * 8 + Math.floor(c.blue / 32);
+      keys.add(key);
+    }
+  }
+  return keys.size;
+}
+
+/**
+ * 判断主色是否为白色
+ */
+function isMainColorWhite(colors: Array<effectKit.Color>): boolean {
+  for (let i = 0; i < colors.length; i++) {
+    const c = colors[i];
+    if (c) {
+      return isWhiteColor(c);
+    }
+  }
+  return false;
+}
+
+function isWhiteColor(c: effectKit.Color): boolean {
+  return c.red >= 245 && c.green >= 245 && c.blue >= 245;
+}
+
+/**
+ * 获取源页面名称
+ */
+function getSourcePageName(info: uiObserver.NavDestinationSwitchInfo): string {
+  let name: string = '';
+  const fromValue: Object | string = info.from;
+  if (typeof fromValue === 'string') {
+    name = 'navRoot';
+  } else if (typeof fromValue === 'object' && fromValue !== null) {
+    const navDest: NavDestinationInfo = fromValue as NavDestinationInfo;
+    if (typeof navDest.name === 'string') {
+      name = navDest.name;
+    }
+  }
+  return name;
+}
+
+// ==================== 首帧渲染时间监控 ====================
+
+// 首帧渲染时间监控相关变量
+// 是否已初始化
+let firstRenderTimeInited: boolean = false;
+// 路由监听取消函数
+let firstRenderTimeOffNavSwitch: (() => void) | null = null;
+// 点击监听取消函数
+let offClick: (() => void) | null = null;
+// draw observer（ArkUI 返回对象，类型未知，用 unknown）
+let drawObserver: (() => void) | null = null;
+// ComponentObserver（ArkUI 未导出类型，用接口约束）
+interface DrawOption {
+  onDraw: () => void;
+}
+let componentObserverRef: inspector.ComponentObserver | null = null;
+// 是否已经收到首帧
+let hasDraw: boolean = false;
+// timeout（兼容 ArkTS）
+let timeoutId: number = -1;
+
+// 页面版本（防止页面切换串数据）
+let currentPageId: number = 0;
+
+// 首帧渲染时间事件信息接口
+export interface FirstRenderTimeEventInfo {
+  startTime: number;
+  endTime: number;
+  duration: number;
+  targetPage: string;
+}
+
+// 首帧渲染时间配置类（用户侧类）
+export class FirstRenderTimeConfig {
+  enableLogging: boolean = true;
+  reportThreshold: number = 1000; // 超过或者等于此阈值才上报，默认1000ms
+
+  constructor(
+    enableLogging?: boolean,
+    reportThreshold?: number
+  ) {
+    if (enableLogging !== undefined) {
+      this.enableLogging = enableLogging;
+    }
+    if (reportThreshold !== undefined) {
+      this.reportThreshold = reportThreshold;
+    }
+  }
+
+  toInteropConfig(): InteropFirstRenderTimeConfig {
+    if (!cjLibFps) {
+      throw new Error('cjLibFps is not available');
+    }
+    return new cjLibFps.InteropFirstRenderTimeConfig(
+      this.enableLogging,
+      this.reportThreshold
+    );
+  }
+}
+
+/**
+ * 初始化首帧渲染时间监控
+ */
+export function initFirstRenderTimeHandler(
+  context: common.UIAbilityContext,
+  win: window.Window,
+  config: FirstRenderTimeConfig,
+  reportFirstRenderTimeInfo: (data: FirstRenderTimeEventInfo) => void
+): void {
+  const cjLibFps = loadCJLibSafe('fps');
+  if (!cjLibFps) {
+    hilog.warn(DOMAIN, 'firstRenderTime', 'initFirstRenderTimeHandler called but fps module is disabled');
+    return;
+  }
+  if (firstRenderTimeInited) {
+    hilog.warn(DOMAIN, 'firstRenderTime', 'FirstRenderTime handler already initialized');
+    return;
+  }
+  // ==================== 初始化 ComponentObserver ====================
+  const uiContext = win.getUIContext();
+  const inspector = uiContext.getUIInspector?.();
+  componentObserverRef = inspector?.createComponentObserver?.("root") ?? null;
+  // ==================== 路由监听 ====================
+  const onNavDestinationSwitch = (cb: (targetPageName: string) => void) => {
+    const navSwitchCallback = (info: uiObserver.NavDestinationSwitchInfo) => {
+      const targetPageName: string = getTargetPageName(info);
+
+      cjLibFps.recordNavigationTargetInterop(targetPageName);
+      cb(targetPageName);
+    };
+    uiObserver.on('navDestinationSwitch', context, navSwitchCallback);
+    firstRenderTimeOffNavSwitch = () => {
+      uiObserver.off('navDestinationSwitch', context, navSwitchCallback);
+    };
+  };
+  // ==================== 点击监听 ====================
+  const clickCallback = (_event: object) => {
+    cjLibFps.recordClickStartInterop();
+  };
+  const uiObserverInstance = uiContext.getUIObserver();
+  uiObserverInstance.on('willClick', clickCallback);
+  offClick = () => {
+    uiObserverInstance.off('willClick', clickCallback);
+  };
+  // ==================== 初始化 CJ ====================
+  const interopConfig = config.toInteropConfig();
+  cjLibFps.initFirstRenderTimeMonitorInterop(
+    interopConfig,
+    reportFirstRenderTimeInfo
+  );
+  // ==================== 核心逻辑（nav + draw） ====================
+  onNavDestinationSwitch((targetPageName: string) => {
+    hilog.info(DOMAIN, 'firstRenderTime', 'Nav destination switched to: ' + targetPageName);
+    // 防串数据（关键）
+    currentPageId++;
+    const pageId = currentPageId;
+    hasDraw = false;
+    const observer = componentObserverRef;
+    // 清理旧 drawObserver
+    if (drawObserver !== null && observer !== null) {
+      observer.off('draw', drawObserver);
+      drawObserver = null;
+    }
+    // 清理旧 timeout
+    if (timeoutId !== -1) {
+      clearTimeout(timeoutId);
+      timeoutId = -1;
+    }
+    if (!observer) {
+      hilog.warn(DOMAIN, 'firstRenderTime', 'componentObserver not available');
+      return;
+    }
+
+    const drawCallback = () => {
+      if (hasDraw || pageId !== currentPageId) return;
+      hasDraw = true;
+      hilog.info(DOMAIN, 'firstRenderTime', 'First draw detected: ' + targetPageName);
+      cjLibFps.recordDrawEndInterop();
+      observer.off('draw', drawCallback);
+      drawObserver = null;
+      // 清理 timeout
+      if (timeoutId !== -1) {
+        clearTimeout(timeoutId);
+        timeoutId = -1;
+      }
+    };
+    observer.on('draw', drawCallback);
+    drawObserver = drawCallback;
+    // 超时兜底
+    timeoutId = setTimeout(() => {
+      if (!hasDraw && pageId === currentPageId) {
+        hasDraw = true;
+        hilog.warn(DOMAIN, 'firstRenderTime', 'Draw timeout fallback: ' + targetPageName);
+        cjLibFps.calculateFirstRenderTimeInterop(targetPageName + "_timeout");
+      }
+    }, 3000);
+  });
+  firstRenderTimeInited = true;
+  hilog.info(DOMAIN, 'firstRenderTime', 'FirstRenderTime handler initialized');
+}
+
+/**
+ * 销毁首帧渲染时间监控
+ */
+export function destroyFirstRenderTimeHandler(): void {
+  const cjLibFps = loadCJLibSafe('fps');
+  if (!cjLibFps) return;
+  if (offClick) {
+    offClick();
+    offClick = null;
+  }
+  if (firstRenderTimeOffNavSwitch) {
+    firstRenderTimeOffNavSwitch();
+    firstRenderTimeOffNavSwitch = null;
+  }
+  if (drawObserver !== null && componentObserverRef !== null) {
+    componentObserverRef.off('draw', drawObserver);
+    drawObserver = null;
+  }
+  if (timeoutId !== -1) {
+    clearTimeout(timeoutId);
+    timeoutId = -1;
+  }
+  hasDraw = false;
+  currentPageId = 0;
+  componentObserverRef = null;
+  cjLibFps.resetFirstRenderTimeMonitorInterop();
+  firstRenderTimeInited = false;
+  hilog.info(DOMAIN, 'firstRenderTime', 'FirstRenderTime handler destroyed');
 }

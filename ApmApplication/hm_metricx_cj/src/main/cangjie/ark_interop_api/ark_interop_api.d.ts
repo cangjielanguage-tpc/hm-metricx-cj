@@ -1,3 +1,48 @@
+export declare class InteropWhiteScreenConfig {
+    rootComponentId: string
+    ttidTimeoutMs: number
+    frameCheckDurationMs: number
+    backgroundFirstSnapshotDelayMs: number
+    backgroundSecondSnapshotDelayMs: number
+    backgroundRecentPageEnterThresholdMs: number
+    minFrameCountThreshold: number
+    maxDistinctColorCount: number
+    whiteRgbThreshold: number
+    snapshotScale: number
+    snapshotRegionTop: number
+    snapshotRegionBottom: number
+    autoWriteFaultLog: boolean
+}
+
+export declare class InteropWhiteScreenEventInfo {
+    pageName: string
+    whiteScreenType: string
+    whiteScreenScene: string
+    appState: string
+    ttid: number
+    backgroundElapsedMs: number
+    foregroundDistinctColorCount: number
+    foregroundMainColorWhite: boolean
+    backgroundFirstDistinctColorCount: number
+    backgroundSecondDistinctColorCount: number
+    backgroundFirstMainColorWhite: boolean
+    backgroundSecondMainColorWhite: boolean
+    backgroundDetectionReason: string
+    frameCountInNSeconds: number
+}
+
+export declare class InteropFirstRenderTimeConfig {
+    enableLogging: boolean
+    reportThreshold: number
+}
+
+export declare class InteropFirstRenderTimeInfo {
+    startTime: number
+    endTime: number
+    duration: number
+    targetPage: string
+}
+
 export declare class SwipeKillInfo {
     timestamp: number
     isUserSwipeKill: boolean
@@ -32,6 +77,17 @@ export declare class RawheapInfo {
 }
 
 
+export declare class ColorInfo {
+    red: number
+    green: number
+    blue: number
+    alpha: number
+}
+
+export declare class SnapshotOptions {
+    scale: number
+    waitUntilRenderFinished: boolean
+}
 
 export declare class InteropBackgroundCpuMonitorConfig {
     cpuThreshold: number
@@ -481,11 +537,38 @@ export declare interface CustomLib {
     destroySwipeKillHandlerInterop(): void
     initMemoryHandlerInterop(memoryPreference: MemoryPreference, getMemoryUsage: () => number, getArkTsMemoryUsage: () => number, getArkTsTotalHeap: () => number, getTotalMemoryLimit: () => number, onNavDestinationSwitch: (funcArg0: (funcArgfuncArg0: string) => void) => void, repeatSampleAndReportMemory: (funcArg0: () => void, funcArg1: () => void, funcArg2: () => void) => void, reporPageMemoryInfo: (funcArg0: InteropPageMemoryInfo) => void, reporProcessMemoryInfo: (funcArg0: InteropProcessMemoryInfo) => void, memoryThreshold: number, totalRatio: number, cjRatio: number, arkTsRatio: number): void
     InteropBackgroundCpuMonitorConfig: {new (cpuThreshold: number, warnDurationMs: number, errorDurationMs: number, fatalDurationMs: number, sampleIntervalMs: number, windowSizeMs: number): InteropBackgroundCpuMonitorConfig}
-    nitBackgroundCpuMonitorHandlerInterop(config: InteropBackgroundCpuMonitorConfig, getAppThreadCpuUsageJson: () => string, repeatSample: (funcArg0: () => void) => void, clearSample: () => void, reportHighCpuInfoJson: (funcArg0: string) => void): void
     destroyBackgroundCpuMonitorHandlerInterop(): void
     initBackgroundCpuMonitorHandlerInterop(config: InteropBackgroundCpuMonitorConfig, getAppThreadCpuUsageJson: () => string, repeatSample: (funcArg0: () => void) => void, clearSample: () => void, reportHighCpuInfoJson: (funcArg0: string) => void): void
     initCrashHandlerInterop(addCrashWatcher: (funcArg0: (funcArgfuncArg0: string, funcArgfuncArg1: string, funcArgfuncArg2: string, funcArgfuncArg3: string, funcArgfuncArg4: string, funcArgfuncArg5: string, funcArgfuncArg6: string) => void) => void, addResourceLeakWatcher: (funcArg0: (funcArgfuncArg0: string, funcArgfuncArg1: string, funcArgfuncArg2: string, funcArgfuncArg3: number, funcArgfuncArg4: number, funcArgfuncArg5: string) => void) => void, onCrash: (funcArg0: () => void) => void, exit: () => void, collectCrashInfo: () => string, reportCrashInfo: (funcArg0: InteropCrashInfo) => void, persistentDir: string, enableDumpOnOOM: number, lastNHilogNumber: number, systemLogNumber: number, enableMemMonitor: CMemMonitorConfig | undefined): void
     RawheapInfo: {new (): RawheapInfo}
     InteropRawheapInfo: {new (): InteropRawheapInfo}
+    SnapshotOptions: {new (scale: number, waitUntilRenderFinished: boolean): SnapshotOptions}
+    ColorInfo: {new (red: number, green: number, blue: number, alpha: number): ColorInfo}
+    onNavDestinationSwitchInterop(fromPageName: string, toPageName: string, fromHidden: boolean, toShown: boolean): void
+    destroyWhiteScreenHandlerInterop(): void
+    onFirstFrameReceivedInterop(): void
+    onFrameReceivedInterop(): void
+    handleWhiteScreenTimerCallbackInterop(timerType: string): void
+    InteropWhiteScreenConfig: {new (rootComponentId: string, ttidTimeoutMs: number, frameCheckDurationMs: number, backgroundFirstSnapshotDelayMs: number, backgroundSecondSnapshotDelayMs: number, backgroundRecentPageEnterThresholdMs: number, minFrameCountThreshold: number, maxDistinctColorCount: number, whiteRgbThreshold: number, snapshotScale: number, snapshotRegionTop: number, snapshotRegionBottom: number, autoWriteFaultLog: boolean): InteropWhiteScreenConfig}
+    InteropWhiteScreenEventInfo: {new (pageName: string, whiteScreenType: string, whiteScreenScene: string, appState: string, ttid: number, backgroundElapsedMs: number, foregroundDistinctColorCount: number, foregroundMainColorWhite: boolean, backgroundFirstDistinctColorCount: number, backgroundSecondDistinctColorCount: number, backgroundFirstMainColorWhite: boolean, backgroundSecondMainColorWhite: boolean, backgroundDetectionReason: string, frameCountInNSeconds: number): InteropWhiteScreenEventInfo}
+    performSnapshotAndAnalyzeInterop(): void
+    onSnapshotAnalysisResultInterop(colorData: string): void
+    onBackgroundSnapshotAnalysisResultInterop(sampleIndex: number, colorData: string): void
+    initWhiteScreenHandlerInterop(config: InteropWhiteScreenConfig, reportCallback: (funcArg0: InteropWhiteScreenEventInfo) => void, setTimeoutFunc: (funcArg0: string, funcArg1: number) => number, clearTimeoutFunc: (funcArg0: number) => void, performSnapshotFunc: () => void, performBackgroundSnapshotFunc: (funcArg0: number) => void): void
+    onWhiteScreenForegroundInterop(): void
+    onWhiteScreenBackgroundInterop(): void
+    InteropFirstRenderTimeConfig: {new (enableLogging: boolean, reportThreshold: number): InteropFirstRenderTimeConfig}
+    InteropFirstRenderTimeInfo: {new (startTime: number, endTime: number, duration: number, targetPage: string): InteropFirstRenderTimeInfo}
+    initFirstRenderTimeMonitorInterop(config: InteropFirstRenderTimeConfig, reportCallback: (funcArg0: InteropFirstRenderTimeInfo) => void): void
+    recordClickStartInterop(): void
+    recordDrawEndInterop(): void
+    recordNavigationTargetInterop(targetPage: string): void
+    calculateFirstRenderTimeInterop(targetPage: string): void
+    calculateFirstRenderTimeManuallyInterop(startTime: number, targetPage: string): void
+    resetFirstRenderTimeMonitorInterop(): void
     initSwipeKillHandlerInterop(lastExitReason: number, reportSwipeKillInfoHandler: (funcArg0: SwipeKillInfo) => void, onAbilityBackground: (funcArg0: () => void) => void, thresholdMs: number): void
 }
+
+// ==================== 用户侧类型别名（隐藏互操作层） ====================
+export type WhiteScreenConfig = InteropWhiteScreenConfig
+export type WhiteScreenEventInfo = InteropWhiteScreenEventInfo
