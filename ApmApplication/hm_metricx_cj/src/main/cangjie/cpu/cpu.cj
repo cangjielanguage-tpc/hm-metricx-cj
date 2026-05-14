@@ -1315,6 +1315,7 @@ public func stopHighCpuMonitorInternal(): Unit {
     isCapturingStack = false
     cpu_init_flag = false
     high_cpu_init_flag = false
+    sleep(Duration.millisecond * 0.1)
     AppLog.info("hm-metricx-cj: High CPU monitor destroyed")
 }
 
