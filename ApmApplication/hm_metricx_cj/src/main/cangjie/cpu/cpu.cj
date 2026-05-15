@@ -1903,6 +1903,7 @@ public func destroyBackgroundCpuMonitorHandlerInternal(): Unit {
     backgroundCpuMonitorInited = false
     backgroundCpuConfig = None
     backgroundCpuCallback = None
+    sleep(Duration.millisecond * 0.1)
     AppLog.info("hm-metricx-cj: Background CPU monitor destroyed")
 }
 
