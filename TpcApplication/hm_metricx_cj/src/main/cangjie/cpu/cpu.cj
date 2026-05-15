@@ -217,6 +217,7 @@ public func destroyCpuHandler(): Unit {
     off(navDestinationSwitch, uiContext.getOrThrow(), pageSwitchCallback)
     destroyHighCpuMonitorHandler()
     cpu_init_flag = false
+    sleep(Duration.millisecond * 0.1)
 }
 
 // 线程栈信息（用于上报）
@@ -1906,7 +1907,7 @@ public func destroyBackgroundCpuMonitorHandler(): Unit {
     backgroundCpuCallback = None
     backgroundLifecycleCallbackId = 0
     backgroundAppContext = None
-
+    sleep(Duration.millisecond * 0.1)
     AppLog.info("hm-metricx-cj: Background CPU monitor destroyed")
 }
 
