@@ -557,7 +557,7 @@ public func initWhiteScreenHandler(
     reportWhiteScreenInfo: (data: JsonObject) -> Unit
 )
 ```
-接口对交互式响应App白屏提供监控能力。
+接口对App白屏提供监控能力。
 
 
 `initWhiteScreenHandler` 需要的入参说明如下：
@@ -618,6 +618,48 @@ public func onWindowStageCreate(windowStage: window.WindowStage): Unit {
 }
 ```
 
+#### 3. 首帧渲染
+```text
+public func initFirstRenderTimeMonitor(
+    config: FirstRenderTimeConfig,
+    reportCallback: (FirstRenderTimeInfo) -> Unit
+): Unit
+```
+接口提供App首帧渲染监控能力。
+
+
+`initFirstRenderTimeMonitor` 需要的入参说明如下：
+
+- `config` 指指定首帧渲染检测配置项，其中包括：
+ - `enableLogging` 控制是否启用日志记录功能，默认值为 true
+ - `reportThreshold` 上报的时间
+
+- `reportCallback` 指定首帧渲染事件上报回调函数，该对象包含以下字段：
+ - `startTime`: Int64 - 开始时间
+ - `endTime`: Int64 - 结束时间  
+ - `duration`: Int64 - 持续时间
+ - `targetPage`: String - 目标页面
+
+使用示例：
+
+i.
+
+在主模块的 `main_ability.cj` 的 `onWindowStageCreate` 回调中调用 `initFirstRenderTimeMonitor` :
+
+```text
+public func onWindowStageCreate(windowStage: window.WindowStage): Unit {
+    windowStage.loadContent("pages/index", {err, data => ()})
+    windowStage.getMainWindow(
+        {
+            initFirstRenderTimeMonitor(
+                            FirstRenderTimeConfig(true, 1000),
+                            { info =>
+                                AppLog.info("[FRT] ${info.toString()}")
+                            }
+                        )
+        })
+}
+```
 
 ### 监控内存
 
