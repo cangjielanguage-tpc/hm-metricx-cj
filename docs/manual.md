@@ -495,6 +495,7 @@ class EntryAbility <: UIAbility {
 ### 监控交互响应延迟
 
 `hm_metricx_cj` 提供
+#### 1. 延迟监控
 ```text
 public func initLaggyHandle(applicationcontext: ApplicationContext, uiContext: UIContext,
                             maxTime: Int64, maxArraySize: Int64,
@@ -545,6 +546,78 @@ public func onWindowStageCreate(windowStage: window.WindowStage): Unit {
         })
 }
 ```
+
+#### 2. 白屏检查
+```text
+public func initWhiteScreenHandler(
+    context: UIAbilityContext,
+    windowStage: WindowStage,
+    uiContext: UIContext,
+    config: WhiteScreenConfig,
+    reportWhiteScreenInfo: (data: JsonObject) -> Unit
+)
+```
+接口对交互式响应App白屏提供监控能力。
+
+
+`initWhiteScreenHandler` 需要的入参说明如下：
+
+- `context` 指定应用上下文，用于注册Ability生命周期回调。
+
+- `windowStage` 指定窗口舞台，用于获取主窗口进行截图。
+
+- `uiContext` 指定 `uiContext`。
+
+- `config` 指定白屏检测配置项，其中包括：
+
+| 字段 | 类型 | 默认值 | 含义 | 约束 |
+|------|------|--------|------|------|
+| `rootComponentId` | String | None | 根组件ID，用于组件截图 | 可选 |
+| `ttidTimeoutMs` | Int64 | 1000 | 首帧超时时间(ms)，超时判定TIMEOUT白屏 | >= 0 |
+| `frameCheckDurationMs` | Int64 | 3000 | 首帧后帧检测持续时间(ms) | >= 0 |
+| `backgroundFirstSnapshotDelayMs` | Int64 | 800 | 后台首次截图延迟(ms) | >= 0 |
+| `backgroundSecondSnapshotDelayMs` | Int64 | 1800 | 后台第二次截图延迟(ms) | >= 0 |
+| `backgroundRecentPageEnterThresholdMs` | Int64 | 3000 | 后台检测页面进入阈值(ms) | >= 0 |
+| `minFrameCountThreshold` | Int64 | 30 | 帧数阈值，低于此值触发截图分析 | >= 0 |
+| `maxDistinctColorCount` | Int64 | 2 | 颜色复杂度阈值，颜色种类少于等于此值判白屏 | >= 0 |
+| `whiteRgbThreshold` | Int64 | 245 | 白色RGB阈值，RGB均>=此值认为主色接近白色 | >= 0 |
+| `snapshotScale` | Float64 | 0.1 | 截图缩放比例 | [0.0, 1.0] |
+| `snapshotRegionTop` | Float64 | 0.08 | 截图区域顶部裁剪比例 | [0.0, 1.0] |
+| `snapshotRegionBottom` | Float64 | 0.08 | 截图区域底部裁剪比例 | [0.0, 1.0] |
+| `autoWriteFaultLog` | Bool | true | 是否自动写入故障日志 | - |
+
+
+- `reportWhiteScreenInfo` 指定白屏事件上报回调函数,入参为 `JsonObject` 类型对象，该对象包含以下字段：
+ - `pageName` 当前页面名称
+ - `whiteScreenType`  白屏类型原因
+ - `whiteScreenScene` 白屏检测场景：`PAGE_OPEN`(页面打开) / `PAGE_BACKGROUND`(前台切后台) 
+ - `appState` 白屏检测时应用状态：`FOREGROUND` / `BACKGROUND` 
+
+使用示例：
+
+i.
+
+在主模块的 `main_ability.cj` 的 `onWindowStageCreate` 回调中调用 `initWhiteScreenHandler` :
+
+```text
+public func onWindowStageCreate(windowStage: window.WindowStage): Unit {
+    windowStage.loadContent("pages/index", {err, data => ()})
+    windowStage.getMainWindow(
+        {
+            let whiteScreenConfig = WhiteScreenConfig()
+                        initWhiteScreenHandler(
+                            this.context,
+                            windowStage,
+                            fromUIContextBase(x.getUIContext()),
+                            whiteScreenConfig,
+                            { data: JsonObject =>
+                                AppLog.error("[MetricX][WhiteScreen][TestBench] " + data.toString())
+                            }
+                        )
+        })
+}
+```
+
 
 ### 监控内存
 
