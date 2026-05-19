@@ -554,6 +554,9 @@ public func initCrashHandler(
     if (inited) {
         return
     }
+    if (!exists(persistentDir)) {
+        throw IllegalArgumentException("persistentDir does not exist: ${persistentDir}")
+    }
     let persistentPaths = PersistentPaths(persistentDir)
     cleanHistoryLogFiles({name => name.startsWith("APP_CRASH")}, persistentPaths.cleanFileRecordPath, "initCrashHandler")
     let lastNHilogNumber = config.lastNHilogNumber
