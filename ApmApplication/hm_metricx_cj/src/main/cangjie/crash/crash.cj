@@ -588,6 +588,9 @@ public func initCrashHandler(
     if (inited) {
         return
     }
+    if (!exists(persistentDir)) {
+        throw IllegalArgumentException("persistentDir does not exist: ${persistentDir}")
+    }
     cleanHistoryLogFiles()
     iCollectCrashInfo = collectCrashInfo
     let persistentPaths = PersistentPaths(persistentDir)
