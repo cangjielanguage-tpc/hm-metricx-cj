@@ -634,7 +634,7 @@ public func initFirstRenderTimeMonitor(
  - `enableLogging` 控制是否启用日志记录功能，默认值为 true
  - `reportThreshold` 上报的时间
 
-- `reportCallback` 指定首帧渲染事件上报回调函数，该对象包含以下字段：
+`reportCallback` 指定首帧渲染事件上报回调函数，该对象包含以下字段：
  - `startTime`: Int64 - 开始时间
  - `endTime`: Int64 - 结束时间  
  - `duration`: Int64 - 持续时间
