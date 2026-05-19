@@ -158,7 +158,7 @@ void CrashLastNHilogCallback(const LogType type, const LogLevel level, const uns
     entry.msg = msg;
 
     std::lock_guard<std::mutex> lock(hilogMessagesMutex);
-    if (hilogMessages.size() > LASTN_HILOG_NUMBER) {
+    if (hilogMessages.size() >= LASTN_HILOG_NUMBER) {
         hilogMessages.pop_front();
     }
     hilogMessages.emplace_back(entry);
