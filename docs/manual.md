@@ -234,6 +234,7 @@ class EntryAbility <: UIAbility {
 
 ### 监控系统强杀
 `hm_metricx_cj` 提供
+#### 1. 系统强杀
 ```text
 public func initExitInfoHandler(
     lastExitMessage: String,
@@ -288,6 +289,50 @@ class EntryAbility <: UIAbility {
                 .START_ABILITY => AppLog.info("START_ABILITY")
             case _ => ()
         }
+    }
+}
+```
+
+#### 2. 用户滑杀
+```text
+public func initSwipeKillHandler(
+    context: UIAbilityContext,
+    launchParam: LaunchParam,
+    reportInfo: (info: SwipeKillInfo) -> Unit,
+    thresholdMs!: Int64 = DEFAULT_SWIPE_KILL_THRESHOLD_MS
+)
+```
+接口对用户滑杀监控。
+
+`initSwipeKillHandler` 需要的入参说明如下：
+- `context: UIAbilityContext - UI能力上下文
+- `launchParam：应用本次启动时系统传入的启动参数
+- `reportInfo: (SwipeKillInfo) -> Unit - 滑动杀死信息回调函数
+  - `timestamp` 事件发生的时间戳
+  - `isUserSwipeKill` 是否为用户滑动杀死
+  - `exitInfo` 上次退出原因（同exitReason）
+- `Threshold: 判断滑动杀死的阈值(毫秒)，默认5000ms
+
+使用示例：
+
+i.
+在主模块的 `main_ability.cj` 的 `onCreate` 回调中调用 `initThermalHandler`：
+```text
+class EntryAbility <: UIAbility {
+    public override func onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): Unit {
+        AppLog.info("Ability OnCreated.${want.abilityName}")
+        match (launchParam.launchReason) {
+            case AbilityConstant.LaunchReason.START_ABILITY => AppLog.info("START_ABILITY")
+            case _ => ()
+        }
+        initSwipeKillHandler(
+            this.context,
+            launchParam,
+            { info: SwipeKillInfo =>
+                AppLog.warn("[MetricX] SwipeKill: User killed app and restarted quickly! timeSinceBg: ${info.toString()}")
+            },
+            thresholdMs: 5000
+        )
     }
 }
 ```
@@ -347,50 +392,6 @@ class EntryAbility <: UIAbility {
                 .START_ABILITY => AppLog.info("START_ABILITY")
             case _ => ()
         }
-    }
-}
-```
-
-### 监控异常退出原因
-
-`hm_metricx_cj` 提供
-```text
-getExitInfo(launchParam: LaunchParam): ExitInfo
-```
-接口获取应用异常退出原因。
-
-`getExitInfo` 需要的入参说明如下：
-
-- `launchParam: LaunchParam` 应用启动参数。
-
-`ExitInfo` 包含以下信息：
-
-- `exitReason` 上次应用退出的原因，分类如下：
-    - `ability_not_responding` Ability未响应
-    - `app_freeze` 应用无响应
-    - `cpp_crash` Native层发出异常信号导致应用退出
-    - `js_error` JS层Error导致应用退出
-    - `unknown` 上次应用退出原因未被应用框架记录
-    - `normal` 正常退出，如用户主动关闭应用
-    - `performance_control` 系统能耗管控导致应用退出，如设备低内存
-    - `resource_control` 资源管控导致应用退出，如过量使用CPU/IO/内存资源
-    - `upgrade` 应用升级导致应用退出
-- `exitMessage` 上次应用退出的详细信息
-
-使用示例：
-
-i.
-在主模块的 `main_ability.cj` 的 `onCreate` 回调中调用 `getExitInfo` ：
-```text
-class EntryAbility <: UIAbility {
-    public override func onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): Unit {
-        AppLog.info("Ability OnCreated.${want.abilityName}")
-        match (launchParam.launchReason) {
-            case AbilityConstant.LaunchReason.START_ABILITY => AppLog.info("START_ABILITY")
-            case _ => ()
-        }
-        let lastExitInfo = getExitInfo(launchParam)
-        // report lastExitInfo
     }
 }
 ```
