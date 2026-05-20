@@ -240,6 +240,7 @@ export default class EntryAbility extends UIAbility {
 
 ### 监控系统强杀
 `hm_metricx_cj` 提供
+#### 1. 系统强杀
 ```text
 public func initExitInfoHandler(
     lastExitMessage: String,
@@ -251,7 +252,7 @@ public func initExitInfoHandler(
 接口对系统强杀监控进行类型分类。
 
 `initExitInfoHandler` 需要的入参说明如下：
-- `launchParam：应用本次启动时系统传入的启动参数
+- `lastExitMessage/lastExitReason：应用本次启动时系统传入的退出原因用于调用系统launchParam跟事件进行对应
 
 - `exitReason` 上次应用退出的原因，分类如下：
     - `ability_not_responding` Ability未响应
@@ -285,6 +286,55 @@ class EntryAbility <: UIAbility {
       (appStateInfo) => {
         hilog.error(0x0000, 'exitInfo', `AppStateInfo: state=${appStateInfo.appState}, timestamp=${appStateInfo.timestamp}`);
       }
+    );
+        match (launchParam.launchReason) {
+            case AbilityConstant
+                .LaunchReason
+                .START_ABILITY => AppLog.info("START_ABILITY")
+            case _ => ()
+        }
+    }
+}
+```
+
+#### 2. 用户滑杀
+```text
+export function initSwipeKillHandler(
+  context: common.UIAbilityContext,
+  lastExitReason: number,
+  reportSwipeKillInfoHandler: (data: SwipeKillInfo) => void,
+  thresholdMs?: number
+): void 
+```
+接口对用户滑杀监控。
+
+`initSwipeKillHandler` 需要的入参说明如下：
+- `context: UIAbilityContext - UI能力上下文
+- `lastExitReason：应用本次启动时系统传入的退出原因用于调用系统launchParam跟事件进行对应
+- `reportSwipeKillInfoHandler: (SwipeKillInfo) -> Unit - 滑动杀死信息回调函数
+  - `timestamp` 事件发生的时间戳
+  - `isUserSwipeKill` 是否为用户滑动杀死
+  - `exitInfo` 上次退出原因（同exitReason）
+- `Threshold: 判断滑动杀死的阈值(毫秒)，默认5000ms
+
+使用示例：
+
+i.
+在主模块的 `main_ability.cj` 的 `onCreate` 回调中调用 `initSwipeKillHandler`：
+```text
+class EntryAbility <: UIAbility {
+    public override func onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): Unit {
+        AppLog.info("Ability OnCreated.${want.abilityName}")
+        const lastExitMessage = launchParam?.lastExitMessage ?? 'unknown';  // 应用本次启动时系统传入的启动参数
+        const lastExitReasonValue = launchParam?.lastExitReason ?? 0; // 0 = UNKNOWN  // 应用本次启动时系统传入的启动参数
+
+    initSwipeKillHandler(
+      this.context,
+      lastExitReasonValue,
+      (swipeKillInfo) => {
+        hilog.error(0x0000, 'swipeKill', `SwipeKillInfo: timestamp=${swipeKillInfo.timestamp}, isUserSwipeKill=${swipeKillInfo.isUserSwipeKill}, exitInfo=${swipeKillInfo.exitInfo}`);
+      },
+      5000
     );
         match (launchParam.launchReason) {
             case AbilityConstant
@@ -432,6 +482,7 @@ export default class EntryAbility extends UIAbility {
 ### 监控交互响应延迟
 
 `hm_metricx_cj` 提供
+#### 1. 延迟监控
 ```arkts
 export function initLaggyHandler(
   context: common.UIAbilityContext,
@@ -496,6 +547,151 @@ export default class EntryAbility extends UIAbility {
     windowStage.getMainWindow().then(() => {
       initLaggyHandler(this.context, windowStage, 100, 100, data => {}, data => {});
     });
+  }
+}
+```
+
+#### 2. 白屏检查
+```text
+export function initWhiteScreenHandler(
+  context: common.UIAbilityContext,
+  windowStage: window.WindowStage,
+  win: window.Window,
+  config: WhiteScreenConfig,
+  reportWhiteScreenInfo: (data: InteropWhiteScreenEventInfo) => void
+): void
+```
+接口对App白屏提供监控能力。
+
+
+`initWhiteScreenHandler` 需要的入参说明如下：
+- `context` 指定应用上下文，用于注册Ability生命周期回调。
+- `windowStage` 指定窗口舞台，用于获取主窗口进行截图。
+- `win` 参数用于窗口截图，进行白屏检测时的颜色分析。
+- `uiContext` 指定 `uiContext`。
+- `config` 指定白屏检测配置项，其中包括：
+
+| 字段 | 类型 | 默认值 | 含义 | 约束 |
+|------|------|--------|------|------|
+| `rootComponentId` | String | None | 根组件ID，用于组件截图 | 可选 |
+| `ttidTimeoutMs` | Int64 | 1000 | 首帧超时时间(ms)，超时判定TIMEOUT白屏 | >= 0 |
+| `frameCheckDurationMs` | Int64 | 3000 | 首帧后帧检测持续时间(ms) | >= 0 |
+| `backgroundFirstSnapshotDelayMs` | Int64 | 800 | 后台首次截图延迟(ms) | >= 0 |
+| `backgroundSecondSnapshotDelayMs` | Int64 | 1800 | 后台第二次截图延迟(ms) | >= 0 |
+| `backgroundRecentPageEnterThresholdMs` | Int64 | 3000 | 后台检测页面进入阈值(ms) | >= 0 |
+| `minFrameCountThreshold` | Int64 | 30 | 帧数阈值，低于此值触发截图分析 | >= 0 |
+| `maxDistinctColorCount` | Int64 | 2 | 颜色复杂度阈值，颜色种类少于等于此值判白屏 | >= 0 |
+| `whiteRgbThreshold` | Int64 | 245 | 白色RGB阈值，RGB均>=此值认为主色接近白色 | >= 0 |
+| `snapshotScale` | Float64 | 0.1 | 截图缩放比例 | [0.0, 1.0] |
+| `snapshotRegionTop` | Float64 | 0.08 | 截图区域顶部裁剪比例 | [0.0, 1.0] |
+| `snapshotRegionBottom` | Float64 | 0.08 | 截图区域底部裁剪比例 | [0.0, 1.0] |
+| `autoWriteFaultLog` | Bool | true | 是否自动写入故障日志 | - |
+
+
+- `reportWhiteScreenInfo` 指定白屏事件上报回调函数,入参为 `JsonObject` 类型对象，该对象包含以下字段：
+ - `pageName` 当前页面名称
+ - `whiteScreenType`  白屏类型原因
+ - `whiteScreenScene` 白屏检测场景：`PAGE_OPEN`(页面打开) / `PAGE_BACKGROUND`(前台切后台) 
+ - `appState` 白屏检测时应用状态：`FOREGROUND` / `BACKGROUND` 
+
+使用示例：
+
+i.
+
+在主模块的 `EntryAbility.ets` 的 `onWindowStageCreate` 回调中调用 `initWhiteScreenHandler`：
+```arkts
+export default class EntryAbility extends UIAbility {
+  onWindowStageCreate(windowStage: window.WindowStage): void {
+    // Main window is created, set main page for this ability
+    hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onWindowStageCreate');
+
+    initWhiteScreenHandler(
+      this.context,
+      windowStage,
+      win,
+      new WhiteScreenConfig(
+        'whiteScreenTestRoot',  // rootComponentId
+        1000,                   // ttidTimeoutMs
+        3000,                   // frameCheckDurationMs
+        800,                    // backgroundFirstSnapshotDelayMs
+        1800,                   // backgroundSecondSnapshotDelayMs
+        3000,                   // backgroundRecentPageEnterThresholdMs
+        30,                     // minFrameCountThreshold
+        2,                      // maxDistinctColorCount
+        245,                    // whiteRgbThreshold
+        0.1,                    // snapshotScale
+        0.08,                   // snapshotRegionTop
+        0.08,                   // snapshotRegionBottom
+        true                    // autoWriteFaultLog
+      ),
+      (info: WhiteScreenEventInfo) => {
+        hilog.warn(DOMAIN, 'WhiteScreen', `===== 白屏检测上报 =====`);
+        hilog.warn(DOMAIN, 'WhiteScreen', `页面：${info.pageName}`);
+        hilog.warn(DOMAIN, 'WhiteScreen', `类型：${info.whiteScreenType}`);
+        hilog.warn(DOMAIN, 'WhiteScreen', `场景：${info.whiteScreenScene}`);
+        hilog.warn(DOMAIN, 'WhiteScreen', `应用状态：${info.appState}`);
+        hilog.warn(DOMAIN, 'WhiteScreen', `TTID：${info.ttid}ms`);
+        hilog.warn(DOMAIN, 'WhiteScreen', `后台耗时：${info.backgroundElapsedMs}ms`);
+        hilog.warn(DOMAIN, 'WhiteScreen', `前台去重颜色数：${info.foregroundDistinctColorCount}`);
+        hilog.warn(DOMAIN, 'WhiteScreen', `前台主色白色：${info.foregroundMainColorWhite}`);
+        hilog.warn(DOMAIN, 'WhiteScreen', `后台第1次去重颜色数：${info.backgroundFirstDistinctColorCount}`);
+        hilog.warn(DOMAIN, 'WhiteScreen', `后台第2次去重颜色数：${info.backgroundSecondDistinctColorCount}`);
+        hilog.warn(DOMAIN, 'WhiteScreen', `后台第1次主色白色：${info.backgroundFirstMainColorWhite}`);
+        hilog.warn(DOMAIN, 'WhiteScreen', `后台第2次主色白色：${info.backgroundSecondMainColorWhite}`);
+        hilog.warn(DOMAIN, 'WhiteScreen', `后台检测原因：${info.backgroundDetectionReason}`);
+        hilog.warn(DOMAIN, 'WhiteScreen', `N秒内帧数：${info.frameCountInNSeconds}`);
+      }
+    );
+  }
+}
+```
+
+
+#### 3. 首帧渲染
+```text
+export function initFirstRenderTimeHandler(
+  context: common.UIAbilityContext,
+  win: window.Window,
+  config: FirstRenderTimeConfig,
+  reportFirstRenderTimeInfo: (data: FirstRenderTimeEventInfo) => void
+): void
+```
+接口提供App首帧渲染监控能力。
+
+
+`initFirstRenderTimeMonitor` 需要的入参说明如下：
+
+ - `config` 指指定首帧渲染检测配置项，其中包括：
+ - `win` 参数用于窗口截图，进行白屏检测时的颜色分析。
+ - `enableLogging` 控制是否启用日志记录功能，默认值为 true
+ - `reportThreshold` 上报的时间
+
+- `reportCallback` 指定首帧渲染事件上报回调函数，该对象包含以下字段：
+ - `startTime`: Int64 - 开始时间
+ - `endTime`: Int64 - 结束时间  
+ - `duration`: Int64 - 持续时间
+ - `targetPage`: String - 目标页面
+
+使用示例：
+
+i.
+
+在主模块的 `EntryAbility.ets` 的 `onWindowStageCreate` 回调中调用 `initFirstRenderTimeHandler`：
+```arkts
+export default class EntryAbility extends UIAbility {
+  onWindowStageCreate(windowStage: window.WindowStage): void {
+    // Main window is created, set main page for this ability
+    hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onWindowStageCreate');
+
+    initFirstRenderTimeHandler(
+      this.context,
+      win,
+      new FirstRenderTimeConfig(),
+      (info) => {
+        hilog.warn(DOMAIN, 'firstRenderTime', `===== 首帧渲染上报 =====`);
+        hilog.warn(DOMAIN, 'firstRenderTime', `First Render Time: startTime=${info.startTime}, endTime=${info.endTime}, duration=${info.duration}ms, page=${info.targetPage}`);
+      }
+    );
   }
 }
 ```
