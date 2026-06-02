@@ -120,6 +120,9 @@ let offTraffic = () => {
 let clearSampleTraffic = () => {
 };
 
+let offHighCpu = () => {
+};
+
 // @Concurrent function worker(){
 //   requireCJLib(`libohos_app_cangjie_hm_metricx_cj.traffic.so`) as CustomLib;
 //   return
@@ -1351,9 +1354,17 @@ export function initHighCpuMonitorHandler(
     }
   };
 
+  // 注册页面切换回调，用于更新当前页面名称
+  let onNavDestinationSwitch = (cb: (targetPageName: string) => void) => {
+    let callback = (info: uiObserver.NavDestinationSwitchInfo) => cb(getTargetPageName(info));
+    uiObserver.on('navDestinationSwitch', context, callback);
+    offHighCpu = () => uiObserver.off('navDestinationSwitch', context, callback);
+  };
+
   cjLibCpu.initHighCpuMonitorHandlerInterop(
     hidebug.getCpuUsage,
     getAppThreadCpuUsageJson,
+    onNavDestinationSwitch,
     repeatHighCpuSample,
     repeatHighCpuReport,
     reportHighCpuInfoJson
@@ -1372,6 +1383,7 @@ export function destroyHighCpuMonitorHandler(): void {
   if (!cjLibCpu) return;
   clearHighCpuSample();
   clearHighCpuReport();
+  offHighCpu();
   cjLibCpu.stopHighCpuMonitorInterop();
   hilog.info(DOMAIN, TAG, 'High CPU monitor destroyed');
 }

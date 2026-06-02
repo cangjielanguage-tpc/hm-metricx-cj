@@ -187,6 +187,11 @@ struct Index {
             this.stopTraffic()
           })
 
+        Button('CPU 热压测试页面（验证路由路径）')
+          .onClick((): void => {
+            this.pageStack.pushPath(new NavPathInfo('CpuStressTestPage', ''))
+          })
+
         Button(this.isCpuStressRunning ? 'CPU 热压中…' : '开始 CPU 热压测试')
           .onClick((): void => {
             this.startCpuStress()
@@ -259,6 +264,8 @@ struct Index {
       SwitchResultTriggerPage()
     } else if (name === 'SwitchResultBlankPage') {
       SwitchResultBlankPage()
+    } else if (name === 'CpuStressTestPage') {
+      CpuStressTestPage()
     } else {
       this.buildHomePage()
     }
@@ -1061,4 +1068,178 @@ struct SwitchResultBlankPage {
 
 function oom(): void {
   let hugeArray: number[] = new Array(Number.MAX_SAFE_INTEGER)
+}
+
+// ===================== CpuStressTestPage =====================
+// 用于验证 HighCpuReportInfo.pageName 是否正确上报路由路径
+@Component
+struct CpuStressTestPage {
+  @State pageStack: NavPathStack = new NavPathStack()
+  @State isCpuStressRunning: boolean = false
+  @State cpuStressRounds: number = 0
+  @State currentThermalLevel: number = -1
+  @State currentThermalLevelName: string = 'UNKNOWN'
+  @State currentPageName: string = ''  // 显示当前上报的页面名称
+
+  private stopStressFlag: boolean = false
+  private thermalPollTimerId: number = -1
+
+  aboutToDisappear(): void {
+    this.stopCpuStress()
+    if (this.thermalPollTimerId !== -1) {
+      clearInterval(this.thermalPollTimerId)
+      this.thermalPollTimerId = -1
+    }
+  }
+
+  build(): void {
+    NavDestination() {
+      Scroll() {
+        Column({ space: 12 }) {
+          Text('CPU 热压测试页面')
+            .fontSize(22)
+            .fontWeight(FontWeight.Bold)
+            .margin({ bottom: 16 })
+
+          // 路由路径验证提示
+          Text('此页面用于验证 HighCpuReportInfo.pageName')
+            .fontSize(16)
+            .fontColor('#3D4A5D')
+          Text('预期：pageName 应为 "CpuStressTestPage" 而非 "mainPage"')
+            .fontSize(15)
+            .fontColor('#56657A')
+            .margin({ bottom: 20 })
+
+          // 当前状态显示
+          Divider().margin({ top: 8, bottom: 8 })
+          Text(`CPU 热压状态: ${this.isCpuStressRunning ? '运行中' : '已停止'}`)
+          Text(`热压轮次: ${this.cpuStressRounds}`)
+          Text(`当前热档位: ${this.currentThermalLevel}`)
+          Text(`热档位名称: ${this.currentThermalLevelName}`)
+          Text(`当前页面名: ${this.currentPageName}`)
+            .fontWeight(FontWeight.Bold)
+            .fontColor(this.currentPageName === 'CpuStressTestPage' ? '#4CAF50' : '#F44336')
+
+          Divider().margin({ top: 16, bottom: 16 })
+
+          // 控制按钮
+          Button(this.isCpuStressRunning ? 'CPU 热压中…' : '开始 CPU 热压测试')
+            .width('80%')
+            .onClick((): void => {
+              this.startCpuStress()
+            })
+
+          Button('停止 CPU 热压测试')
+            .width('80%')
+            .onClick((): void => {
+              this.stopCpuStress()
+            })
+
+          Button('刷新热档位')
+            .width('80%')
+            .onClick((): void => {
+              this.refreshThermalLevel()
+            })
+
+          Button('返回主页')
+            .width('80%')
+            .margin({ top: 16 })
+            .onClick((): void => {
+              this.pageStack.pop()
+            })
+        }
+        .width('100%')
+        .justifyContent(FlexAlign.Center)
+        .padding(20)
+      }
+      .width('100%')
+      .height('100%')
+    }
+    .hideTitleBar(true)
+    .onReady((context): void => {
+      this.pageStack = context.pathStack
+      this.currentPageName = context.pathInfo.name ?? 'unknown'
+      hilog.info(DOMAIN, TAG, `CpuStressTestPage onReady, name=${this.currentPageName}`)
+
+      this.refreshThermalLevel()
+      this.thermalPollTimerId = setInterval((): void => {
+        this.refreshThermalLevel()
+      }, 1000)
+    })
+    .onBackPressed((): boolean => {
+      this.stopCpuStress()
+      this.pageStack.pop()
+      return true
+    })
+  }
+
+  private startCpuStress(): void {
+    if (this.isCpuStressRunning) {
+      return
+    }
+
+    this.isCpuStressRunning = true
+    this.stopStressFlag = false
+    this.cpuStressRounds = 0
+    hilog.info(DOMAIN, TAG, 'CpuStressTestPage: cpu stress started')
+
+    this.runCpuStressLoop()
+  }
+
+  private stopCpuStress(): void {
+    this.stopStressFlag = true
+    this.isCpuStressRunning = false
+    hilog.info(DOMAIN, TAG, 'CpuStressTestPage: cpu stress stopped')
+  }
+
+  private async runCpuStressLoop(): Promise<void> {
+    while (!this.stopStressFlag) {
+      this.cpuStressRounds += 1
+
+      this.burnCpuFor(950)
+      this.refreshThermalLevel()
+
+      if (this.currentThermalLevel >= 3) {
+        hilog.info(DOMAIN, TAG, `CpuStressTestPage: thermal level ${this.currentThermalLevelName}, auto stop`)
+        this.stopCpuStress()
+        break
+      }
+
+      await this.sleep(50)
+    }
+  }
+
+  private burnCpuFor(durationMs: number): void {
+    let end: number = Date.now() + durationMs
+    let acc: number = 0
+
+    while (Date.now() < end && !this.stopStressFlag) {
+      for (let i: number = 1; i < 300000; i++) {
+        acc += Math.sqrt(i % 997) * Math.sin(i) * Math.cos(i % 359)
+      }
+    }
+
+    if (acc < 0) {
+      hilog.debug(DOMAIN, TAG, `acc=${acc}`)
+    }
+  }
+
+  private refreshThermalLevel(): void {
+    try {
+      let level: number = thermal.getLevel()
+      this.currentThermalLevel = level
+      this.currentThermalLevelName = levelToName(level)
+    } catch (_) {
+      this.currentThermalLevel = -1
+      this.currentThermalLevelName = 'UNKNOWN'
+    }
+  }
+
+  private sleep(ms: number): Promise<void> {
+    return new Promise<void>((resolve: () => void): void => {
+      setTimeout((): void => {
+        resolve()
+      }, ms)
+    })
+  }
 }

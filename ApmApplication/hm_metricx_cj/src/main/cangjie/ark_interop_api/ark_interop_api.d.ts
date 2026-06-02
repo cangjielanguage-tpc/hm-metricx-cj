@@ -522,7 +522,7 @@ export declare interface CustomLib {
     destroyExitInfoHandler(): void
     destroyExitInfoHandlerWrapper(): void
     // ==================== High CPU Monitor 互操作方法 ====================
-    initHighCpuMonitorHandlerInterop(getCpuUsage: () => number, getAppThreadCpuUsageJson: () => string, repeatHighCpuSample: (funcArg0: () => void) => void, repeatHighCpuReport: (funcArg0: () => void) => void, reportHighCpuInfoJson: (funcArg0: string) => void): void
+    initHighCpuMonitorHandlerInterop(getCpuUsage: () => number, getAppThreadCpuUsageJson: () => string, onNavDestinationSwitch: (funcArg0: (funcArgfuncArg0: string) => void) => void, repeatHighCpuSample: (funcArg0: () => void) => void, repeatHighCpuReport: (funcArg0: () => void) => void, reportHighCpuInfoJson: (funcArg0: string) => void): void
     onAppForegroundInterop(): void
     onAppBackgroundInterop(): void
     startHighCpuMonitorInterop(config: InteropHighCpuMonitorConfig): void
