@@ -281,42 +281,51 @@ let updataPageMapCallback: (upload: Int64, download: Int64, pageName: String) ->
         pageTxStart = upload
         pageRxStart = download
 }
+// 检测日期切换，将昨天的流量数据迁移到 YESTERDAY 字段
+// 需要在检查昨日流量上报之前调用，确保数据已正确迁移
+private func checkDateSwitch(): Unit {
+    let todayDate: String = getTodayDate()
+    let todayDateStored: String = getStoredData(KEY_TODAY_DATE)
+    if (!todayDateStored.isEmpty() && todayDate != todayDateStored) {
+        // update yesterday data
+        setStoredData(KEY_YESTERDAY_DATE, getStoredData(KEY_TODAY_DATE))
+        setStoredData(KEY_YESTERDAY_UPLOAD, getStoredData(KEY_TODAY_UPLOAD))
+        setStoredData(KEY_YESTERDAY_DOWNLOAD, getStoredData(KEY_TODAY_DOWNLOAD))
+        setStoredData(KEY_YESTERDAY_REPORTED, "false")
+
+        // reset today data
+        setStoredData(KEY_TODAY_DATE, todayDate)
+        setStoredData(KEY_TODAY_UPLOAD, "0")
+        setStoredData(KEY_TODAY_DOWNLOAD, "0")
+    }
+}
+
 let updateDayTrafficCallback: (upload: Int64, download: Int64) -> Unit = {
     upload: Int64, download: Int64 =>
-        let todayDate: String = getTodayDate()
-        let todayDateStored: String = getStoredData(KEY_TODAY_DATE)
-        if (!todayDateStored.isEmpty() && todayDate != todayDateStored) {
-            // update yesterday data
-            setStoredData(KEY_YESTERDAY_DATE, getStoredData(KEY_TODAY_DATE))
-            setStoredData(KEY_YESTERDAY_UPLOAD, getStoredData(KEY_TODAY_UPLOAD))
-            setStoredData(KEY_YESTERDAY_DOWNLOAD, getStoredData(KEY_TODAY_DOWNLOAD))
-            setStoredData(KEY_YESTERDAY_REPORTED, "false")
+        // 先检测日期切换
+        checkDateSwitch()
 
-            // reset today data
-            setStoredData(KEY_TODAY_DATE, todayDate)
-            setStoredData(KEY_TODAY_UPLOAD, "0")
-            setStoredData(KEY_TODAY_DOWNLOAD, "0")
-        } else {
-            setStoredData(KEY_TODAY_DATE, todayDate)
-            // upload
-            let todayUpload: Int64 = Int64
-                .tryParse(getStoredData(KEY_TODAY_UPLOAD))
-                .getOrDefault({=> 0})
-            let prevUpload: Int64 = Int64
-                .tryParse(getStoredData(KEY_CURRENT_UPLOAD))
-                .getOrDefault({=> 0})
-            let newUpload: Int64 = todayUpload + upload - prevUpload
-            setStoredData(KEY_TODAY_UPLOAD, newUpload.toString())
-            // download
-            let todayDownload: Int64 = Int64
-                .tryParse(getStoredData(KEY_TODAY_DOWNLOAD))
-                .getOrDefault({=> 0})
-            let prevDownload: Int64 = Int64
-                .tryParse(getStoredData(KEY_CURRENT_DOWNLOAD))
-                .getOrDefault({=> 0})
-            let newDownload: Int64 = todayDownload + download - prevDownload
-            setStoredData(KEY_TODAY_DOWNLOAD, newDownload.toString())
-        }
+        // 更新今日流量累计
+        setStoredData(KEY_TODAY_DATE, getTodayDate())
+        // upload
+        let todayUpload: Int64 = Int64
+            .tryParse(getStoredData(KEY_TODAY_UPLOAD))
+            .getOrDefault({=> 0})
+        let prevUpload: Int64 = Int64
+            .tryParse(getStoredData(KEY_CURRENT_UPLOAD))
+            .getOrDefault({=> 0})
+        let newUpload: Int64 = todayUpload + upload - prevUpload
+        setStoredData(KEY_TODAY_UPLOAD, newUpload.toString())
+        // download
+        let todayDownload: Int64 = Int64
+            .tryParse(getStoredData(KEY_TODAY_DOWNLOAD))
+            .getOrDefault({=> 0})
+        let prevDownload: Int64 = Int64
+            .tryParse(getStoredData(KEY_CURRENT_DOWNLOAD))
+            .getOrDefault({=> 0})
+        let newDownload: Int64 = todayDownload + download - prevDownload
+        setStoredData(KEY_TODAY_DOWNLOAD, newDownload.toString())
+
         setStoredData(KEY_CURRENT_UPLOAD, upload.toString())
         setStoredData(KEY_CURRENT_DOWNLOAD, download.toString())
 }
@@ -359,6 +368,10 @@ public func initTrafficHandler(
     tPreference = preference
     reportTrafficCallback = reportTraffic
     SAMPLE_THRESHOLD = sampleThreshold
+
+    // 初始化时先检测日期切换，确保昨日流量数据已正确迁移
+    checkDateSwitch()
+
     let reportPendingYesterdayTraffic = {
         =>
             let yesterdayTraffic = getYesterdayTraffic()

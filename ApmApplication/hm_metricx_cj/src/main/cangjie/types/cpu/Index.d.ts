@@ -50,6 +50,7 @@ export declare function initCpuHandlerInterop(getCpuUsage: () => number, onNavDe
 export declare function initHighCpuMonitorHandlerInterop(
     getCpuUsage: () => number,
     getAppThreadCpuUsageJson: () => string,
+    onNavDestinationSwitch: (funcArg0: (funcArgfuncArg0: string) => void) => void,
     repeatHighCpuSample: (funcArg0: () => void) => void,
     repeatHighCpuReport: (funcArg0: () => void) => void,
     reportHighCpuInfoJson: (funcArg0: string) => void

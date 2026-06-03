@@ -29,6 +29,7 @@ public func initCpuHandlerInterop(
  *
  * @param getCpuUsage 获取 CPU 使用率的回调（由 ArkTS 传入）
  * @param getAppThreadCpuUsageJson 获取线程 CPU 使用率 JSON 的回调（由 ArkTS 传入）
+ * @param onNavDestinationSwitch 页面切换回调（由 ArkTS 传入，用于更新当前页面名称）
  * @param repeatHighCpuSample 重复采样回调（由 ArkTS 传入，用于启动采样定时器）
  * @param repeatHighCpuReport 重复上报回调（由 ArkTS 传入，用于启动上报定时器）
  * @param reportHighCpuInfoJson 高 CPU 占用上报回调（JSON 字符串格式）
@@ -37,6 +38,7 @@ public func initCpuHandlerInterop(
 public func initHighCpuMonitorHandlerInterop(
     getCpuUsage: () -> Float64,
     getAppThreadCpuUsageJson: () -> String,
+    onNavDestinationSwitch: ((String) -> Unit) -> Unit,
     repeatHighCpuSample: (() -> Unit) -> Unit,
     repeatHighCpuReport: (() -> Unit) -> Unit,
     reportHighCpuInfoJson: (String) -> Unit
@@ -49,6 +51,7 @@ public func initHighCpuMonitorHandlerInterop(
     initHighCpuMonitorHandlerInternal(
         getCpuUsage,
         getAppThreadCpuUsageJson,
+        onNavDestinationSwitch,
         repeatHighCpuSample,
         repeatHighCpuReport,
         wrappedReportCallback

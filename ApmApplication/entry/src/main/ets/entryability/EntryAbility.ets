@@ -114,23 +114,13 @@ initCrashHandler(
     initTrafficHandler(
       this.context,
       data => {
-        hilog.error(
-          0x0000,
-          'cangjie',
-          'traffic data: %{public}s',
-          `current_total = ${data.systemInfo.total}, current_upTotal = ${data.systemInfo.upTotal}, current_downTotal = ${data.systemInfo.downTotal}`
-        );
+        hilog.error(0x0000, 'traffic', '=== 实时流量上报 ===');
+        hilog.error(0x0000, 'traffic', `total: ${data.systemInfo.total}`);
       },
       data => {
-        hilog.error(
-          0x0000,
-          'cangjie',
-          'traffic data: %{public}s',
-          `data.systemInfo.total = ${data.total}
-           data.systemInfo.upTotal = ${data.upTotal}
-           data.systemInfo.downTotal = ${data.downTotal}
-          `
-        );
+        hilog.error(0x0000, 'traffic', '=== 昨日流量上报 ===');
+        hilog.error(0x0000, 'traffic', `date: ${data.date}`);
+        hilog.error(0x0000, 'traffic', `total: ${data.total}, up: ${data.upTotal}, down: ${data.downTotal}`);
       },
       5000,
       5
