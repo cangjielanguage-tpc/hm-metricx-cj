@@ -273,8 +273,8 @@ public interface TrafficPreference {
     func get(key: String, defaultValue: String): String
 }
 
-let updataPageMapCallback: (upload: Int64, download: Int64, pageName: String) -> Unit = {
-    upload: Int64, download: Int64, pageName: String =>
+let updataPageMapCallback: (download: Int64, upload: Int64, pageName: String) -> Unit = {
+    download: Int64, upload: Int64, pageName: String =>
         let curTx = upload - pageTxStart
         let curRx = download - pageRxStart
         updatePageMap(pageName, curTx, curRx)
@@ -300,8 +300,8 @@ private func checkDateSwitch(): Unit {
     }
 }
 
-let updateDayTrafficCallback: (upload: Int64, download: Int64) -> Unit = {
-    upload: Int64, download: Int64 =>
+let updateDayTrafficCallback: (download: Int64, upload: Int64) -> Unit = {
+    download: Int64, upload: Int64 =>
         // 先检测日期切换
         checkDateSwitch()
 
@@ -329,8 +329,8 @@ let updateDayTrafficCallback: (upload: Int64, download: Int64) -> Unit = {
         setStoredData(KEY_CURRENT_UPLOAD, upload.toString())
         setStoredData(KEY_CURRENT_DOWNLOAD, download.toString())
 }
-let sampleCallback: (upload: Int64, download: Int64, pageName: String) -> Unit = {
-    upload: Int64, download: Int64, pageName: String =>
+let sampleCallback: (download: Int64, upload: Int64, pageName: String) -> Unit = {
+    download: Int64, upload: Int64, pageName: String =>
         if (!inited) {
             inited = true
         } else {
@@ -353,14 +353,14 @@ let sampleCallback: (upload: Int64, download: Int64, pageName: String) -> Unit =
         pageTxStart = upload
         pageRxStart = download
         pageTrafficMap.clear()
-        updateDayTrafficCallback(upload, download)
+        updateDayTrafficCallback(download, upload)
 }
 
 public func initTrafficHandler(
     preference: TrafficPreference,
     onNavDestinationSwitch: (cb: (targetPageName: String) -> Unit) -> Unit,
     repeatSampleTraffic: (sample: () -> Unit) -> Unit,
-    getUidRxAndTxBytes: (cb: (rxBytes: Int64, txBytes: Int64, pageName: String) -> Unit, pageName: String) -> Unit,
+    getUidRxAndTxBytes: (cb: (download: Int64, upload: Int64, pageName: String) -> Unit, pageName: String) -> Unit,
     reportTraffic: (sampleTraffixInfo: InteropSampleTrafficInfo) -> Unit,
     reportYesterdayTraffic: (yesterdayTraffic: InteropDayTrafficInfo) -> Unit,
     sampleThreshold!: Int64 = 50 * 1024 * 1024
@@ -388,6 +388,9 @@ public func initTrafficHandler(
             reportPendingYesterdayTraffic()
         }, currentPageName)
     }
+    // 注意：ArkTS 回调参数顺序为 (rxBytes, txBytes, pageName)
+    // 仓颉侧回调参数顺序为 (download, upload, pageName)
+    // rxBytes = 下行(download), txBytes = 上行(upload)
     doTrafficSample()
     onNavDestinationSwitch(
         {
@@ -434,6 +437,6 @@ private func getYesterdayTraffic(): Option<InteropDayTrafficInfo> {
     }
 }
 
-public func destroyTrafficHandler(getUidRxAndTxBytes: (cb: (rxBytes: Int64, txBytes: Int64) -> Unit) -> Unit) {
+public func destroyTrafficHandler(getUidRxAndTxBytes: (cb: (download: Int64, upload: Int64) -> Unit) -> Unit) {
     getUidRxAndTxBytes(updateDayTrafficCallback)
 }
