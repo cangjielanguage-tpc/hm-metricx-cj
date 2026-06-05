@@ -1,6 +1,20 @@
 {
   "app": {
-    "signingConfigs": [],
+    "signingConfigs": [
+      {
+        "name": "default",
+        "type": "HarmonyOS",
+        "material": {
+          "certpath": "C:\\Users\\Administrator\\.ohos\\config\\default_hm-metricx-cj_7aUNDdZIqxhstFjbtIshWXq3gZVh2Gej5-OzNkiiqQE=.cer",
+          "keyAlias": "debugKey",
+          "keyPassword": "0000001B4451DA8D9BBC26BC3B46C8EC10D6A8CED02A8242358C26A8FC59A8BF111F338C285C03BF9F8E22",
+          "profile": "C:\\Users\\Administrator\\.ohos\\config\\default_hm-metricx-cj_7aUNDdZIqxhstFjbtIshWXq3gZVh2Gej5-OzNkiiqQE=.p7b",
+          "signAlg": "SHA256withECDSA",
+          "storeFile": "C:\\Users\\Administrator\\.ohos\\config\\default_hm-metricx-cj_7aUNDdZIqxhstFjbtIshWXq3gZVh2Gej5-OzNkiiqQE=.p12",
+          "storePassword": "0000001BFDAA1409E127DB3CAEDA713A0280E6D8F8F5AEDDE75D503C5FD59A8650B083CD1F168313012B02"
+        }
+      }
+    ],
     "products": [
       {
         "name": "default",
@@ -27,8 +41,8 @@
   },
   "modules": [
     {
-      "name": "entry",
-      "srcPath": "./entry",
+      "name": "entryEts",
+      "srcPath": "./entryEts",
       "targets": [
         {
           "name": "default",
