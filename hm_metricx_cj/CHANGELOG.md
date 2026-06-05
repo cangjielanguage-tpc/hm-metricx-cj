@@ -1,10 +1,6 @@
 # Changelog
 
-<<<<<<<< 36c2840186ba4a66accdc0037d12e912642dd330:hm_metricx_cj/CHANGELOG.md
 ## 1.0.22
-========
-## 1.0.21
->>>>>>>> cdbb5e4bdf1f9faec1b62cd40ac634e5a8a47500:CHANGELOG.md
 
 - 调整项目结构，将 ApmApplication 目录内容提升至项目根目录
 - 修正流量回调参数顺序，修复上下行流量反转问题
