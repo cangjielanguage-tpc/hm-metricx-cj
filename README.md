@@ -5,7 +5,7 @@
 <p align="center">
 <img alt="" src="https://img.shields.io/badge/release-v1.0.1-brightgreen" style="display: inline-block;" />
 <img alt="" src="https://img.shields.io/badge/build-pass-brightgreen" style="display: inline-block;" />
-<img alt="" src="https://img.shields.io/badge/cjc-v1.0.1-brightgreen" style="display: inline-block;" />
+<img alt="" src="https://img.shields.io/badge/cjc-v1.1.0-brightgreen" style="display: inline-block;" />
 <img alt="" src="https://img.shields.io/badge/cjcov-NA-red" style="display: inline-block;" />
 <img alt="" src="https://img.shields.io/badge/project-open-brightgreen" style="display: inline-block;" />
 </p>
@@ -16,22 +16,18 @@
 
 `hm-metricx-cj` 系统性地采集和分析监控指标数据，帮助开发团队及时发现性能瓶颈和异常，持续优化应用质量，提升用户体验。
 
-> **注意：**
->
->`hm-metricx-cj`当前处于实验阶段，暂不建议使用，否则可能出现未知问题。
-
-## 使用流程，基于DevEco6.0.0.878和相对应的SDK
-#### noohos_pulish分支
-- 在file -> project structure -> signing Configs: ☑️勾选Automatically generate signature，然后apply再点ok。
-- 点中hm_metricx_cj文件夹，然后再Build -> make moudle "hm_metricx_cj", 之后会产生一个hm_metricx_cj.har文件。
-- 在entry里创建一个libs文件夹（跟src同级），然后把hm_metricx_cj.har放入libs，同时在entry中的oh-package.json5中uncomment(去掉//) "@cangjie-tpc/hm_metricx_cj_hybrid": "file:./libs/hm_metricx_cj.har"。
-- 然后点运行即可。
-
 ## 优势
 
 - 覆盖范围广，支持收集多种量化指标
 - 简单便捷，使用无需繁琐的配置
 - 轻量高效，可在线上使用
+
+## 使用流程，基于DevEco6.0.0.878和相对应的SDK 
+
+ - 在file -> project structure -> signing Configs: ☑️勾选Automatically generate signature，然后apply再点ok。 
+ - 点中hm_metricx_cj文件夹，然后再Build -> make moudle "hm_metricx_cj", 之后会产生一个hm_metricx_cj.har文件。 
+ - 在entry里创建一个libs文件夹（跟src同级），然后把hm_metricx_cj.har放入libs，同时在entry中的oh-package.json5中uncomment(去掉//) "@cangjie-tpc/hm_metricx_cj_hybrid": "file:./libs/hm_metricx_cj.har"。 
+ - 然后点运行即可。
 
 ### 特性
 
@@ -144,7 +140,7 @@ export default class EntryAbility extends UIAbility {
 
 ## 约束与限制
 
-当前基于 DevEco Studio 5.1.1.823 和 DevEco Studio Cangjie Plugin Canary 5.1.1.823 版本实现。
+当前分支基于 DevEco Studio 6.1.1.280 和 DevEco Studio-Cangjie Plugin 6.1.1 Beta1 版本实现。
 
 1. crash 事件监控限制：
    1. 暂不支持收集存活仓颉线程数/仓颉线程名
