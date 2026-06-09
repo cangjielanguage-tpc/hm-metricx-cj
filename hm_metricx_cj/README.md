@@ -133,7 +133,7 @@ export default class EntryAbility extends UIAbility {
 
 ## 约束与限制
 
-当前基于 DevEco Studio 5.1.1.823 和 DevEco Studio Cangjie Plugin Canary 5.1.1.823 版本实现。
+当前分支基于 DevEco Studio 6.1.1.280 和 DevEco Studio-Cangjie Plugin 6.1.1 Beta1 版本实现。
 
 1. crash 事件监控限制：
    1. 暂不支持收集存活仓颉线程数/仓颉线程名
