@@ -20,7 +20,7 @@
 >
 >`hm-metricx-cj`当前处于实验阶段，暂不建议使用，否则可能出现未知问题。
 
-## 使用流程，基于DevEco6.0.0.878和相对应的SDK，STDX
+## 使用流程，基于DevEco6.0.0.878和相对应的SDK
 #### noohos_pulish分支
 - 在file -> project structure -> signing Configs: ☑️勾选Automatically generate signature，然后apply再点ok。
 - 点中hm_metricx_cj文件夹，然后再Build -> make moudle "hm_metricx_cj", 之后会产生一个hm_metricx_cj.har文件。
