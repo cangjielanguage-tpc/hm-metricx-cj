@@ -22,7 +22,7 @@
 - 简单便捷，使用无需繁琐的配置
 - 轻量高效，可在线上使用
 
-## 使用流程，基于DevEco6.0.0.878和相对应的SDK 
+## 使用流程，基于 DevEco Studio 6.1.1.280 和 DevEco Studio-Cangjie Plugin 6.1.1 Beta1
 
  - 在file -> project structure -> signing Configs: ☑️勾选Automatically generate signature，然后apply再点ok。 
  - 点中hm_metricx_cj文件夹，然后再Build -> make moudle "hm_metricx_cj", 之后会产生一个hm_metricx_cj.har文件。 
