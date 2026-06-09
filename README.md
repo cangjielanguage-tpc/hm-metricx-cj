@@ -101,7 +101,7 @@
 
 ### 集成方式
 
-1. 在项目中使用 `hm_metricx_cj` 项目
+ 在项目中使用 `hm_metricx_cj` 项目
    ```arkts
    import { initCrashHandler } from '@cangjie-tpc/hm_metricx_cj_hybrid'
    ```
