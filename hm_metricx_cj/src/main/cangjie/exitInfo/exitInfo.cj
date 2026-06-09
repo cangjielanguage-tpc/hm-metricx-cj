@@ -6,7 +6,6 @@ import ohos.ark_interop.*
 import ohos.ark_interop_macro.*
 import std.fs.*
 import std.convert.*
-import stdx.encoding.json.*
 import ohos_app_cangjie_hm_metricx_cj.util.readFile
 
 // ---------------- 全局状态 ----------------
@@ -209,11 +208,7 @@ public class SwipeKillInfo {
     }
 
     public func toString(): String {
-        let jsonObj = JsonObject()
-        jsonObj.put("timestamp", JsonString(timestamp.toString()))
-        jsonObj.put("isUserSwipeKill", JsonString(isUserSwipeKill.toString()))
-        jsonObj.put("exitInfo", JsonString(exitInfo))
-        return jsonObj.toString()
+        return "{\"timestamp\": \"${timestamp}\", \"isUserSwipeKill\": \"${isUserSwipeKill}\", \"exitInfo\": \"${exitInfo}}\""
     }
 }
 
