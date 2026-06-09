@@ -164,14 +164,14 @@ public interface DisplaySync {
 }
 
 public class JSHelper {
-    static let ctx: JSContext
+    static var ctx: ?JSContext = None
     static init() {
         JSModule.registerModule({
             context, export => ctx = context
         })
     }
     public static func postJSTask(callback: () -> Unit): Unit {
-        ctx.postJSTask(callback)
+        ctx?.postJSTask(callback)
     }
 }
 
