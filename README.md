@@ -101,14 +101,7 @@
 
 ### 集成方式
 
-1. 下载安装
-   通过中心仓下载安装
-
-      ```sh
-      ohpm install @cangjie-tpc/hm_metricx_cj_hybrid
-      ```
-
-2. 在项目中使用 `hm_metricx_cj` 项目
+1. 在项目中使用 `hm_metricx_cj` 项目
    ```arkts
    import { initCrashHandler } from '@cangjie-tpc/hm_metricx_cj_hybrid'
    ```
