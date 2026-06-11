@@ -1,4 +1,4 @@
-package ohos_app_cangjie_hm_metricx_cj.exitInfo
+package hm_metricx_cj.exitInfo
 
 import ohos.base.AppLog
 import std.time.*
@@ -6,7 +6,7 @@ import ohos.ark_interop.*
 import ohos.ark_interop_macro.*
 import std.fs.*
 import std.convert.*
-import ohos_app_cangjie_hm_metricx_cj.util.readFile
+import hm_metricx_cj.util.readFile
 
 // ---------------- 全局状态 ----------------
 var currentAppState: String = "foreground"
@@ -208,7 +208,7 @@ public class SwipeKillInfo {
     }
 
     public func toString(): String {
-        return "{\"timestamp\": \"${timestamp}\", \"isUserSwipeKill\": \"${isUserSwipeKill}\", \"exitInfo\": \"${exitInfo}}\""
+        return "{\"timestamp\": \"${timestamp}\", \"isUserSwipeKill\": \"${isUserSwipeKill}\", \"exitInfo\": \"${exitInfo}\"}"
     }
 }
 

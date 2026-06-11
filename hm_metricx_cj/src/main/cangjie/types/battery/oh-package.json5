@@ -1,5 +1,5 @@
 {
-  "name": "libohos_app_cangjie_hm_metricx_cj.battery.so",
+  "name": "libhm_metricx_cj.battery.so",
   "types": "./Index.d.ts",
   "version": "1.0.0",
   "description": ""

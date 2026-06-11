@@ -1,5 +1,5 @@
 
-package ohos_app_cangjie_hm_metricx_cj.battery
+package hm_metricx_cj.battery
 
 import ohos.ark_interop_macro.*
 import ohos.ark_interop.*

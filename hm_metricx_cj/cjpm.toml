@@ -3,7 +3,7 @@
   compile-option = "--dy-std --cfg=\"${COMPILE_CONDITION}\" --debug-macro"
   description = "CangjieUI Application"
   link-option = ""
-  name = "ohos_app_cangjie_hm_metricx_cj"
+  name = "hm_metricx_cj"
   output-type = "dynamic"
   src-dir = "./src/main/cangjie"
   target-dir = ""

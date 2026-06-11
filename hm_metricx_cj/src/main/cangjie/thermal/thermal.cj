@@ -1,9 +1,9 @@
 /*
  * Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
  */
-package ohos_app_cangjie_hm_metricx_cj.thermal
+package hm_metricx_cj.thermal
 
-import ohos_app_cangjie_hm_metricx_cj.util.*
+import hm_metricx_cj.util.*
 import std.time.*
 import ohos.base.AppLog
 import ohos.ark_interop_macro.*

@@ -1,9 +1,9 @@
 /**
  * Created on 2025/3/28
  */
-package ohos_app_cangjie_hm_metricx_cj.freeze
+package hm_metricx_cj.freeze
 
-import ohos_app_cangjie_hm_metricx_cj.util.*
+import hm_metricx_cj.util.*
 import std.fs.*
 import std.collection.*
 import ohos.ark_interop_macro.*
