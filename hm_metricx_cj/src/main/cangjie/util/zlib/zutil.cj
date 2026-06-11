@@ -11,7 +11,7 @@
  *
  * Defines common constants/type/function for compression/decompression
  */
-package ohos_app_cangjie_hm_metricx_cj.util.zlib
+package hm_metricx_cj.util.zlib
 
 const DEFAULTCOMPRESSION_LEVEL: Int32 = 6
 const MAX_WBITS: Int32 = 15

@@ -1,9 +1,9 @@
 
-package ohos_app_cangjie_hm_metricx_cj.thermal
+package hm_metricx_cj.thermal
 
 import ohos.ark_interop_macro.*
 import ohos.ark_interop.*
-import ohos_app_cangjie_hm_metricx_cj.util.JSHelper
+import hm_metricx_cj.util.JSHelper
 
 
 var thermalWrapperDestroyed: Bool = false

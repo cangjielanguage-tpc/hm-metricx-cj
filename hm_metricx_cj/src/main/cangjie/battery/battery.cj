@@ -1,9 +1,9 @@
 /**
  * Created on 2025/9/20
  */
-package ohos_app_cangjie_hm_metricx_cj.battery
+package hm_metricx_cj.battery
 
-import ohos_app_cangjie_hm_metricx_cj.util.*
+import hm_metricx_cj.util.*
 import std.convert.*
 import std.fs.*
 import std.time.*

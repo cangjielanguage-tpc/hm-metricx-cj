@@ -1,7 +1,7 @@
 /**
  * Created on 2025/9/23
  */
-package ohos_app_cangjie_hm_metricx_cj.util
+package hm_metricx_cj.util
 
 import ohos.ark_interop_macro.*
 import ohos.ark_interop.*

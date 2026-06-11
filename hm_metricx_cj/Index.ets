@@ -63,12 +63,12 @@ if (process.pid != process.tid) {
   throw new Error("Does not work on worker")
 }
 
-const cjLib = requireCJLib('libohos_app_cangjie_hm_metricx_cj.wrapper.so') as CustomLib;
+const cjLib = requireCJLib('libhm_metricx_cj.wrapper.so') as CustomLib;
 
 // 动态加载功能库：如果库不存在则返回 null
 function loadCJLibSafe(feature: string): CustomLib | null {
   try {
-    return requireCJLib(`libohos_app_cangjie_hm_metricx_cj.${feature}.so`) as CustomLib;
+    return requireCJLib(`libhm_metricx_cj.${feature}.so`) as CustomLib;
   } catch (e) {
     return null;
   }
@@ -124,7 +124,7 @@ let offHighCpu = () => {
 };
 
 // @Concurrent function worker(){
-//   requireCJLib(`libohos_app_cangjie_hm_metricx_cj.traffic.so`) as CustomLib;
+//   requireCJLib(`libhm_metricx_cj.traffic.so`) as CustomLib;
 //   return
 // }
 

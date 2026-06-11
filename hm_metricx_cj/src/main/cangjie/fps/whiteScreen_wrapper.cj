@@ -1,4 +1,4 @@
-package ohos_app_cangjie_hm_metricx_cj.fps
+package hm_metricx_cj.fps
 
 import ohos.ark_interop_macro.*
 import ohos.ark_interop.*

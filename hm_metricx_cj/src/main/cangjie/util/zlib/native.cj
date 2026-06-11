@@ -12,7 +12,7 @@
  * This is a class library that implements compression functions.
  * Provides streaming compression interfaces such as deflateInit, deflate, deflateEnd, deflateBound, setGzipHeader, and setDictionary.
  */
-package ohos_app_cangjie_hm_metricx_cj.util.zlib
+package hm_metricx_cj.util.zlib
 
 @C
 struct ZlibStream {
