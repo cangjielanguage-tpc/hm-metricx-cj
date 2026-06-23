@@ -5,6 +5,7 @@ package ohos_app_cangjie_hm_metricx_cj.thermal
 
 import ohos_app_cangjie_hm_metricx_cj.util.*
 import std.time.*
+import std.runtime.getProcessorCount
 import ohos.base.AppLog
 import ohos.ark_interop_macro.*
 import ohos.ark_interop.*
@@ -24,6 +25,7 @@ public class InteropThermalEventInfo {
     public var isForeground: Bool = true
     public var durationMs: Int64 = 0
     public var timestamp: Int64 = 0
+    public var cpuNum: Int32 = -1
 
     public init() {}
 }
@@ -55,6 +57,9 @@ var lastLevelInt: Int32 = -1
 var levelStartTime: Int64 = 0
 var lastReportTime: Int64 = 0
 var lastAbnormalState: Bool = false
+
+// CPU 核心数：静态系统属性，init 时读取一次缓存即可
+var cpuNum: Int32 = -1
 
 var started: Bool = false
 var destroyed: Bool = false
@@ -113,6 +118,7 @@ private func buildEvent(levelInt: Int32, prevLevel: Int32, now: Int64): InteropT
     info.isForeground = isForeground
     info.durationMs = now - levelStartTime
     info.timestamp = now
+    info.cpuNum = cpuNum
     info
 }
 
@@ -243,6 +249,9 @@ public func initThermalHandler(
     sampleIntervalMs = sampleInterval
     reportMinIntervalMs = reportMinInterval
     abnormalThresholdLevel = abnormalThreshold
+
+    // 读取并缓存 CPU 核心数（静态属性，整个生命周期内不变）
+    cpuNum = Int32(getProcessorCount())
 
     hooks.onAppStateChange(onAppForegroundCallBack, onAppBackgroundCallBack)
     hooks.onNavDestinationSwitch(onNavDestinationSwitchCallBack)

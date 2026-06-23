@@ -8,6 +8,7 @@ export declare interface InteropThermalEventInfo {
     isForeground: boolean
     durationMs: number
     timestamp: number
+    cpuNum: number
     constructor ()
 }
 

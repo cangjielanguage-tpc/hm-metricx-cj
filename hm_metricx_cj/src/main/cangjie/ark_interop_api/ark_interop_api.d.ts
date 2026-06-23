@@ -249,6 +249,7 @@ export declare class InteropThermalEventInfo {
     isForeground: boolean
     durationMs: number
     timestamp: number
+    cpuNum: number
 }
 
 export declare class InteropProcessCpuInfo {
