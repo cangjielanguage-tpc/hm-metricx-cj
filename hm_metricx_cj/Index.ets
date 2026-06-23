@@ -11,6 +11,7 @@ import {
   InteropCrashInfo as CrashInfo,
   InteropFreezeInfo as FreezeInfo,
   InteropSampleTrafficInfo as SampleTrafficInfo,
+  InteropPageTrafficInfo as PageTrafficInfo,
   InteropStorageInfo as StorageInfo,
   TrafficPreference,
   InteropProcessCpuInfo as ProcessCpuInfo,
@@ -175,6 +176,21 @@ export function destroyTrafficHandler(): void {
   cjLibTraffic.destroyTrafficHandlerInterop((cb: (rxBytes: number, txBytes: number) => void) => {
     getUidRxAndTxBytes(cb, '');
   });
+}
+
+/**
+ * 获取当前页面从进入到调用时刻期间的完整流量增量，调用后自动清零，供下一页面计数。
+ * 上层在页面切换（离开上一页）时调用，即可拿到上一个页面从进入到离开期间的完整流量增量，
+ * 用于发热异常快照中关联当前页面的流量消耗。
+ *
+ * 注意：结果经回调异步返回（底层 statistics API 返回 Promise）。
+ */
+export function getAndResetCurrentPageTraffic(onResult: (info: PageTrafficInfo) => void): void {
+  if (!cjLibTraffic) {
+    hilog.warn(DOMAIN, TAG, 'getAndResetCurrentPageTraffic called but traffic module is disabled');
+    return;
+  }
+  cjLibTraffic.getAndResetCurrentPageTrafficInterop(onResult);
 }
 
 export function initStorageHandler(

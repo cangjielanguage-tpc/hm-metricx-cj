@@ -1,6 +1,7 @@
 import http from '@ohos.net.http'
 import { hilog } from '@kit.PerformanceAnalysisKit'
 import { thermal } from '@kit.BasicServicesKit'
+import { getAndResetCurrentPageTraffic } from '@cangjie-tpc/hm_metricx_cj_hybrid'
 
 const DOMAIN: number = 0x0021
 const TAG: string = 'thermal_traffic_test'
@@ -53,6 +54,15 @@ struct Index {
   @State failedCount: number = 0
   @State isTrafficRunning: boolean = false
   private stopTrafficFlag: boolean = false
+
+  // page traffic (getAndResetCurrentPageTraffic) test
+  @State pageTrafficUpTotal: number = 0
+  @State pageTrafficDownTotal: number = 0
+  @State pageTrafficPageName: string = ''
+  @State pageTrafficCallCount: number = 0
+  @State pageTrafficLastUp: number = 0
+  @State pageTrafficLastDown: number = 0
+  @State isPageTrafficWaiting: boolean = false
 
   // thermal display
   @State reportCount: number = 0
@@ -187,6 +197,16 @@ struct Index {
             this.stopTraffic()
           })
 
+        Button('获取页面流量增量(getAndReset)')
+          .onClick((): void => {
+            this.testGetAndResetCurrentPageTraffic()
+          })
+
+        Button('切页面+验证增量(自动)')
+          .onClick((): void => {
+            this.testPageTrafficWithSwitch()
+          })
+
         Button('CPU 热压测试页面（验证路由路径）')
           .onClick((): void => {
             this.pageStack.pushPath(new NavPathInfo('CpuStressTestPage', ''))
@@ -221,6 +241,14 @@ struct Index {
         Text(`下载字节: ${this.downloadBytes}`)
         Text(`请求次数: ${this.requestCount}`)
         Text(`失败次数: ${this.failedCount}`)
+
+        Text(`页面流量调用次数: ${this.pageTrafficCallCount}`)
+        Text(`页面流量上次 pageName: ${this.pageTrafficPageName}`)
+        Text(`页面流量上次 上传(deltaTx): ${this.pageTrafficLastUp}`)
+        Text(`页面流量上次 下载(deltaRx): ${this.pageTrafficLastDown}`)
+        Text(`页面流量累计 上传: ${this.pageTrafficUpTotal}`)
+        Text(`页面流量累计 下载: ${this.pageTrafficDownTotal}`)
+        Text(`页面流量等待中: ${this.isPageTrafficWaiting ? '是' : '否'}`)
 
         Text(`CPU热压状态: ${this.isCpuStressRunning ? '运行中' : '已停止'}`)
         Text(`UI刷新状态: ${this.isUiStressRunning ? '运行中' : '已停止'}`)
@@ -373,6 +401,116 @@ struct Index {
   }
 
   // =========================
+  // page traffic (getAndResetCurrentPageTraffic)
+  // =========================
+
+  /**
+   * 方案A：手动触发一次 getAndResetCurrentPageTraffic。
+   * 在当前页面（首页）下直接调用，回调返回首页自上次 init/上次 getAndReset 以来的上传/下载增量，并自动重置基线。
+   */
+  private testGetAndResetCurrentPageTraffic(): void {
+    this.pageTrafficCallCount += 1
+    this.message = 'getAndResetCurrentPageTraffic 调用中…'
+    getAndResetCurrentPageTraffic((info): void => {
+      // InteropPageTrafficInfo: { total, upTotal, downTotal, pageName }
+      this.pageTrafficLastUp = info.upTotal
+      this.pageTrafficLastDown = info.downTotal
+      this.pageTrafficPageName = info.pageName
+      this.pageTrafficUpTotal += info.upTotal
+      this.pageTrafficDownTotal += info.downTotal
+      this.message = `getAndReset 完成: pageName=${info.pageName}, up=${info.upTotal}, down=${info.downTotal}, total=${info.total}`
+      hilog.info(DOMAIN, TAG,
+        `getAndResetCurrentPageTraffic result: pageName=${info.pageName} upTotal=${info.upTotal} downTotal=${info.downTotal} total=${info.total}`)
+    })
+  }
+
+  /**
+   * 方案B：自动验证“进入子页面→离开前”期间的流量增量。
+   *
+   * 设计依据：getAndResetCurrentPageTraffic 内部取调用瞬间的 currentPageName 作为归属页名，
+   * 该变量仅在 onNavDestinationSwitch（系统 navDestinationSwitch 事件）切页时更新为 targetPageName。
+   * 因此要正确归属到子页面，必须在子页面仍处于显示状态、currentPageName 尚为子页面名时调用。
+   *
+   * 流程：
+   *   1. 首页 getAndReset：清零首页基线（避免首页遗留流量混入子页面增量）。
+   *   2. push BlankPage：navDestinationSwitch 触发，currentPageName 切到 'BlankPage'。
+   *   3. 在 BlankPage 内持续下载 10s。
+   *   4. 下载结束、pop 返回首页之前调用 getAndReset：
+   *      此时 currentPageName 仍为 'BlankPage'，回调 pageName 应为 'BlankPage'，
+   *      增量反映 BlankPage 期间的真实流量（pageEnter 基线独立，不被周期采样截断）。
+   *   5. pop 返回首页。
+   *
+   * 注意：不要在 pop 之后调用，否则 currentPageName 已切回 'navRoot'，归属页会变成 navRoot
+   *      （增量数值仍正确，但 pageName 失真）。这正是上一版方案B 的缺陷。
+   */
+  private testPageTrafficWithSwitch(): void {
+    hilog.info(DOMAIN, TAG, '[方案B] 按钮点击，进入 testPageTrafficWithSwitch')
+    if (this.isPageTrafficWaiting) {
+      hilog.warn(DOMAIN, TAG, '[方案B] isPageTrafficWaiting=true，强制复位后继续（上次可能中断未复位）')
+      // 不再 return，强制复位，避免锁永久卡死导致功能不可用
+    }
+    this.isPageTrafficWaiting = true
+    this.message = '页面流量验证：先清零首页基线'
+
+    // 安全保险：无论如何 20s 后复位锁，避免回调丢失导致永久卡死
+    setTimeout((): void => {
+      if (this.isPageTrafficWaiting) {
+        hilog.warn(DOMAIN, TAG, '[方案B] 20s 超时保险触发，强制复位 isPageTrafficWaiting')
+        this.isPageTrafficWaiting = false
+      }
+    }, 20000)
+
+    // 1. 清零首页基线
+    getAndResetCurrentPageTraffic((_info): void => {
+      hilog.info(DOMAIN, TAG, '[方案B] 第1次 getAndReset 回调触发，准备 push BlankPage')
+      this.pageTrafficCallCount += 1
+      // 2. 跳转 BlankPage，navDestinationSwitch 会把 currentPageName 切到 'BlankPage'
+      this.message = '页面流量验证：跳转 BlankPage 开始下载'
+      // 传 'keep' 让 BlankPage 跳过自动 pop（白屏自恢复定时器），由本测试在下载结束后主动 pop。
+      // 否则 BlankPage 约 7.2s 后会自己弹回首页，导致第2次 getAndReset 时 currentPageName 已变 navRoot。
+      this.pageStack.pushPath(new NavPathInfo('BlankPage', 'keep'))
+
+      // 3. 等待页面切换事件落定后开始下载
+      setTimeout((): void => {
+        hilog.info(DOMAIN, TAG, '[方案B] 500ms 后开始 startDownloadTraffic')
+        this.startDownloadTraffic().then((): void => {
+          hilog.info(DOMAIN, TAG, '[方案B] startDownloadTraffic 完成，准备第2次 getAndReset')
+          // 4. 下载 10s 结束、仍在 BlankPage 显示时抓取增量
+          //    关键：必须在 pop 之前抓取，此时 currentPageName 仍为 'BlankPage'
+          this.message = '页面流量验证：BlankPage 下载结束，抓取增量'
+          this.pageTrafficCallCount += 1
+          getAndResetCurrentPageTraffic((info): void => {
+            hilog.info(DOMAIN, TAG,
+              `[方案B] 第2次 getAndReset 回调触发: pageName=${info.pageName} upTotal=${info.upTotal} downTotal=${info.downTotal} total=${info.total}`)
+            const pageName: string = info.pageName
+            const upTotal: number = info.upTotal
+            const downTotal: number = info.downTotal
+            const total: number = info.total
+            hilog.info(DOMAIN, TAG,
+              `page traffic verify result(BlankPage上抓取): pageName=${pageName} upTotal=${upTotal} downTotal=${downTotal} total=${total}`)
+            // 5. 抓取完成后返回首页
+            this.pageStack.pop()
+            // 6. 返回首页后再刷新 @State，确保 Index 组件已重新可见、能正确重绘
+            setTimeout((): void => {
+              this.pageTrafficLastUp = upTotal
+              this.pageTrafficLastDown = downTotal
+              this.pageTrafficPageName = pageName
+              this.pageTrafficUpTotal += upTotal
+              this.pageTrafficDownTotal += downTotal
+              this.isPageTrafficWaiting = false
+              this.message =
+                `页面流量验证完成: pageName=${pageName}, up=${upTotal}, down=${downTotal}, total=${total}`
+            }, 100)
+          })
+        }).catch((e: Error): void => {
+          hilog.error(DOMAIN, TAG, `[方案B] startDownloadTraffic 异常: ${e?.message ?? e}`)
+          this.isPageTrafficWaiting = false
+        })
+      }, 500)
+    })
+  }
+
+  // =========================
   // cpu stress
   // =========================
   private startCpuStress(): void {
@@ -519,6 +657,12 @@ struct BlankPage {
 
       let whiteDurationMs: number = 6000
       const param: string = context.pathInfo.param as string
+      // 传入 'keep'（非数字标记）时，跳过白屏自恢复与自动 pop 定时器，
+      // 由调用方在合适时机主动 pop（用于页面流量增量测试，避免页面提前弹出）。
+      if (param === 'keep') {
+        this.contentReady = true
+        return
+      }
       if (param && param.length > 0) {
         const parsed: number = Number(param)
         if (!isNaN(parsed)) {
