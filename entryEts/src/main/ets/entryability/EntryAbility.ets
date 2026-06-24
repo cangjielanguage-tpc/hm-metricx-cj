@@ -78,6 +78,13 @@ initCrashHandler(
           hilog.error(DOMAIN, 'hm_metricx_cj', 'crash fix === Crash Info ===');
           hilog.error(DOMAIN, 'hm_metricx_cj', 'crash fix rawFile: %{public}s', data.rawFile);
 
+          // 供首页展示上次崩溃（重启后 reportLastCrash 回吐的那一次）
+          try {
+            AppStorage.setOrCreate<string>('lastCrashText', data.rawFile ?? '');
+          } catch (e) {
+            hilog.error(DOMAIN, 'hm_metricx_cj', 'set lastCrashText failed: %{public}s', `${e}`);
+          }
+
           if (data.rawheapFilePath) {
             hilog.error(DOMAIN, 'hm_metricx_cj', 'crash fix === OOM Info ===');
             hilog.error(DOMAIN, 'hm_metricx_cj', 'crash fix rawheapFilePath: %{public}s', data.rawheapFilePath);
