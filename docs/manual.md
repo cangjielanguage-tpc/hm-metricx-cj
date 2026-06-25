@@ -375,6 +375,7 @@ export function initThermalHandler(
 - `threshold` 所指定异常的阈值
 - `isForeground` 是否在前台
 - `durationMs` 异常持续时长
+- `cpuNum` CPU 核心数
 
 使用示例：
 
@@ -1091,6 +1092,9 @@ export function initTrafficHandler(
 // 取消流量监控
 export function destroyTrafficHandler(): void
 
+// 获取当前页面从进入到调用时刻期间的完整流量增量，调用后自动清零，供下一页面计数
+export function getAndResetCurrentPageTraffic(onResult: (info: PageTrafficInfo) => void): void
+
 ```
 
 接口对app占用存储空间获取并进行上报。
@@ -1116,6 +1120,7 @@ export function destroyTrafficHandler(): void
 `SystemTrafficInfo` 在 `TrafficInfo` 基础上，添加如下信息：
 
 - `timeStamp` 时间戳，表示流量数据的采集时间
+- `bearerType` 本次上报的承载网类型，标注流量走的是 wlan 还是移动网络，取值为 `wifi`/`mobile`/`other`/`none`/`unknown`
 
 `PageTrafficInfo` 在 `TrafficInfo` 基础上，添加如下信息：
 
@@ -1124,6 +1129,8 @@ export function destroyTrafficHandler(): void
 `DayTrafficInfo` 在 `TrafficInfo` 基础上，添加如下信息：
 
 - `date` 日期
+
+`getAndResetCurrentPageTraffic` 用于获取当前页面从进入到调用时刻期间的完整流量增量，调用后基线自动清零，供下一页面重新计数。上层在页面切换（离开上一页）时调用，即可拿到上一个页面从进入到离开期间的完整流量增量，常用于发热异常快照中关联当前页面的流量消耗。结果经回调 `onResult` 异步返回（底层网络统计 API 返回 Promise）。回调参数为 `PageTrafficInfo`，归属页名取调用瞬间的当前页名。
 
 使用示例：
 

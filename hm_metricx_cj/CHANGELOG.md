@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.23
+
+- 发热异常回调增加 `cpuNum`（CPU 核心数）字段
+- 新增页面进入→离开完整流量增量获取接口 `getAndResetCurrentPageTraffic`
+- 流量上报增加承载网标注 `bearerType`（wlan/mobile），标注本次上报走的是 wifi 还是移动网络
+- 重构 entryEts 拆分为分层模块（common/components/pages/store），首页支持展示上次崩溃（重启回吐）
+
 ## 1.0.22
 
 - 调整项目结构，将 ApmApplication 目录内容提升至项目根目录
