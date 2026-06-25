@@ -389,6 +389,7 @@ export declare class InteropSystemTrafficInfo {
     upTotal: number
     downTotal: number
     timeStamp: string
+    bearerType: string
 }
 
 // ==================== High CPU Monitor 互操作类型定义 ====================
@@ -456,7 +457,7 @@ export declare interface CustomLib {
     SwipeKillInfo: {new (timestamp: number, isUserSwipeKill: boolean, exitInfo: string): SwipeKillInfo}
     InteropStorageFileInfo: {new (p: string, s: number, ss: Array<InteropStorageFileInfo>, i: boolean): InteropStorageFileInfo}
     InteropStorageInfo: {new (a: number, c: number, d: number, t: number, ts: Array<InteropStorageFileInfo>, es: Array<InteropStorageFileInfo>): InteropStorageInfo}
-    InteropSystemTrafficInfo: {new (u: number, d: number, t: string): InteropSystemTrafficInfo}
+    InteropSystemTrafficInfo: {new (u: number, d: number, t: string, bearer: string): InteropSystemTrafficInfo}
     InteropPageTrafficInfo: {new (u: number, d: number, p: string): InteropPageTrafficInfo}
     InteropDayTrafficInfo: {new (u: number, d: number, date: string): InteropDayTrafficInfo}
     InteropSampleTrafficInfo: {new (s: InteropSystemTrafficInfo, p: Map<string, InteropPageTrafficInfo>): InteropSampleTrafficInfo}
@@ -479,7 +480,7 @@ export declare interface CustomLib {
     initCrashHandler(addCrashWatcher: (funcArg0: (funcArgfuncArg0: string, funcArgfuncArg1: string, funcArgfuncArg2: string, funcArgfuncArg3: string, funcArgfuncArg4: string, funcArgfuncArg5: string, funcArgfuncArg6: string) => void) => void, onCrash: (funcArg0: () => void) => void, exit: () => void, collectCrashInfo: () => string, reportCrashInfo: (funcArg0: InteropCrashInfo) => void, persistentDir: string, enableDumpOnOOM: number, lastNHilogNumber: number, systemLogNumber: number, enableMemMonitor: CMemMonitorConfig | undefined): void
     getExitInfo(lastExitMessage: string, lastExitReason: number): ExitInfo
     initFreezeHandler(sdkApiVersion: number, addFreezeWatcher: (funcArg0: (funcArgfuncArg0: string, funcArgfuncArg1: string, funcArgfuncArg2: string, funcArgfuncArg3: string, funcArgfuncArg4: string) => void) => void, onFreeze: (funcArg0: () => void) => void, collectFreezeInfo: () => string, reportFreezeInfo: (funcArg0: InteropFreezeInfo) => void, persistentDir: string): void
-    initTrafficHandler(preference: TrafficPreference, onNavDestinationSwitch: (funcArg0: (funcArgfuncArg0: string) => void) => void, repeatSampleTraffic: (funcArg0: () => void) => void, getUidRxAndTxBytes: (funcArg0: (funcArgfuncArg0: number, funcArgfuncArg1: number, funcArgfuncArg2: string) => void, funcArg1: string) => void, reportTraffic: (funcArg0: InteropSampleTrafficInfo) => void, reportYesterdayTraffic: (funcArg0: InteropDayTrafficInfo) => void, sampleThreshold: number): void
+    initTrafficHandler(preference: TrafficPreference, onNavDestinationSwitch: (funcArg0: (funcArgfuncArg0: string) => void) => void, repeatSampleTraffic: (funcArg0: () => void) => void, getUidRxAndTxBytes: (funcArg0: (funcArgfuncArg0: number, funcArgfuncArg1: number, funcArgfuncArg2: string, funcArgfuncArg3: string) => void, funcArg1: string) => void, reportTraffic: (funcArg0: InteropSampleTrafficInfo) => void, reportYesterdayTraffic: (funcArg0: InteropDayTrafficInfo) => void, sampleThreshold: number): void
     destroyTrafficHandler(getUidRxAndTxBytes: (funcArg0: (funcArgfuncArg0: number, funcArgfuncArg1: number) => void) => void): void
     initStorageHandler(reportStorageInfo: (funcArg0: InteropStorageInfo) => void, sizeLimit: number, dirSizeLimit: number, reportTopNum: number): void
     reportAppStorageInfo(getCurrentBundleStats: (funcArg0: (funcArgfuncArg0: number, funcArgfuncArg1: number, funcArgfuncArg2: number) => void) => void): void
@@ -515,7 +516,7 @@ export declare interface CustomLib {
     initMemoryHandlerInterop(memoryPreference: MemoryPreference, getMemoryUsage: () => number, getArkTsMemoryUsage: () => number, getArkTsMemoryLimit: () => number, getTotalMemoryLimit: () => number, onNavDestinationSwitch: (funcArg0: (funcArgfuncArg0: string) => void) => void, repeatSampleAndReportMemory: (funcArg0: () => void, funcArg1: () => void, funcArg2: () => void) => void, reporPageMemoryInfo: (funcArg0: InteropPageMemoryInfo) => void, reporProcessMemoryInfo: (funcArg0: InteropProcessMemoryInfo) => void, memoryThreshold: number, totalRatio: number, cjRatio: number, arkTsRatio: number): void
 
     destroyMemoryHandlerInterop(): void
-    initTrafficHandlerInterop(preference: TrafficPreference, onNavDestinationSwitch: (funcArg0: (funcArgfuncArg0: string) => void) => void, repeatSampleTraffic: (funcArg0: () => void) => void, getUidRxAndTxBytes: (funcArg0: (funcArgfuncArg0: number, funcArgfuncArg1: number, funcArgfuncArg2: string) => void, funcArg1: string) => void, reportTraffic: (funcArg0: InteropSampleTrafficInfo) => void, reportYesterdayTraffic: (funcArg0: InteropDayTrafficInfo) => void, sampleThreshold: number): void
+    initTrafficHandlerInterop(preference: TrafficPreference, onNavDestinationSwitch: (funcArg0: (funcArgfuncArg0: string) => void) => void, repeatSampleTraffic: (funcArg0: () => void) => void, getUidRxAndTxBytes: (funcArg0: (funcArgfuncArg0: number, funcArgfuncArg1: number, funcArgfuncArg2: string, funcArgfuncArg3: string) => void, funcArg1: string) => void, reportTraffic: (funcArg0: InteropSampleTrafficInfo) => void, reportYesterdayTraffic: (funcArg0: InteropDayTrafficInfo) => void, sampleThreshold: number): void
     destroyTrafficHandlerInterop(getUidRxAndTxBytes: (funcArg0: (funcArgfuncArg0: number, funcArgfuncArg1: number) => void) => void): void
     getAndResetCurrentPageTrafficInterop(onResult: (funcArg0: InteropPageTrafficInfo) => void): void
     InteropExitInfo: {new (exitMessage: string, exitReason: string, isBackground: boolean, appState: string, stateChangeTime: number, timestamp: number): InteropExitInfo}

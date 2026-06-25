@@ -30,7 +30,8 @@ var reportTrafficCallback: (sampleTraffixInfo: InteropSampleTrafficInfo) -> Unit
 var pageEnterTxStart: Int64 = 0
 var pageEnterRxStart: Int64 = 0
 // init 时缓存 getUidRxAndTxBytes，供 getAndResetCurrentPageTraffic 直接复用。
-var _getUidRxAndTxBytes: (cb: (download: Int64, upload: Int64, pageName: String) -> Unit, pageName: String) -> Unit = {_, _ =>}
+// 回调额外返回 bearer(当前承载网: wifi/mobile/none/unknown)，用于标注本次上报走哪张网。
+var _getUidRxAndTxBytes: (cb: (download: Int64, upload: Int64, pageName: String, bearer: String) -> Unit, pageName: String) -> Unit = {_, _ =>}
 
 // current
 private let KEY_CURRENT_UPLOAD: String = "current_upload"
@@ -86,21 +87,26 @@ public class InteropSystemTrafficInfo {
     public let upTotal: Int64
     public let downTotal: Int64
     public let timeStamp: String
-    public init(u: Int64, d: Int64, t: String) {
+    // 当前承载网: "wifi" / "mobile" / "none" / "unknown"
+    public let bearerType: String
+    public init(u: Int64, d: Int64, t: String, bearer: String) {
         this.upTotal = u
         this.downTotal = d
         this.total = u + d
         this.timeStamp = t
+        this.bearerType = bearer
     }
 }
 
 public class SystemTrafficInfo <: TrafficInfo {
     private var timeStampValue: String = ""
+    private var bearerTypeValue: String = "unknown"
 
     public init() {}
-    public init(timeStamp: String, upload: Int64, download: Int64) {
+    public init(timeStamp: String, upload: Int64, download: Int64, bearer: String) {
         super(upload, download)
         this.timeStampValue = timeStamp
+        this.bearerTypeValue = bearer
     }
 
     public mut prop timeStamp: String {
@@ -112,8 +118,17 @@ public class SystemTrafficInfo <: TrafficInfo {
         }
     }
 
+    public mut prop bearerType: String {
+        get() {
+            bearerTypeValue
+        }
+        set(value) {
+            bearerTypeValue = value
+        }
+    }
+
     func toInteropSystemTrafficInfo(): InteropSystemTrafficInfo {
-        InteropSystemTrafficInfo(this.upTotal, this.downTotal, this.timeStamp)
+        InteropSystemTrafficInfo(this.upTotal, this.downTotal, this.timeStamp, this.bearerType)
     }
 }
 
@@ -283,8 +298,8 @@ public interface TrafficPreference {
     func get(key: String, defaultValue: String): String
 }
 
-let updataPageMapCallback: (download: Int64, upload: Int64, pageName: String) -> Unit = {
-    download: Int64, upload: Int64, pageName: String =>
+let updataPageMapCallback: (download: Int64, upload: Int64, pageName: String, bearer: String) -> Unit = {
+    download: Int64, upload: Int64, pageName: String, bearer: String =>
         let curTx = upload - pageTxStart
         let curRx = download - pageRxStart
         updatePageMap(pageName, curTx, curRx)
@@ -339,8 +354,8 @@ let updateDayTrafficCallback: (download: Int64, upload: Int64) -> Unit = {
         setStoredData(KEY_CURRENT_UPLOAD, upload.toString())
         setStoredData(KEY_CURRENT_DOWNLOAD, download.toString())
 }
-let sampleCallback: (download: Int64, upload: Int64, pageName: String) -> Unit = {
-    download: Int64, upload: Int64, pageName: String =>
+let sampleCallback: (download: Int64, upload: Int64, pageName: String, bearer: String) -> Unit = {
+    download: Int64, upload: Int64, pageName: String, bearer: String =>
         if (!inited) {
             inited = true
         } else {
@@ -354,7 +369,7 @@ let sampleCallback: (download: Int64, upload: Int64, pageName: String) -> Unit =
                 updatePageMap(pageName, curTx, curRx)
 
                 let curTimeStamp = getCurTimeStamp()
-                let systemTrafficInfo = SystemTrafficInfo(curTimeStamp, deltaUpload, deltaDownload)
+                let systemTrafficInfo = SystemTrafficInfo(curTimeStamp, deltaUpload, deltaDownload, bearer)
                 reportTrafficCallback(SampleTrafficInfo(systemTrafficInfo, pageTrafficMap).toInteropSampleTrafficInfo())
             }
         }
@@ -370,7 +385,7 @@ public func initTrafficHandler(
     preference: TrafficPreference,
     onNavDestinationSwitch: (cb: (targetPageName: String) -> Unit) -> Unit,
     repeatSampleTraffic: (sample: () -> Unit) -> Unit,
-    getUidRxAndTxBytes: (cb: (download: Int64, upload: Int64, pageName: String) -> Unit, pageName: String) -> Unit,
+    getUidRxAndTxBytes: (cb: (download: Int64, upload: Int64, pageName: String, bearer: String) -> Unit, pageName: String) -> Unit,
     reportTraffic: (sampleTraffixInfo: InteropSampleTrafficInfo) -> Unit,
     reportYesterdayTraffic: (yesterdayTraffic: InteropDayTrafficInfo) -> Unit,
     sampleThreshold!: Int64 = 50 * 1024 * 1024
@@ -394,17 +409,18 @@ public func initTrafficHandler(
     reportPendingYesterdayTraffic()
 
     let doTrafficSample = {
-        => getUidRxAndTxBytes({rxBytes, txBytes, pageName =>
-            sampleCallback(rxBytes, txBytes, pageName)
+        => getUidRxAndTxBytes({rxBytes, txBytes, pageName, bearer =>
+            sampleCallback(rxBytes, txBytes, pageName, bearer)
             reportPendingYesterdayTraffic()
         }, currentPageName)
     }
-    // 注意：ArkTS 回调参数顺序为 (rxBytes, txBytes, pageName)
-    // 仓颉侧回调参数顺序为 (download, upload, pageName)
+    // 注意：ArkTS 回调参数顺序为 (rxBytes, txBytes, pageName, bearer)
+    // 仓颉侧回调参数顺序为 (download, upload, pageName, bearer)
     // rxBytes = 下行(download), txBytes = 上行(upload)
+    // bearer = 当前承载网(wifi/mobile/none/unknown)，ArkTS 侧由 connection.getDefaultNet 查得
     // 首次采样：初始化页面进入基线为首个真实字节，避免首页面增量包含历史值
-    getUidRxAndTxBytes({download, upload, pageName =>
-        sampleCallback(download, upload, pageName)
+    getUidRxAndTxBytes({download, upload, pageName, bearer =>
+        sampleCallback(download, upload, pageName, bearer)
         pageEnterTxStart = upload
         pageEnterRxStart = download
         reportPendingYesterdayTraffic()
@@ -474,7 +490,7 @@ private func getYesterdayTraffic(): Option<InteropDayTrafficInfo> {
  */
 public func getAndResetCurrentPageTraffic(onResult: (info: InteropPageTrafficInfo) -> Unit): Unit {
     let pageName = currentPageName
-    _getUidRxAndTxBytes({download, upload, _ =>
+    _getUidRxAndTxBytes({download, upload, _, _ =>
         let deltaTx = upload - pageEnterTxStart
         let deltaRx = download - pageEnterRxStart
         // 清零基线，供下一个页面重新计数

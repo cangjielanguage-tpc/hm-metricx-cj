@@ -44,7 +44,7 @@ import {
 } from 'libark_interop_api.so';
 import { preferences } from '@kit.ArkData';
 import { uiObserver, window } from '@kit.ArkUI';
-import { statistics } from '@kit.NetworkKit';
+import { connection, statistics } from '@kit.NetworkKit';
 import { storageStatistics } from '@kit.CoreFileKit';
 import { hiAppEvent, hidebug, hilog } from '@kit.PerformanceAnalysisKit';
 import {
@@ -109,9 +109,48 @@ export class CMemMonitorConfig {
 }
 let uid = bundleManager.getBundleInfoForSelfSync(bundleManager.BundleFlag.GET_BUNDLE_INFO_WITH_APPLICATION).appInfo.uid;
 
-let getUidRxAndTxBytes = (cb: (rxBytes: number, txBytes: number, pageName: string) => void, pageName: string) => {
+// 查询当前默认网络的承载类型，返回 wifi/mobile/none/unknown。
+// 用于流量上报标注本次数据走的是 wlan 还是移动网络。
+// getNetCapabilities() 返回 Promise<NetCapabilities>，结果经回调异步返回。
+let getCurrentBearer = (onBearer: (bearer: string) => void): void => {
+  try {
+    let netHandle = connection.getDefaultNet();
+    if (!netHandle || !netHandle.netId) {
+      onBearer('none');
+      return;
+    }
+    netHandle.getNetCapabilities().then((netCapabilities): void => {
+      // bearerTypes 为承载类型枚举数组:BEARER_CELLULAR=0, BEARER_WIFI=1, BEARER_ETHERNET=3, ...
+      let bearerTypes: Array<connection.NetBearType> = netCapabilities.bearerTypes ?? [];
+      if (bearerTypes.length === 0) {
+        onBearer('none');
+        return;
+      }
+      if (bearerTypes.includes(connection.NetBearType.BEARER_WIFI)) {
+        onBearer('wifi');
+      } else if (bearerTypes.includes(connection.NetBearType.BEARER_CELLULAR)) {
+        onBearer('mobile');
+      } else {
+        onBearer('other');
+      }
+    }).catch((e: Error): void => {
+      hilog.warn(DOMAIN, TAG, `getNetCapabilities failed: ${e?.message ?? e}`);
+      onBearer('unknown');
+    });
+  } catch (e) {
+    hilog.warn(DOMAIN, TAG, `getCurrentBearer failed: ${e}`);
+    onBearer('unknown');
+  }
+};
+
+let getUidRxAndTxBytes = (
+  cb: (rxBytes: number, txBytes: number, pageName: string, bearer: string) => void,
+  pageName: string
+) => {
   statistics.getUidRxBytes(uid).then(rxBytes => {
-    statistics.getUidTxBytes(uid).then(txBytes => cb(rxBytes, txBytes, pageName));
+    statistics.getUidTxBytes(uid).then(txBytes => {
+      getCurrentBearer((bearer: string): void => cb(rxBytes, txBytes, pageName, bearer));
+    });
   });
 };
 
@@ -174,7 +213,10 @@ export function destroyTrafficHandler(): void {
   clearSampleTraffic();
   offTraffic();
   cjLibTraffic.destroyTrafficHandlerInterop((cb: (rxBytes: number, txBytes: number) => void) => {
-    getUidRxAndTxBytes(cb, '');
+    // destroy 路径只需字节累计，丢弃 pageName/bearer
+    getUidRxAndTxBytes((rxBytes: number, txBytes: number, _pageName: string, _bearer: string): void => {
+      cb(rxBytes, txBytes);
+    }, '');
   });
 }
 

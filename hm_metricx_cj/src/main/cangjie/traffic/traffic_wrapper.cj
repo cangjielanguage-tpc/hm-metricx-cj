@@ -9,7 +9,7 @@ public func initTrafficHandlerInterop(
     preference: TrafficPreference,
     onNavDestinationSwitch: ((String) -> Unit) -> Unit,
     repeatSampleTraffic: (() -> Unit) -> Unit,
-    getUidRxAndTxBytes: ((Int64, Int64, String) -> Unit, String) -> Unit,
+    getUidRxAndTxBytes: ((Int64, Int64, String, String) -> Unit, String) -> Unit,
     reportTraffic: (InteropSampleTrafficInfo) -> Unit,
     reportYesterdayTraffic: (InteropDayTrafficInfo) -> Unit,
     sampleThreshold: Int64
