@@ -41,6 +41,7 @@ import {
   initSwipeKillHandler,
   destroySwipeKillHandler
 } from '@cangjie-tpc/hm_metricx_cj_hybrid';
+import { thermalTestStore } from '../store/ThermalTestStore';
 
 const DOMAIN = 0x0000;
 
@@ -101,7 +102,15 @@ initCrashHandler(
     );
     initFreezeHandler(
       () => "{}",
-      data => hilog.error(DOMAIN, 'hm_metricx_cj', 'freeze info %{public}s', data.rawFile),
+      data => {
+        hilog.error(DOMAIN, 'hm_metricx_cj', 'freeze info %{public}s', data.rawFile);
+        // 供首页展示上次 freeze（重启后回吐）
+        try {
+          AppStorage.setOrCreate<string>('lastFreezeText', data.rawFile ?? '');
+        } catch (e) {
+          hilog.error(DOMAIN, 'hm_metricx_cj', 'set lastFreezeText failed: %{public}s', `${e}`);
+        }
+      },
       this.context.cacheDir
     );
     initThermalHandler(
@@ -110,8 +119,24 @@ initCrashHandler(
         hilog.error(0x0000, 'thermal',
           `pageName=${info.pageName}, level=${info.level}, ` +
             `levelName=${info.levelName}, levelChange=${info.levelChange}, ` +
-            `threshold=${info.threshold}, isForeground=${info.isForeground}, durationMs=${info.durationMs}`
+            `threshold=${info.threshold}, isForeground=${info.isForeground}, ` +
+            `durationMs=${info.durationMs}, cpuNum=${info.cpuNum}`
         );
+        // 回吐 store，供首页 ThermalInfoCard 展示（不再恒为初始值）
+        thermalTestStore.reportCount += 1;
+        thermalTestStore.lastLevel = info.level;
+        thermalTestStore.lastLevelName = info.levelName;
+        thermalTestStore.lastPageName = info.pageName;
+        thermalTestStore.lastDurationMs = info.durationMs;
+        thermalTestStore.lastTimestamp = info.timestamp;
+        thermalTestStore.lastIsForeground = info.isForeground;
+        // demo 断言：cpuNum 取值逻辑在 Cangjie 侧(getProcessorCount)，ohosTest 无法直接测，
+        // 在发热回调里校验产出：cpuNum 应为正数。
+        if (info.cpuNum !== undefined && info.cpuNum > 0) {
+          hilog.info(0x0000, 'thermal', 'cpuNum check pass: %{public}d', info.cpuNum);
+        } else {
+          hilog.error(0x0000, 'thermal', 'cpuNum check FAIL: %{public}d', info.cpuNum);
+        }
       },
       1000,  // 1s，先把周期调短验证链路
       1000, // 1s
@@ -289,8 +314,17 @@ initCrashHandler(
 
     windowStage.getMainWindow().then((win) => {
       initPageEventHandler(this.context, windowStage, data => {
-    });
+        // 页面退出时上报 FPS（manual 姿势），回吐 AppStorage 供首页展示
+        AppStorage.setOrCreate<string>('lastFpsInfo',
+          `pageName=${data.pageName}, minFps=${data.minFps}, avgFps=${data.avgFps}`);
+      });
     initScrollEventHandler(this.context, data => {
+      // 滑动停止时上报掉帧率（manual 姿势），回吐 AppStorage 供首页展示
+      AppStorage.setOrCreate<string>('lastScrollHitchInfo',
+        `pageName=${data.pageName}, minFps=${data.minFps}, avgFps=${data.avgFps}, ` +
+          `frameDropRatio=${data.frameDropRatio}, jankRate=${data.jankRate}, ` +
+          `bigJankRate=${data.bigJankRate}, totalFrameCount=${data.totalFrameCount}, ` +
+          `targetFPS=${data.targetFPS}`);
     });
     initLaggyHandler(this.context, windowStage, 100, 100, data => {
     }, data => {

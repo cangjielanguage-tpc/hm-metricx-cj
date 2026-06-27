@@ -7,10 +7,11 @@ import { SwitchResultBlankPage } from './whitescreen/SwitchResultBlankPage'
 import { PageOpenTriggerPage } from './whitescreen/PageOpenTriggerPage'
 import { SwitchResultTriggerPage } from './whitescreen/SwitchResultTriggerPage'
 import { CpuStressTestPage } from './cpu/CpuStressTestPage'
+import { FpsScrollTestPage } from './fps/FpsScrollTestPage'
 import { ThermalInfoCard } from '../components/ThermalInfoCard'
 import { TrafficTestCard } from '../components/TrafficTestCard'
 import { CpuStressCard } from '../components/CpuStressCard'
-import { UiStressCard } from '../components/UiStressCard'
+import { FpsTestCard } from '../components/FpsTestCard'
 import { CrashLeakCard } from '../components/CrashLeakCard'
 
 /**
@@ -70,7 +71,7 @@ struct Index {
         ThermalInfoCard()
         TrafficTestCard({ pageStack: this.pageStack })
         CpuStressCard()
-        UiStressCard()
+        FpsTestCard({ pageStack: this.pageStack })
         CrashLeakCard()
       }
       .width('100%')
@@ -101,6 +102,8 @@ struct Index {
       SwitchResultBlankPage()
     } else if (name === 'CpuStressTestPage') {
       CpuStressTestPage()
+    } else if (name === 'FpsScrollTestPage') {
+      FpsScrollTestPage()
     }
   }
 }

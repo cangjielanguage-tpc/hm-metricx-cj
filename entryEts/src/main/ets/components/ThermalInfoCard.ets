@@ -6,10 +6,8 @@ const SYNC_INTERVAL_MS: number = 500
 const POLL_INTERVAL_MS: number = 1000
 
 /**
- * 热档位信息卡片:周期刷新当前热档位 + 从全局 store 同步 thermal 上报字段。
- *
- * 注意:thermalTestStore 当前为只读占位(EntryAbility 的 thermal handler 未写入),
- * 故上报字段恒为初始值;当前档位来自 thermal.getLevel() 实时读取。
+ * 热档位信息卡片:周期刷新当前热档位 + 从 thermalTestStore 同步 thermal 上报字段。
+ * 上报字段由 EntryAbility 的 initThermalHandler 回调写入 store;当前档位来自 thermal.getLevel()。
  */
 @Component
 export struct ThermalInfoCard {
@@ -24,21 +22,15 @@ export struct ThermalInfoCard {
   @State currentThermalLevel: number = -1
   @State currentThermalLevelName: string = 'UNKNOWN'
 
-  // 上次崩溃（重启后 reportLastCrash 回吐，AppStorage 传递）
-  @State lastCrashText: string = ''
-  @State crashExpanded: boolean = false
-
   private syncTimerId: number = -1
   private thermalPollTimerId: number = -1
 
   aboutToAppear(): void {
     this.syncFromStore()
     this.refreshThermalLevel()
-    this.syncLastCrash()
 
     this.syncTimerId = setInterval((): void => {
       this.syncFromStore()
-      this.syncLastCrash()
     }, SYNC_INTERVAL_MS)
 
     this.thermalPollTimerId = setInterval((): void => {
@@ -80,30 +72,7 @@ export struct ThermalInfoCard {
         .onClick((): void => {
           this.syncFromStore()
           this.refreshThermalLevel()
-          this.syncLastCrash()
         })
-
-      if (this.lastCrashText.length > 0) {
-        Divider().margin({ top: 6, bottom: 6 })
-
-        Button(this.crashExpanded ? '收起上次崩溃 ▲' : '上次崩溃（重启回吐） ▼')
-          .fontColor('#F44336')
-          .width('100%')
-          .onClick((): void => {
-            this.crashExpanded = !this.crashExpanded
-          })
-
-        if (this.crashExpanded) {
-          Text(this.lastCrashText)
-            .fontSize(11)
-            .fontColor('#3D4A5D')
-            .maxLines(40)
-            .textOverflow({ overflow: TextOverflow.Ellipsis })
-            .backgroundColor('#FFFFFF')
-            .borderRadius(6)
-            .padding(6)
-        }
-      }
     }
     .width('100%')
     .padding(12)
@@ -119,13 +88,6 @@ export struct ThermalInfoCard {
     this.lastDurationMs = thermalTestStore.lastDurationMs
     this.lastTimestamp = thermalTestStore.lastTimestamp
     this.lastIsForeground = thermalTestStore.lastIsForeground
-  }
-
-  private syncLastCrash(): void {
-    const text: string | undefined = AppStorage.get<string>('lastCrashText')
-    if (text !== undefined && text.length > 0) {
-      this.lastCrashText = text
-    }
   }
 
   private refreshThermalLevel(): void {
