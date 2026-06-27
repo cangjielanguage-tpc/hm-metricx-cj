@@ -109,36 +109,46 @@ export class CMemMonitorConfig {
 }
 let uid = bundleManager.getBundleInfoForSelfSync(bundleManager.BundleFlag.GET_BUNDLE_INFO_WITH_APPLICATION).appInfo.uid;
 
+// 承载类型数组 → 承载网字符串映射（纯函数，便于单测）。
+// 约定：空数组 → 'none'；含 WIFI 优先 → 'wifi'；否则含 CELLULAR → 'mobile'；其余 → 'other'。
+// 注：'unknown' 仅在 getCurrentBearer 运行时异常路径产生，本函数不涉及。
+export function mapBearerTypes(bearerTypes: Array<connection.NetBearType>): string {
+  if (bearerTypes.length === 0) {
+    return 'none';
+  }
+  // 承载类型枚举:BEARER_CELLULAR=0, BEARER_WIFI=1, BEARER_ETHERNET=3, ...
+  if (bearerTypes.includes(connection.NetBearType.BEARER_WIFI)) {
+    return 'wifi';
+  } else if (bearerTypes.includes(connection.NetBearType.BEARER_CELLULAR)) {
+    return 'mobile';
+  } else {
+    return 'other';
+  }
+}
+
 // 查询当前默认网络的承载类型，返回 wifi/mobile/none/unknown。
 // 用于流量上报标注本次数据走的是 wlan 还是移动网络。
-// getNetCapabilities() 返回 Promise<NetCapabilities>，结果经回调异步返回。
+// getDefaultNet()/getNetCapabilities() 均返回 Promise，结果经回调异步返回。
 let getCurrentBearer = (onBearer: (bearer: string) => void): void => {
   try {
-    let netHandle = connection.getDefaultNet();
-    if (!netHandle || !netHandle.netId) {
-      onBearer('none');
-      return;
-    }
-    netHandle.getNetCapabilities().then((netCapabilities): void => {
-      // bearerTypes 为承载类型枚举数组:BEARER_CELLULAR=0, BEARER_WIFI=1, BEARER_ETHERNET=3, ...
-      let bearerTypes: Array<connection.NetBearType> = netCapabilities.bearerTypes ?? [];
-      if (bearerTypes.length === 0) {
+    // getDefaultNet() 返回 Promise<NetHandle>；getNetCapabilities 是 connection 顶层函数
+    connection.getDefaultNet().then((netHandle: connection.NetHandle): void => {
+      if (!netHandle || !netHandle.netId) {
         onBearer('none');
         return;
       }
-      if (bearerTypes.includes(connection.NetBearType.BEARER_WIFI)) {
-        onBearer('wifi');
-      } else if (bearerTypes.includes(connection.NetBearType.BEARER_CELLULAR)) {
-        onBearer('mobile');
-      } else {
-        onBearer('other');
-      }
-    }).catch((e: Error): void => {
-      hilog.warn(DOMAIN, TAG, `getNetCapabilities failed: ${e?.message ?? e}`);
+      connection.getNetCapabilities(netHandle).then((netCapabilities: connection.NetCapabilities): void => {
+        onBearer(mapBearerTypes(netCapabilities.bearerTypes ?? []));
+      }).catch((e: BusinessError): void => {
+        hilog.warn(DOMAIN, TAG, `getNetCapabilities failed: ${e.message}`);
+        onBearer('unknown');
+      });
+    }).catch((e: BusinessError): void => {
+      hilog.warn(DOMAIN, TAG, `getDefaultNet failed: ${e.message}`);
       onBearer('unknown');
     });
   } catch (e) {
-    hilog.warn(DOMAIN, TAG, `getCurrentBearer failed: ${e}`);
+    hilog.warn(DOMAIN, TAG, 'getCurrentBearer failed');
     onBearer('unknown');
   }
 };
