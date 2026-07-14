@@ -1,6 +1,8 @@
 import { hilog } from '@kit.PerformanceAnalysisKit'
+import { ErrorEvent, MessageEvents, worker } from '@kit.ArkTS'
 import { getCurrentThermalLevel, ThermalLevel } from '../../common/ThermalHelper'
 import { runCpuStressLoop } from '../../common/StressHelper'
+import { captureCurrentThreadStack } from '@cangjie-tpc/hm_metricx_cj_hybrid'
 
 const DOMAIN: number = 0x0021
 const TAG: string = 'thermal_traffic_test'
@@ -20,12 +22,15 @@ export struct CpuStressTestPage {
   @State currentThermalLevel: number = -1
   @State currentThermalLevelName: string = 'UNKNOWN'
   @State currentPageName: string = ''
+  @State isWorkerBurning: boolean = false
 
   private stopStressFlag: boolean = false
   private thermalPollTimerId: number = -1
+  private burnWorker: worker.ThreadWorker | null = null
 
   aboutToDisappear(): void {
     this.stopCpuStress()
+    this.stopWorkerBurn()
     if (this.thermalPollTimerId !== -1) {
       clearInterval(this.thermalPollTimerId)
       this.thermalPollTimerId = -1
@@ -78,6 +83,29 @@ export struct CpuStressTestPage {
               this.refreshThermalLevel()
             })
 
+          Button('抓栈自检（当前线程）')
+            .width('80%')
+            .onClick((): void => {
+              const stack: string = captureCurrentThreadStack();
+              hilog.warn(DOMAIN, TAG, `===== 抓栈自检（当前线程） =====\n${stack}`);
+            })
+
+          Divider().margin({ top: 16, bottom: 8 })
+          Text('Worker 子线程烧 CPU（验证抓到真实高 CPU 栈）')
+            .fontSize(15)
+            .fontColor('#56657A')
+          Text(`Worker 烧机状态: ${this.isWorkerBurning ? '运行中' : '已停止'}`)
+          Button(this.isWorkerBurning ? 'Worker 烧机中…' : '开始 Worker 烧 CPU')
+            .width('80%')
+            .onClick((): void => {
+              this.startWorkerBurn()
+            })
+          Button('停止 Worker 烧 CPU')
+            .width('80%')
+            .onClick((): void => {
+              this.stopWorkerBurn()
+            })
+
           Button('返回主页')
             .width('80%')
             .margin({ top: 16 })
@@ -127,6 +155,41 @@ export struct CpuStressTestPage {
     this.stopStressFlag = true
     this.isCpuStressRunning = false
     hilog.info(DOMAIN, TAG, 'CpuStressTestPage: cpu stress stopped')
+  }
+
+  /**
+   * 启动 Worker 子线程持续烧 CPU。
+   * Worker 线程长期高 CPU（>30%），hm_metricx_cj 采样命中后上报抓栈，
+   * 应抓到 burnCpuContinuously / JS 解释器计算帧，而非主线程的互操作/事件循环栈。
+   */
+  private startWorkerBurn(): void {
+    if (this.burnWorker !== null) {
+      hilog.info(DOMAIN, TAG, 'CpuStressTestPage: worker already burning')
+      return
+    }
+    this.burnWorker = new worker.ThreadWorker('../../workers/CpuBurnWorker')
+    this.burnWorker.onmessage = (msg: MessageEvents): void => {
+      hilog.info(DOMAIN, TAG, `CpuBurnWorker: ${String(msg.data)}`)
+    }
+    this.burnWorker.onerror = (e: ErrorEvent): void => {
+      hilog.error(DOMAIN, TAG, `CpuBurnWorker error: ${e.message}`)
+    }
+    this.isWorkerBurning = true
+    this.burnWorker.postMessage('start')
+    hilog.info(DOMAIN, TAG, 'CpuStressTestPage: worker burn started')
+  }
+
+  private stopWorkerBurn(): void {
+    if (this.burnWorker === null) {
+      this.isWorkerBurning = false
+      return
+    }
+    // Worker 内 while(burning) 同步阻塞消息循环，postMessage('stop') 收不到，
+    // 必须用 terminate() 强制终止。
+    this.burnWorker.terminate()
+    this.burnWorker = null
+    this.isWorkerBurning = false
+    hilog.info(DOMAIN, TAG, 'CpuStressTestPage: worker burn stopped')
   }
 
   private async runCpuStressLoop(): Promise<void> {

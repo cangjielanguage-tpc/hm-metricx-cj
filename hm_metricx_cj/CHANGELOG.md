@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.24
+
+- 高 CPU 异常回调监控新增返回异常期间完整调用栈，监控周期由 3 分钟改为 30 秒
+- `HighCpuReportInfo`/`BackgroundCpuReportInfo` 新增 `stackTrace`（异常线程调用栈）、`moduleName`（责任模块名）字段
+- 高 CPU 上报只抓取 CPU 最高的单线程（Top1）调用栈
+- 修复停止热压后仍误报高 CPU 的问题
+
 ## 1.0.23
 
 - 发热异常回调增加 `cpuNum`（CPU 核心数）字段

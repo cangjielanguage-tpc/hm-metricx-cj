@@ -27,6 +27,7 @@ import {
   destroyHighCpuMonitorHandler,
   HighCpuMonitorConfig,
   HighCpuReportInfo,
+  captureCurrentThreadStack,
   initBackgroundCpuMonitorHandler,
   destroyBackgroundCpuMonitorHandler,
   BackgroundCpuMonitorConfig,
@@ -224,10 +225,10 @@ initCrashHandler(
     initHighCpuMonitorHandler(
       this.context,
       new HighCpuMonitorConfig(
-        0.05,        // cpuThreshold: 5% CPU 阈值
+        0.05,        // cpuThreshold: 线程级阈值 0.05（线程占进程 CPU 比例≥5% 才抓栈，挡住主线程/hilog/采样自身的偶发抖动；单 Worker 烧单核时占进程 CPU≈8%+，稳定命中）
         1000,        // foregroundIntervalMs: 前台 1 秒采样
         2000,        // backgroundIntervalMs: 后台 2 秒采样
-        33000,       // monitorDurationMs: 33000 毫秒 (33 秒) 上报一次
+        30000,       // monitorDurationMs: 30000 毫秒 (30 秒) 上报一次
         60000,       // threadCooldownMs: 线程 60 秒 cooldown
         3000,        // globalCooldownMs: 全局 3 秒 cooldown
         0.85,        // highSampleRatioThreshold: 85% 高采样比例阈值
@@ -252,10 +253,12 @@ initCrashHandler(
           hilog.warn(DOMAIN, 'HighCpuMonitor', `  采样次数：${threadInfo.sampleCount}`);
           hilog.warn(DOMAIN, 'HighCpuMonitor', `  高采样比例：${threadInfo.highSampleCount / threadInfo.sampleCount}`);
           hilog.warn(DOMAIN, 'HighCpuMonitor', `  首次检测时间：${threadInfo.firstDetectedTime}`);
+          hilog.warn(DOMAIN, 'HighCpuMonitor', `  模块名：${threadInfo.moduleName}`);
+          hilog.warn(DOMAIN, 'HighCpuMonitor', `  调用栈：\n${threadInfo.stackTrace}`);
         }
       }
     );
-    hilog.info(DOMAIN, 'HighCpuMonitor', '高 CPU 监控已启动（生产模式：33 秒上报，5% 阈值，85% 高采样比例）');
+    hilog.info(DOMAIN, 'HighCpuMonitor', '高 CPU 监控已启动（生产模式：33 秒上报，30% 阈值，85% 高采样比例）');
 
     // 后台活动超长率监控初始化
     initBackgroundCpuMonitorHandler(
@@ -284,6 +287,15 @@ initCrashHandler(
           hilog.warn(DOMAIN, 'BackgroundCpuMonitor', `  时间戳：${sample.timestamp}`);
           hilog.warn(DOMAIN, 'BackgroundCpuMonitor', `  CPU 使用率：${sample.cpuUsage}`);
           hilog.warn(DOMAIN, 'BackgroundCpuMonitor', `  后台时长：${sample.duration}ms`);
+        }
+
+        // 打印高占用线程调用栈
+        for (const threadInfo of reportInfo.highCpuThreads) {
+          hilog.warn(DOMAIN, 'BackgroundCpuMonitor', '--- 高占用线程 ---');
+          hilog.warn(DOMAIN, 'BackgroundCpuMonitor', `  TID: ${threadInfo.tid}`);
+          hilog.warn(DOMAIN, 'BackgroundCpuMonitor', `  线程名：${threadInfo.threadName}`);
+          hilog.warn(DOMAIN, 'BackgroundCpuMonitor', `  模块名：${threadInfo.moduleName}`);
+          hilog.warn(DOMAIN, 'BackgroundCpuMonitor', `  调用栈：\n${threadInfo.stackTrace}`);
         }
       }
     );

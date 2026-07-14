@@ -82,6 +82,12 @@ export declare function stopHighCpuMonitorInterop(): void
 export declare function triggerHighCpuReportInterop(): void
 
 /**
+ * 抓栈自检：抓取当前线程调用栈并返回符号化文本（tid=0 同步直调，不发信号、无 cooldown）。
+ * 供 demo 自检按钮验证 native 抓栈链路，不依赖高 CPU 上报窗口。
+ */
+export declare function captureCurrentThreadStackInterop(): string
+
+/**
  * 检查高 CPU 监控是否正在运行
  */
 export declare function isHighCpuMonitoringActiveInterop(): boolean

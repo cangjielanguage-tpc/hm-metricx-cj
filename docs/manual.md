@@ -805,7 +805,7 @@ export function initCpuHandler(
  - `sampleCount` CPU采样次数 
  - `pid` 进程ID
 
-#### 新增CPU异常监控 : 1）3分钟线程栈异常监控
+#### 新增CPU异常监控 : 1）30秒线程栈异常监控
 ```text
 //注册CPU异常监控
 export function initHighCpuMonitorHandler(
@@ -830,7 +830,7 @@ export function destroyHighCpuMonitorHandler(): void
 - `monitorDurationMS` 异常上报频率（ms，如果1s则设置为1000），如果是负数，会调用系统设置的默认值
 - `threadCoolDownMs` 安全限流设置（ms，如果1s则设置为1000），如果是负数，会调用系统设置的默认值，针对本模块内的冷却限限流，假如时间是60s，在threadCoolDownMs时间内，如果有异常汇报过同线程，这个threadCoolDownMs会开启，在这个冷却时间内，不会重复上报已有的异常信息。
 - `globalCooldownMs` 安全限流设置（ms，如果1s则设置为1000），如果是负数，会调用系统设置的默认值，针对全局APM的冷却限限流，假如时间是180s，在globalCooldownMs时间内，如果有异常汇报过同线程，这个globalCooldownMs会开启，在这个冷却时间内，不会重复上报已有的异常信息。
-- `highSampleRatioThreshold` 高采样比例阈值，在3分钟内所有采样个数内，需要保证整体采样sample异常比例超过设定阈值，且CPU使用率平均值大于cpuThreshold，最后异常事件才会上报，范围是0-1，如果是负数或者超过1，会调用系统设置的默认值
+- `highSampleRatioThreshold` 高采样比例阈值，在30秒内所有采样个数内，需要保证整体采样sample异常比例超过设定阈值，且CPU使用率平均值大于cpuThreshold，最后异常事件才会上报，范围是0-1，如果是负数或者超过1，会调用系统设置的默认值
 - `topNthreads` 每次采用异常线程数，0 - 200，如果在范围外，会调用系统设置的默认值
 
 `HighCpuReportInfo` 包含以下信息：
@@ -849,7 +849,8 @@ export function destroyHighCpuMonitorHandler(): void
 - `maxCpuUsage` 最大CPU
 - `sampleCount` 采样次数
 - `hightSampleCount/sampleCount` 高采样比例
-- `moduleBane` 模块名
+- `moduleName` 模块名
+- `stackTrace` 异常线程调用栈
 - `firstDetectedTime` 首次检测时间
 
 使用示例：
@@ -891,6 +892,8 @@ export default class EntryAbility extends UIAbility {
           hilog.warn(DOMAIN, 'HighCpuMonitor', `  采样次数：${threadInfo.sampleCount}`);
           hilog.warn(DOMAIN, 'HighCpuMonitor', `  高采样比例：${threadInfo.highSampleCount / threadInfo.sampleCount}`);
           hilog.warn(DOMAIN, 'HighCpuMonitor', `  首次检测时间：${threadInfo.firstDetectedTime}`);
+          hilog.warn(DOMAIN, 'HighCpuMonitor', `  模块名：${threadInfo.moduleName}`);
+          hilog.warn(DOMAIN, 'HighCpuMonitor', `  调用栈：\n${threadInfo.stackTrace}`);
         }
       }
     );
@@ -945,6 +948,7 @@ public func getBackgroundCpuConfig(): Option<BackgroundCpuMonitorConfig>
 - `avgProcessCpu` CPU平均值
 - `backgroundDuration` 监控时长
 - `windowSamples.size` 滑动窗口采样数
+- `highCpuThreads` 高占用线程调用栈列表（含 tid/threadName/cpuUsage/moduleName/stackTrace，取 CPU 最高的线程）
 
 ```arkts
 export default class EntryAbility extends UIAbility {
@@ -975,6 +979,15 @@ export default class EntryAbility extends UIAbility {
           hilog.warn(DOMAIN, 'BackgroundCpuMonitor', `  时间戳：${sample.timestamp}`);
           hilog.warn(DOMAIN, 'BackgroundCpuMonitor', `  CPU 使用率：${sample.cpuUsage}`);
           hilog.warn(DOMAIN, 'BackgroundCpuMonitor', `  后台时长：${sample.duration}ms`);
+        }
+
+        // 打印高占用线程调用栈
+        for (const threadInfo of reportInfo.highCpuThreads) {
+          hilog.warn(DOMAIN, 'BackgroundCpuMonitor', '--- 高占用线程 ---');
+          hilog.warn(DOMAIN, 'BackgroundCpuMonitor', `  TID: ${threadInfo.tid}`);
+          hilog.warn(DOMAIN, 'BackgroundCpuMonitor', `  线程名：${threadInfo.threadName}`);
+          hilog.warn(DOMAIN, 'BackgroundCpuMonitor', `  模块名：${threadInfo.moduleName}`);
+          hilog.warn(DOMAIN, 'BackgroundCpuMonitor', `  调用栈：\n${threadInfo.stackTrace}`);
         }
       }
     );

@@ -1464,6 +1464,25 @@ export function triggerHighCpuReport(): void {
   cjLibCpu.triggerHighCpuReportInterop();
 }
 
+/**
+ * 仅用于抓栈自检调用的本地接口：captureCurrentThreadStackInterop 由 cpu_wrapper.cj 的
+ * @Interop[ArkTS] 导出，但聚合类型 CustomLib（ark_interop_api.d.ts，构建期由 cangjie 插件
+ * 重新生成、可能滞后）未稳定包含该方法，故在此以本地 interface 显式声明调用签名，
+ * 运行时仍走 cjLibCpu 实际加载的 wrapper.so 符号。
+ */
+interface CpuStackCaptureLib {
+  captureCurrentThreadStackInterop(): string;
+}
+
+/**
+ * 抓栈自检：抓取当前线程调用栈并返回符号化文本（同步直调，不发信号、无 cooldown）。
+ * 供 demo 自检按钮验证 native 抓栈链路，不依赖高 CPU 上报窗口。
+ */
+export function captureCurrentThreadStack(): string {
+  if (!cjLibCpu) return 'cjLibCpu disabled';
+  return cjLibCpu.captureCurrentThreadStackInterop();
+}
+
 // ==================== 后台活动超长率监控 ====================
 
 /**
