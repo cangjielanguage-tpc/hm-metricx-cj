@@ -96,6 +96,9 @@ export declare class InteropBackgroundCpuMonitorConfig {
     fatalDurationMs: number
     sampleIntervalMs: number
     windowSizeMs: number
+    topNThreads: number
+    threadCooldownMs: number
+    globalCooldownMs: number
 }
 
 export declare class InteropAppStateInfo {
@@ -539,7 +542,7 @@ export declare interface CustomLib {
     initSwipeKillHandlerInterop(lastExitReason: number, reportSwipeKillInfoHandler: (funcArg0: SwipeKillInfo) => void, onAbilityBackground: (cb: () => void) => void, thresholdMs: number): void
     destroySwipeKillHandlerInterop(): void
     initMemoryHandlerInterop(memoryPreference: MemoryPreference, getMemoryUsage: () => number, getArkTsMemoryUsage: () => number, getArkTsTotalHeap: () => number, getTotalMemoryLimit: () => number, onNavDestinationSwitch: (funcArg0: (funcArgfuncArg0: string) => void) => void, repeatSampleAndReportMemory: (funcArg0: () => void, funcArg1: () => void, funcArg2: () => void) => void, reporPageMemoryInfo: (funcArg0: InteropPageMemoryInfo) => void, reporProcessMemoryInfo: (funcArg0: InteropProcessMemoryInfo) => void, memoryThreshold: number, totalRatio: number, cjRatio: number, arkTsRatio: number): void
-    InteropBackgroundCpuMonitorConfig: {new (cpuThreshold: number, warnDurationMs: number, errorDurationMs: number, fatalDurationMs: number, sampleIntervalMs: number, windowSizeMs: number): InteropBackgroundCpuMonitorConfig}
+    InteropBackgroundCpuMonitorConfig: {new (cpuThreshold: number, warnDurationMs: number, errorDurationMs: number, fatalDurationMs: number, sampleIntervalMs: number, windowSizeMs: number, topNThreads: number, threadCooldownMs: number, globalCooldownMs: number): InteropBackgroundCpuMonitorConfig}
     destroyBackgroundCpuMonitorHandlerInterop(): void
     initBackgroundCpuMonitorHandlerInterop(config: InteropBackgroundCpuMonitorConfig, getAppThreadCpuUsageJson: () => string, repeatSample: (funcArg0: () => void) => void, clearSample: () => void, reportHighCpuInfoJson: (funcArg0: string) => void): void
     initCrashHandlerInterop(addCrashWatcher: (funcArg0: (funcArgfuncArg0: string, funcArgfuncArg1: string, funcArgfuncArg2: string, funcArgfuncArg3: string, funcArgfuncArg4: string, funcArgfuncArg5: string, funcArgfuncArg6: string) => void) => void, addResourceLeakWatcher: (funcArg0: (funcArgfuncArg0: string, funcArgfuncArg1: string, funcArgfuncArg2: string, funcArgfuncArg3: number, funcArgfuncArg4: number, funcArgfuncArg5: string) => void) => void, onCrash: (funcArg0: () => void) => void, exit: () => void, collectCrashInfo: () => string, reportCrashInfo: (funcArg0: InteropCrashInfo) => void, persistentDir: string, enableDumpOnOOM: number, lastNHilogNumber: number, systemLogNumber: number, enableMemMonitor: CMemMonitorConfig | undefined): void
@@ -570,6 +573,7 @@ export declare interface CustomLib {
     calculateFirstRenderTimeManuallyInterop(startTime: number, targetPage: string): void
     resetFirstRenderTimeMonitorInterop(): void
     initSwipeKillHandlerInterop(lastExitReason: number, reportSwipeKillInfoHandler: (funcArg0: SwipeKillInfo) => void, onAbilityBackground: (funcArg0: () => void) => void, thresholdMs: number): void
+    captureCurrentThreadStackInterop(): string
 }
 
 // ==================== 用户侧类型别名（隐藏互操作层） ====================

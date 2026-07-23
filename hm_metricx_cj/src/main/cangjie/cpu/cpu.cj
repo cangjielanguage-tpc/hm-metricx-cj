@@ -577,10 +577,13 @@ var threadSamples: HashMap<Int64, ThreadStackInfo> = HashMap()
 var processCpuSamples: ArrayList<Float64> = ArrayList()
 
 // --- Cooldown 记录（限流机制） ---
-// 线程 cooldown 记录：tid -> 上次抓取时间戳（毫秒）
+// 线程 cooldown 记录：tid -> 上次抓取时间戳（毫秒）。前后台共用：后台抓栈成功也会写入，
+// 读取时 threadCooldownMs 取自各自 config（前台 highCpuConfig，后台 backgroundCpuConfig）。
 var threadCooldownMap: HashMap<Int64, Int64> = HashMap()
-// 全局 cooldown 记录：上次全局抓取时间戳（毫秒）
+// 前台全局 cooldown 记录：上次全局抓取时间戳（毫秒）
 var globalLastCaptureTime: Int64 = 0
+// 后台全局 cooldown 记录：与前台独立，避免前后台互相限流
+var backgroundGlobalLastCaptureTime: Int64 = 0
 
 // --- 监控时间窗口 ---
 // 监控开始时间（毫秒）
@@ -676,26 +679,28 @@ private func getThreadName(tid: Int64): String {
 /**
  * 检查是否可以对指定线程进行采样（检查线程 cooldown）
  *
- * 实现需求：同一 tid 10 分钟最多抓一次
+ * 实现需求：同一 tid 10 分钟最多抓一次。threadCooldownMap 前后台共用，
+ * cooldown 时长由调用方按自身 config 传入（前台 highCpuConfig.threadCooldownMs，
+ * 后台 backgroundCpuConfig.threadCooldownMs），避免后台运行时 highCpuConfig
+ * 为 None 导致 cooldown 判断形同虚设。
  *
  * @param tid 线程 ID
  * @param currentTime 当前时间戳（毫秒）
+ * @param cooldownMs 该场景的单线程 cooldown 时长（毫秒）
  * @return true=可以采样，false=cooldown 中
  */
-private func canSampleThread(tid: Int64, currentTime: Int64): Bool {
+private func canSampleThread(tid: Int64, currentTime: Int64, cooldownMs: Int64): Bool {
     if (threadCooldownMap.contains(tid)) {
         let lastCaptureTime = threadCooldownMap[tid]
-        if (let Some(config) <- highCpuConfig) {
-            if (currentTime - lastCaptureTime < config.threadCooldownMs) {
-                return false
-            }
+        if (currentTime - lastCaptureTime < cooldownMs) {
+            return false
         }
     }
     true
 }
 
 /**
- * 检查是否可以进行全局采样（检查全局 cooldown）
+ * 检查是否可以进行全局采样（前台，检查全局 cooldown）
  *
  * 实现需求：全局 3 分钟最多抓一次，避免各模块重复抓取
  *
@@ -708,6 +713,24 @@ private func canSampleGlobal(currentTime: Int64): Bool {
     }
     if (let Some(config) <- highCpuConfig) {
         return currentTime - globalLastCaptureTime >= config.globalCooldownMs
+    }
+    true
+}
+
+/**
+ * 检查是否可以进行全局采样（后台，检查后台全局 cooldown）
+ *
+ * 后台与前台各自维护全局 cooldown 时间戳，互不限流。
+ *
+ * @param currentTime 当前时间戳（毫秒）
+ * @return true=可以采样，false=cooldown 中
+ */
+private func canSampleBackgroundGlobal(currentTime: Int64): Bool {
+    if (backgroundGlobalLastCaptureTime == 0) {
+        return true
+    }
+    if (let Some(config) <- backgroundCpuConfig) {
+        return currentTime - backgroundGlobalLastCaptureTime >= config.globalCooldownMs
     }
     true
 }
@@ -885,8 +908,10 @@ private func shouldCaptureStack(): Bool {
  * 失败不阻断主流程，stackTrace/moduleName 保持原值（默认空/unknown）。
  *
  * tid 为 hidebug 返回的 OS tid（gettid），native 层用 syscall(SYS_tgkill) 投递信号。
+ *
+ * @return true=成功抓到栈（n>0，已填充 stackTrace）；false=失败（n<=0 或异常），调用方不应据此更新 cooldown。
  */
-private func fillThreadStackInfo(threadInfo: ThreadStackInfo, tid: Int64): Unit {
+private func fillThreadStackInfo(threadInfo: ThreadStackInfo, tid: Int64): Bool {
     try {
         let stackBuf = Array<UInt8>(8192, repeat: UInt8(0))
         let moduleBuf = Array<UInt8>(256, repeat: UInt8(0))
@@ -901,12 +926,14 @@ private func fillThreadStackInfo(threadInfo: ThreadStackInfo, tid: Int64): Unit 
             if (modLen > 0) {
                 threadInfo.moduleName = bytesToString(moduleBuf, modLen)
             }
+            return true
         } else {
             AppLog.warn("hm-metricx-cj: CaptureThreadStack tid=${tid} returned ${n}, no stack captured (see native '0 frames'/'tgkill failed'/'timeout' log)")
         }
     } catch (e: Exception) {
         AppLog.warn("hm-metricx-cj: fillThreadStackInfo tid=${tid} exception: ${e.message}")
     }
+    false
 }
 
 /**
@@ -993,7 +1020,11 @@ private func captureStackForHighCpuThreads(): Unit {
 
     try {
         if (let Some(config) <- highCpuConfig) {
-            // 只抓 CPU 最高的那一个线程。取当前帧所有线程按 cpuUsage 降序排序，取 Top1。
+            // 抓 TopN 个 CPU 最高的线程的栈。取当前帧所有线程按 cpuUsage 降序排序，
+            // 遍历前 topN 个，逐线程判断：① cooldown 中则跳过；② 不再二次过滤阈值——
+            // 进入 TopN 即抓栈（阈值过滤已在采样阶段 doHighCpuSample 完成）；
+            // ③ 抓栈成功（fillThreadStackInfo 返回 true，栈非空）才更新该线程 cooldown，
+            // 避免抓栈失败也占满 cooldown 额度。
             // 单 worker 烧单核时该 worker 占进程 CPU≈100%，必是 Top1，必被抓到真实高 CPU 栈。
             let threadCpuUsageJson = _getAppThreadCpuUsageJson()
             let threadCpuUsageArray = parseThreadCpuUsage(threadCpuUsageJson)
@@ -1013,44 +1044,47 @@ private func captureStackForHighCpuThreads(): Unit {
                     stable: false,
                     descending: false
                 )
-                // Top1：CPU 最高的线程
-                let item = threadCpuList[0]
-                let tid = item[0]
-                let threadName = item[1]
-                let cpuUsage = item[2]
-                // 抓栈门槛：Top1 此刻必须 ≥ 阈值才抓栈上报。否则停止热压后主线程偶发
-                // 抖动（如 0.015）也会被当高 CPU 抓栈上报，产生空载误报。Top1 < 阈值
-                // 说明本周期内无真正高 CPU 线程，直接跳过抓栈与上报。
-                if (cpuUsage < config.cpuThreshold) {
-                    AppLog.info("hm-metricx-cj: Top1 thread below threshold, skip capture: tid=${tid}, name=${threadName}, cpu=${cpuUsage} < ${config.cpuThreshold}")
-                    return
-                }
-                AppLog.info("hm-metricx-cj: Capturing Top1 thread (highest CPU): tid=${tid}, name=${threadName}, cpu=${cpuUsage}")
+                // TopN：CPU 最高的 N 个线程（与采样阶段 doHighCpuSample 的 topN 一致）
+                let topN = min(threadCpuList.size, config.topNThreads)
+                for (i in 0..topN) {
+                    let item = threadCpuList[i]
+                    let tid = item[0]
+                    let threadName = item[1]
+                    let cpuUsage = item[2]
+                    // 线程级 cooldown：同一线程在 threadCooldownMs 内最多抓一次
+                    if (!canSampleThread(tid, currentTime, config.threadCooldownMs)) {
+                        AppLog.info("hm-metricx-cj: Thread in cooldown, skip capture: tid=${tid}, name=${threadName}")
+                        continue
+                    }
+                    AppLog.info("hm-metricx-cj: Capturing thread #${i} (TopN): tid=${tid}, name=${threadName}, cpu=${cpuUsage}")
 
-                let threadInfo = if (!threadSamples.contains(tid)) {
-                    let ni = ThreadStackInfo()
-                    ni.tid = tid
-                    ni.threadName = threadName
-                    ni.firstDetectedTime = currentTime
-                    ni.computeAvg(cpuUsage, threshold: config.cpuThreshold)
-                    threadSamples.add(tid, ni)
-                    ni
-                } else {
-                    let ti = threadSamples[tid]
-                    ti.computeAvg(cpuUsage, threshold: config.cpuThreshold)
-                    ti
-                }
+                    let threadInfo = if (!threadSamples.contains(tid)) {
+                        let ni = ThreadStackInfo()
+                        ni.tid = tid
+                        ni.threadName = threadName
+                        ni.firstDetectedTime = currentTime
+                        ni.computeAvg(cpuUsage, threshold: config.cpuThreshold)
+                        threadSamples.add(tid, ni)
+                        ni
+                    } else {
+                        let ti = threadSamples[tid]
+                        ti.computeAvg(cpuUsage, threshold: config.cpuThreshold)
+                        ti
+                    }
 
-                fillThreadStackInfo(threadInfo, tid)
-                updateThreadCooldown(tid, currentTime)
-                capturedAny = true
-                AppLog.info("hm-metricx-cj: Stack captured for tid=${tid}, name=${threadName}, cpu=${cpuUsage}")
+                    // 仅抓栈成功才更新线程 cooldown，避免抓栈失败（n<=0）也占满 cooldown
+                    if (fillThreadStackInfo(threadInfo, tid)) {
+                        updateThreadCooldown(tid, currentTime)
+                        capturedAny = true
+                        AppLog.info("hm-metricx-cj: Stack captured for tid=${tid}, name=${threadName}, cpu=${cpuUsage}")
+                    }
+                }
             }
         }
     } catch (e: Exception) {
         AppLog.warn("hm-metricx-cj: Exception during stack capture: " + e.toString())
     } finally {
-        // 仅在真正发起过抓栈时更新全局 cooldown，避免空跑也占用限流额度
+        // 仅在真正发起过抓栈（且成功）时更新全局 cooldown，避免空跑也占用限流额度
         if (capturedAny) {
             globalLastCaptureTime = currentTime
         }
@@ -1123,8 +1157,9 @@ private func doHighCpuReport(): Unit {
     }
 
     // 筛选上报线程：本次抓栈抓到栈（stackTrace 非空）的线程上报。captureStackForHighCpuThreads
-    // 只对 Top1（CPU 最高的线程）抓栈，故这里天然只上报那一个线程。采样期填入
-    // threadSamples 但未抓栈的线程 stackTrace 为空，被过滤掉。
+    // 对 TopN 中过阈值且抓栈成功的线程逐个抓栈，故这里上报的是 TopN 中抓到栈的那几个线程。
+    // 采样期填入 threadSamples 但未抓栈（cooldown 中 / 未过阈值 / 抓栈失败）的线程
+    // stackTrace 为空，被过滤掉。
     let highCpuThreads = ArrayList<ThreadStackInfo>()
     if (let Some(config) <- highCpuConfig) {
         for (entry in threadSamples) {
@@ -1705,6 +1740,12 @@ public class BackgroundCpuMonitorConfig {
     public let sampleIntervalMs: Int64
     // 滑动窗口大小（毫秒）
     public let windowSizeMs: Int64
+    // 每次抓栈保留的 TopN 线程数（默认 10），只抓 TopN 中过阈值的线程
+    public let topNThreads: Int64
+    // 单线程 cooldown（毫秒），同一线程在此时间内最多被抓取一次栈（默认 10 分钟）
+    public let threadCooldownMs: Int64
+    // 全局 cooldown（毫秒），后台抓栈整体限流（默认 3 分钟）
+    public let globalCooldownMs: Int64
 
     // 默认值常量
     private static let DEFAULT_CPU_THRESHOLD: Float64 = 0.5
@@ -1713,6 +1754,9 @@ public class BackgroundCpuMonitorConfig {
     private static let DEFAULT_FATAL_DURATION_MS: Int64 = 60000     // 60 秒
     private static let DEFAULT_SAMPLE_INTERVAL_MS: Int64 = 1000     // 1 秒
     private static let DEFAULT_WINDOW_SIZE_MS: Int64 = 5000         // 5 秒窗口
+    private static let DEFAULT_TOP_N_THREADS: Int64 = 10
+    private static let DEFAULT_THREAD_COOLDOWN_MS: Int64 = 600000   // 10 分钟
+    private static let DEFAULT_GLOBAL_COOLDOWN_MS: Int64 = 180000   // 3 分钟
 
     public init(
         cpuThreshold!: Float64 = DEFAULT_CPU_THRESHOLD,
@@ -1720,7 +1764,10 @@ public class BackgroundCpuMonitorConfig {
         errorDurationMs!: Int64 = DEFAULT_ERROR_DURATION_MS,
         fatalDurationMs!: Int64 = DEFAULT_FATAL_DURATION_MS,
         sampleIntervalMs!: Int64 = DEFAULT_SAMPLE_INTERVAL_MS,
-        windowSizeMs!: Int64 = DEFAULT_WINDOW_SIZE_MS
+        windowSizeMs!: Int64 = DEFAULT_WINDOW_SIZE_MS,
+        topNThreads!: Int64 = DEFAULT_TOP_N_THREADS,
+        threadCooldownMs!: Int64 = DEFAULT_THREAD_COOLDOWN_MS,
+        globalCooldownMs!: Int64 = DEFAULT_GLOBAL_COOLDOWN_MS
     ) {
         // 校验 cpuThreshold: 必须在 [0.0, 1.0] 范围内
         this.cpuThreshold = if (cpuThreshold < 0.0 || cpuThreshold > 1.0) {
@@ -1763,12 +1810,34 @@ public class BackgroundCpuMonitorConfig {
         } else {
             windowSizeMs
         }
+
+        // 校验 topNThreads: 必须在 (0, Int64.Max] 范围内
+        this.topNThreads = if (topNThreads <= 0 || topNThreads > Int64.Max) {
+            throw Exception("Invalid topNThreads: ${topNThreads}, expected (0, Int64.Max]")
+        } else {
+            topNThreads
+        }
+
+        // 校验 threadCooldownMs: 必须在 [0, Int64.Max] 范围内
+        this.threadCooldownMs = if (threadCooldownMs < 0 || threadCooldownMs > Int64.Max) {
+            throw Exception("Invalid threadCooldownMs: ${threadCooldownMs}, expected [0, Int64.Max]")
+        } else {
+            threadCooldownMs
+        }
+
+        // 校验 globalCooldownMs: 必须在 [0, Int64.Max] 范围内
+        this.globalCooldownMs = if (globalCooldownMs < 0 || globalCooldownMs > Int64.Max) {
+            throw Exception("Invalid globalCooldownMs: ${globalCooldownMs}, expected [0, Int64.Max]")
+        } else {
+            globalCooldownMs
+        }
     }
 
     public func toInterop(): InteropBackgroundCpuMonitorConfig {
         InteropBackgroundCpuMonitorConfig(
             this.cpuThreshold, this.warnDurationMs, this.errorDurationMs,
-            this.fatalDurationMs, this.sampleIntervalMs, this.windowSizeMs
+            this.fatalDurationMs, this.sampleIntervalMs, this.windowSizeMs,
+            this.topNThreads, this.threadCooldownMs, this.globalCooldownMs
         )
     }
 }
@@ -1870,8 +1939,9 @@ private func triggerBackgroundCpuReport(level: BackgroundCpuLevel, avgCpu: Float
     
     reportInfo.highCpuThreads = ArrayList()
     for (entry in backgroundThreadSamples) {
-        // 只上报抓到栈（stackTrace 非空）的线程。captureStackForBackgroundCpu 只对 Top1
-        // 抓栈，故这里天然只上报那一个线程；未抓栈的线程 stackTrace 为空，被过滤掉。
+        // 只上报抓到栈（stackTrace 非空）的线程。captureStackForBackgroundCpu 对 TopN
+        // 中过阈值且抓栈成功的线程逐个抓栈，故这里上报的是那几个线程；未抓栈（cooldown 中 /
+        // 未过阈值 / 抓栈失败）的线程 stackTrace 为空，被过滤掉。
         if (entry[1].stackTrace != "") {
             reportInfo.highCpuThreads.add(entry[1])
         }
@@ -1891,18 +1961,27 @@ private func triggerBackgroundCpuReport(level: BackgroundCpuLevel, avgCpu: Float
 /**
  * 执行后台抓栈操作
  *
- * 只抓 CPU 最高的那一个线程的调用栈（与前台 captureStackForHighCpuThreads 一致）。
- * 取当前帧所有线程按 cpuUsage 降序排序，对 Top1 调 fillThreadStackInfo 抓栈。
+ * 抓 TopN 个 CPU 最高的线程的栈（与前台 captureStackForHighCpuThreads 一致）。
+ * 取当前帧所有线程按 cpuUsage 降序排序，遍历前 topN 个，逐线程判断：
+ * ① 后台全局 cooldown 中则整轮跳过；② 线程级 cooldown 中则跳过该线程；
+ * ③ 不再二次过滤阈值——进入 TopN 即抓栈；④ 抓栈成功才更新该线程 cooldown。
  */
 private func captureStackForBackgroundCpu(): Unit {
     if (isBackgroundCapturingStack) { return }
     isBackgroundCapturingStack = true
 
+    var capturedAny = false
+    let currentTime = getCurrentTimeMillis()
     try {
+        // 检查后台全局 cooldown（与前台独立，互不限流）
+        if (!canSampleBackgroundGlobal(currentTime)) {
+            AppLog.info("hm-metricx-cj: [BG] Stack capture skipped due to background global cooldown")
+            return
+        }
+
         let threadCpuUsageJson = _getAppThreadCpuUsageJson()
         let threadCpuUsageArray = parseThreadCpuUsage(threadCpuUsageJson)
 
-        let currentTime = getCurrentTimeMillis()
         if (let Some(config) <- backgroundCpuConfig) {
             if (threadCpuUsageArray.size > 0) {
                 var threadCpuList = ArrayList<(Int64, String, Float64)>()
@@ -1918,40 +1997,50 @@ private func captureStackForBackgroundCpu(): Unit {
                     stable: false,
                     descending: false
                 )
-                // Top1：CPU 最高的线程
-                let item = threadCpuList[0]
-                let tid = item[0]
-                let threadName = item[1]
-                let cpuUsage = item[2]
-                // 抓栈门槛：Top1 此刻必须 ≥ 阈值才抓栈上报，与前台 captureStackForHighCpuThreads
-                // 一致。否则后台空载时主线程偶发抖动也会被当高 CPU 抓栈上报。
-                if (cpuUsage < config.cpuThreshold) {
-                    AppLog.info("hm-metricx-cj: [BG] Top1 thread below threshold, skip capture: tid=${tid}, name=${threadName}, cpu=${cpuUsage} < ${config.cpuThreshold}")
-                    return
-                }
-                AppLog.info("hm-metricx-cj: [BG] Capturing Top1 thread (highest CPU): tid=${tid}, name=${threadName}, cpu=${cpuUsage}")
+                // TopN：CPU 最高的 N 个线程
+                let topN = min(threadCpuList.size, config.topNThreads)
+                for (i in 0..topN) {
+                    let item = threadCpuList[i]
+                    let tid = item[0]
+                    let threadName = item[1]
+                    let cpuUsage = item[2]
+                    // 线程级 cooldown：与前台共用 threadCooldownMap，时长取后台 config
+                    if (!canSampleThread(tid, currentTime, config.threadCooldownMs)) {
+                        AppLog.info("hm-metricx-cj: [BG] Thread in cooldown, skip capture: tid=${tid}, name=${threadName}")
+                        continue
+                    }
+                    AppLog.info("hm-metricx-cj: [BG] Capturing thread #${i} (TopN): tid=${tid}, name=${threadName}, cpu=${cpuUsage}")
 
-                let threadInfo = if (!backgroundThreadSamples.contains(tid)) {
-                    let ni = ThreadStackInfo()
-                    ni.tid = tid
-                    ni.threadName = threadName
-                    ni.firstDetectedTime = currentTime
-                    ni.computeAvg(cpuUsage, threshold: config.cpuThreshold)
-                    backgroundThreadSamples.add(tid, ni)
-                    ni
-                } else {
-                    let ti = backgroundThreadSamples[tid]
-                    ti.computeAvg(cpuUsage, threshold: config.cpuThreshold)
-                    ti
-                }
+                    let threadInfo = if (!backgroundThreadSamples.contains(tid)) {
+                        let ni = ThreadStackInfo()
+                        ni.tid = tid
+                        ni.threadName = threadName
+                        ni.firstDetectedTime = currentTime
+                        ni.computeAvg(cpuUsage, threshold: config.cpuThreshold)
+                        backgroundThreadSamples.add(tid, ni)
+                        ni
+                    } else {
+                        let ti = backgroundThreadSamples[tid]
+                        ti.computeAvg(cpuUsage, threshold: config.cpuThreshold)
+                        ti
+                    }
 
-                fillThreadStackInfo(threadInfo, tid)
-                AppLog.info("hm-metricx-cj: [BG] Stack captured for tid=${tid}, name=${threadName}, cpu=${cpuUsage}")
+                    // 仅抓栈成功才更新线程 cooldown，避免抓栈失败也占满 cooldown
+                    if (fillThreadStackInfo(threadInfo, tid)) {
+                        updateThreadCooldown(tid, currentTime)
+                        capturedAny = true
+                        AppLog.info("hm-metricx-cj: [BG] Stack captured for tid=${tid}, name=${threadName}, cpu=${cpuUsage}")
+                    }
+                }
             }
         }
     } catch (e: Exception) {
         AppLog.warn("hm-metricx-cj: Exception during background stack capture: " + e.toString())
     } finally {
+        // 仅在真正抓栈成功时更新后台全局 cooldown
+        if (capturedAny) {
+            backgroundGlobalLastCaptureTime = currentTime
+        }
         isBackgroundCapturingStack = false
     }
 }
@@ -1988,6 +2077,7 @@ private func resetBackgroundMonitorData(): Unit {
     backgroundCpuSamples.clear()
     backgroundThreadSamples.clear()
     isBackgroundCapturingStack = false
+    backgroundGlobalLastCaptureTime = 0
 }
 
 /**
@@ -2013,7 +2103,9 @@ public func initBackgroundCpuMonitorHandlerInternal(
     backgroundCpuConfig = Some(BackgroundCpuMonitorConfig(
         cpuThreshold: config.cpuThreshold, warnDurationMs: config.warnDurationMs,
         errorDurationMs: config.errorDurationMs, fatalDurationMs: config.fatalDurationMs,
-        sampleIntervalMs: config.sampleIntervalMs, windowSizeMs: config.windowSizeMs
+        sampleIntervalMs: config.sampleIntervalMs, windowSizeMs: config.windowSizeMs,
+        topNThreads: config.topNThreads, threadCooldownMs: config.threadCooldownMs,
+        globalCooldownMs: config.globalCooldownMs
     ))
     
     // 保存线程 CPU 获取回调
@@ -2058,10 +2150,17 @@ public class InteropBackgroundCpuMonitorConfig {
     public let fatalDurationMs: Int64
     public let sampleIntervalMs: Int64
     public let windowSizeMs: Int64
+    // 每次抓栈保留的 TopN 线程数（默认 10）
+    public let topNThreads: Int64
+    // 单线程 cooldown（ms），同一线程在此时间内最多被抓取一次栈
+    public let threadCooldownMs: Int64
+    // 全局 cooldown（ms），后台抓栈整体限流
+    public let globalCooldownMs: Int64
 
     public init(
         cpuThreshold: Float64, warnDurationMs: Int64, errorDurationMs: Int64,
-        fatalDurationMs: Int64, sampleIntervalMs: Int64, windowSizeMs: Int64
+        fatalDurationMs: Int64, sampleIntervalMs: Int64, windowSizeMs: Int64,
+        topNThreads: Int64, threadCooldownMs: Int64, globalCooldownMs: Int64
     ) {
         this.cpuThreshold = cpuThreshold
         this.warnDurationMs = warnDurationMs
@@ -2069,5 +2168,8 @@ public class InteropBackgroundCpuMonitorConfig {
         this.fatalDurationMs = fatalDurationMs
         this.sampleIntervalMs = sampleIntervalMs
         this.windowSizeMs = windowSizeMs
+        this.topNThreads = topNThreads
+        this.threadCooldownMs = threadCooldownMs
+        this.globalCooldownMs = globalCooldownMs
     }
 }

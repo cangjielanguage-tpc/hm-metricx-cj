@@ -102,13 +102,19 @@ export declare class InteropBackgroundCpuMonitorConfig {
     fatalDurationMs: number
     sampleIntervalMs: number
     windowSizeMs: number
+    topNThreads: number
+    threadCooldownMs: number
+    globalCooldownMs: number
     constructor (
         cpuThreshold: number,
         warnDurationMs: number,
         errorDurationMs: number,
         fatalDurationMs: number,
         sampleIntervalMs: number,
-        windowSizeMs: number
+        windowSizeMs: number,
+        topNThreads: number,
+        threadCooldownMs: number,
+        globalCooldownMs: number
     )
 }
 

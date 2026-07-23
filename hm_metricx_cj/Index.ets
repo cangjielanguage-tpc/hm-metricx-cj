@@ -1528,6 +1528,9 @@ export class BackgroundCpuMonitorConfig {
   fatalDurationMs: number = 60000;
   sampleIntervalMs: number = 1000;
   windowSizeMs: number = 5000;
+  topNThreads: number = 10;
+  threadCooldownMs: number = 600000;
+  globalCooldownMs: number = 180000;
 
   constructor(
     cpuThreshold?: number,
@@ -1535,7 +1538,10 @@ export class BackgroundCpuMonitorConfig {
     errorDurationMs?: number,
     fatalDurationMs?: number,
     sampleIntervalMs?: number,
-    windowSizeMs?: number
+    windowSizeMs?: number,
+    topNThreads?: number,
+    threadCooldownMs?: number,
+    globalCooldownMs?: number
   ) {
     if (cpuThreshold !== undefined) this.cpuThreshold = cpuThreshold;
     if (warnDurationMs !== undefined) this.warnDurationMs = warnDurationMs;
@@ -1543,6 +1549,9 @@ export class BackgroundCpuMonitorConfig {
     if (fatalDurationMs !== undefined) this.fatalDurationMs = fatalDurationMs;
     if (sampleIntervalMs !== undefined) this.sampleIntervalMs = sampleIntervalMs;
     if (windowSizeMs !== undefined) this.windowSizeMs = windowSizeMs;
+    if (topNThreads !== undefined) this.topNThreads = topNThreads;
+    if (threadCooldownMs !== undefined) this.threadCooldownMs = threadCooldownMs;
+    if (globalCooldownMs !== undefined) this.globalCooldownMs = globalCooldownMs;
   }
 
   toInteropConfig(): InteropBackgroundCpuMonitorConfig {
@@ -1555,7 +1564,10 @@ export class BackgroundCpuMonitorConfig {
       this.errorDurationMs,
       this.fatalDurationMs,
       this.sampleIntervalMs,
-      this.windowSizeMs
+      this.windowSizeMs,
+      this.topNThreads,
+      this.threadCooldownMs,
+      this.globalCooldownMs
     );
   }
 }
