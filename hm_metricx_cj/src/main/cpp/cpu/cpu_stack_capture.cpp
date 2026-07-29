@@ -421,4 +421,113 @@ int64_t CaptureThreadStack(int64_t tid, uint8_t *stackBuf, int64_t stackSize,
     return ret;
 }
 
+// 只回溯拿原始 PC 数组，不符号化。供采样阶段高频调用（~20µs/次）。
+// 信号内 FP 回溯结果经 g_pending.pcs 拷贝到调用方 pcs 缓冲，不付符号化成本。
+// 返回：>0=帧数（写入 pcs 前 N 个）；0=handler 跑了但 0 帧；负值=错误码
+//       -2 未初始化；-3 并发占用；-4 tgkill 失败；-5 信号超时
+int64_t CaptureThreadPcs(int64_t tid, uint64_t *pcs, int64_t pcsCapacity) {
+    if (pcs == nullptr || pcsCapacity <= 0) {
+        return -1;
+    }
+    if (!g_inited.load() || g_btObj == nullptr) {
+        return -2;
+    }
+
+    // tid == 0：当前线程，同步直调 BacktraceFromFp（不发信号）。
+    if (tid == 0) {
+        int32_t n = OH_HiDebug_BacktraceFromFp(g_btObj, __builtin_frame_address(0),
+                                                reinterpret_cast<void **>(pcs),
+                                                static_cast<int32_t>(pcsCapacity));
+        if (n <= 0) {
+            return 0;
+        }
+        if (n > pcsCapacity) {
+            n = static_cast<int32_t>(pcsCapacity);
+        }
+        return static_cast<int64_t>(n);
+    }
+
+    // 串行：同时只允许一个回溯在飞（与 CaptureThreadStack 同锁）。
+    bool expected = false;
+    if (!g_capturing.compare_exchange_strong(expected, true)) {
+        return -3;
+    }
+
+    int64_t ret = 0;
+    do {
+        g_pending.ready.store(false, std::memory_order_release);
+        g_pending.count.store(0, std::memory_order_release);
+
+        if (syscall(SYS_tgkill, getpid(), static_cast<pid_t>(tid), SIGUSR2) != 0) {
+            int err = errno;
+            char buf[128];
+            std::snprintf(buf, sizeof(buf),
+                "CaptureThreadPcs: tgkill failed tid=%lld errno=%d",
+                static_cast<long long>(tid), err);
+            LogWarn(buf);
+            ret = -4;
+            break;
+        }
+
+        if (!WaitReady(g_pending.ready, CAPTURE_WAIT_TIMEOUT_MS)) {
+            char buf[128];
+            std::snprintf(buf, sizeof(buf),
+                "CaptureThreadPcs: wait ready timeout tid=%lld (handlerRan=%d)",
+                static_cast<long long>(tid),
+                g_pending.handlerRan.load(std::memory_order_acquire) ? 1 : 0);
+            LogWarn(buf);
+            ret = -5;
+            break;
+        }
+
+        int32_t n = g_pending.count.load(std::memory_order_acquire);
+        if (n <= 0) {
+            ret = 0;  // handler 跑了但 0 帧
+            break;
+        }
+        if (n > MAX_PC_FRAMES) {
+            n = MAX_PC_FRAMES;
+        }
+        int64_t copyN = (n < pcsCapacity) ? n : static_cast<int32_t>(pcsCapacity);
+        std::memcpy(pcs, g_pending.pcs, static_cast<size_t>(copyN * sizeof(uint64_t)));
+        ret = copyN;
+    } while (false);
+
+    g_capturing.store(false, std::memory_order_release);
+    return ret;
+}
+
+// 批量符号化 PC 数组。周期末对频次 TopK 栈调用，输入 PC 数组、输出栈文本+模块名。
+// 纯读符号表，不碰 g_pending，不拿 g_capturing 锁，可与回溯并发（但 Cangjie 侧串行调用）。
+// 返回写入 stackBuf 的字节数（<=0=失败）。
+int64_t SymbolizePcs(const uint64_t *pcs, int64_t count,
+                      uint8_t *stackBuf, int64_t stackSize,
+                      uint8_t *moduleBuf, int64_t moduleSize) {
+    char *stack = reinterpret_cast<char *>(stackBuf);
+    char *module = (moduleBuf != nullptr) ? reinterpret_cast<char *>(moduleBuf) : nullptr;
+    if (pcs == nullptr || stack == nullptr || stackSize <= 0 || count <= 0) {
+        if (stack != nullptr && stackSize > 0) {
+            stack[0] = '\0';
+        }
+        return 0;
+    }
+    if (g_btObj == nullptr) {
+        return -2;
+    }
+
+    void **pcPtrs = const_cast<void **>(reinterpret_cast<const void *const *>(pcs));
+    int32_t n = (count > MAX_PC_FRAMES) ? MAX_PC_FRAMES : static_cast<int32_t>(count);
+
+    stack[0] = '\0';
+    if (module != nullptr && moduleSize > 0) {
+        module[0] = '\0';
+    }
+    int64_t total = 0;
+    for (int32_t i = 0; i < n && total < stackSize - 1; i++) {
+        total += AppendSymbolizedFrame(pcPtrs[i], stack, stackSize, total);
+    }
+    ExtractTopModule(pcPtrs, n, module, moduleSize);
+    return total;
+}
+
 } // extern "C"

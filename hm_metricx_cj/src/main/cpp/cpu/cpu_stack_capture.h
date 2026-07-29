@@ -12,8 +12,11 @@
  *   - 信号处理里只调 OH_HiDebug_BacktraceFromFp + 原子标志，绝不调 SymbolicAddress/malloc 等。
  *   - backtrace object 在 InitCpuStackCapture（普通上下文）创建并长期持有。
  *
- * 触发稀疏：同 tid 10 分钟、全局 3 分钟 cooldown（见 cpu.cj），配合 isCapturingStack
- *   串行锁，g_pending 单槽即可。
+ * 回溯/符号化解耦：采样阶段调 CaptureThreadPcs 只做信号内 FP 回溯（~20µs），周期末对
+ *   频次 TopK 栈调 SymbolizePcs 批量符号化。CaptureThreadStack（一体化）保留给自检/即时场景。
+ *
+ * 触发稀疏：线程级 3 分钟 cooldown（见 cpu.cj），配合 isCapturingStack 串行锁，g_pending
+ *   单槽即可。
  */
 #ifndef CPU_STACK_CAPTURE_H
 #define CPU_STACK_CAPTURE_H
@@ -40,6 +43,24 @@ int8_t InitCpuStackCapture(void);
  */
 int64_t CaptureThreadStack(int64_t tid, uint8_t *stackBuf, int64_t stackSize,
                            uint8_t *moduleBuf, int64_t moduleSize);
+
+/*
+ * 只回溯拿原始 PC 数组，不符号化。供采样阶段高频调用（~20µs/次）。
+ *   tid == 0 表示当前线程（同步直调 BacktraceFromFp，不发信号）。
+ *   pcs: 调用方分配的 PC 缓冲；pcsCapacity: 容量帧数（建议 MAX_PC_FRAMES=64）。
+ *   返回写入 pcs 的帧数；负值为错误码：-1 参数非法，-2 未初始化，-3 并发占用，
+ *   -4 tgkill 失败，-5 信号超时。
+ */
+int64_t CaptureThreadPcs(int64_t tid, uint64_t *pcs, int64_t pcsCapacity);
+
+/*
+ * 批量符号化 PC 数组，写入栈文本 + 栈顶模块名。周期末对频次 TopK 栈调用。
+ *   纯读符号表，不碰 g_pending，不拿 g_capturing 锁，可与回溯并发。
+ * @return 写入 stackBuf 的字节数（不含 '\0'）；<0 失败（-2 未初始化）。
+ */
+int64_t SymbolizePcs(const uint64_t *pcs, int64_t count,
+                      uint8_t *stackBuf, int64_t stackSize,
+                      uint8_t *moduleBuf, int64_t moduleSize);
 
 #ifdef __cplusplus
 }
