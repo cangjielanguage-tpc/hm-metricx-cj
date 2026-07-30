@@ -1133,9 +1133,20 @@ private func captureStackNative(tid: Int64, stackBuf: Array<UInt8>, moduleBuf: A
 }
 
 // 把 buf 前 len 字节（native 已写入）转成 String。
+// native 的 SymbolizePcs 用 snprintf 累积栈文本长度，而 snprintf 的返回值是“本应写入”的字节数
+// （非实际写入，实际写入被 bufSize 截断），fa->written 累加的是这个逻辑长度，故返回的 total 会
+// 超过实际写入量、可远超 stackSize（8192）。调用方直接拿 total 当 len 传入，for (i in 0..len)
+// 会读到 buf[8192] → IndexOutOfBoundsException: array length 8192, index 8192。
+// 故在此单点做边界保护：len 截断到 buf.size，负值视为 0。
 private func bytesToString(buf: Array<UInt8>, len: Int64): String {
-    var bytes = Array<UInt8>(len, repeat: UInt8(0))
-    for (i in 0..len) {
+    var safeLen = len
+    if (safeLen < 0) {
+        safeLen = 0
+    } else if (safeLen > buf.size) {
+        safeLen = buf.size
+    }
+    var bytes = Array<UInt8>(safeLen, repeat: UInt8(0))
+    for (i in 0..safeLen) {
         bytes[i] = buf[i]
     }
     String.fromUtf8(bytes)

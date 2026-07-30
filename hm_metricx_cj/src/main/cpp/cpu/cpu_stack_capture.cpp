@@ -6,6 +6,7 @@
 #include "cpu_stack_capture.h"
 
 #include <atomic>
+#include <cstdarg>
 #include <cstdio>
 #include <cstring>
 #include <pthread.h>
@@ -122,6 +123,29 @@ static int64_t AppendSymbolizedFrame(void *pc, char *stackBuf, int64_t stackSize
         if (fa == nullptr || frame == nullptr) {
             return;
         }
+        // snprintf 返回“本应写入”的逻辑字节数（不含 '\0'），而非实际写入。
+        // 直接把它累加进 written 会导致 written 越过 bufSize，后续帧 snprintf 的
+        // size 参数 (bufSize-written) 回绕成巨大正数、buf+written 指针越过缓冲末尾，
+        // 最终把超界 total 返回仓颉层引发 IndexOutOfBoundsException。
+        // 故用“可用空间”钳制：只累加真正能写进缓冲的字节数（real），written 始终 ≤ bufSize-1。
+        auto appendText = [fa](const char *fmt, ...) -> void {
+            if (fa->written >= fa->bufSize - 1) {
+                return; // 缓冲已满（留 1 字节给 '\0'），不再追加
+            }
+            va_list ap;
+            va_start(ap, fmt);
+            int n = std::vsnprintf(fa->buf + fa->written,
+                                   static_cast<size_t>(fa->bufSize - fa->written), fmt, ap);
+            va_end(ap);
+            if (n <= 0) {
+                return;
+            }
+            int64_t avail = fa->bufSize - 1 - fa->written; // 可写字节数（留 1 给 '\0'）
+            int64_t real = (n < avail) ? static_cast<int64_t>(n) : avail;
+            fa->written += real;
+            fa->buf[fa->written] = '\0'; // 保持 '\0' 结尾，供下次 snprintf 正确续写
+            fa->valid = true;
+        };
         if (frame->type == HIDEBUG_STACK_FRAME_TYPE_NATIVE) {
             // native 帧：functionName(mapName+0xoffset)。
             const HiDebug_NativeStackFrame &nf = frame->frame.native;
@@ -136,13 +160,8 @@ static int64_t AppendSymbolizedFrame(void *pc, char *stackBuf, int64_t stackSize
             if (fn[0] == '\0') {
                 fn = "?";
             }
-            int n = std::snprintf(fa->buf + fa->written, static_cast<size_t>(fa->bufSize - fa->written),
-                                  "  %s(%s+0x%llx)\n", fn, map,
-                                  static_cast<unsigned long long>(nf.funcOffset));
-            if (n > 0) {
-                fa->written += static_cast<int64_t>(n);
-                fa->valid = true;
-            }
+            appendText("  %s(%s+0x%llx)\n", fn, map,
+                       static_cast<unsigned long long>(nf.funcOffset));
             return;
         }
         if (frame->type == HIDEBUG_STACK_FRAME_TYPE_JS) {
@@ -165,26 +184,11 @@ static int64_t AppendSymbolizedFrame(void *pc, char *stackBuf, int64_t stackSize
             }
             const char *displayName = (fn[0] != '\0') ? fn : urlBase;
             if (jf.line > 0 && jf.column > 0) {
-                int n = std::snprintf(fa->buf + fa->written, static_cast<size_t>(fa->bufSize - fa->written),
-                                      "  %s(%s:%d:%d)\n", displayName, urlBase, jf.line, jf.column);
-                if (n > 0) {
-                    fa->written += static_cast<int64_t>(n);
-                    fa->valid = true;
-                }
+                appendText("  %s(%s:%d:%d)\n", displayName, urlBase, jf.line, jf.column);
             } else if (jf.line > 0) {
-                int n = std::snprintf(fa->buf + fa->written, static_cast<size_t>(fa->bufSize - fa->written),
-                                      "  %s(%s:%d)\n", displayName, urlBase, jf.line);
-                if (n > 0) {
-                    fa->written += static_cast<int64_t>(n);
-                    fa->valid = true;
-                }
+                appendText("  %s(%s:%d)\n", displayName, urlBase, jf.line);
             } else {
-                int n = std::snprintf(fa->buf + fa->written, static_cast<size_t>(fa->bufSize - fa->written),
-                                      "  %s(%s)\n", displayName, urlBase);
-                if (n > 0) {
-                    fa->written += static_cast<int64_t>(n);
-                    fa->valid = true;
-                }
+                appendText("  %s(%s)\n", displayName, urlBase);
             }
             return;
         }
