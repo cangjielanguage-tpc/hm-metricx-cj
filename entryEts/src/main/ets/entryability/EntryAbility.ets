@@ -27,6 +27,7 @@ import {
   destroyHighCpuMonitorHandler,
   HighCpuMonitorConfig,
   HighCpuReportInfo,
+  captureCurrentThreadStack,
   initBackgroundCpuMonitorHandler,
   destroyBackgroundCpuMonitorHandler,
   BackgroundCpuMonitorConfig,
@@ -41,6 +42,7 @@ import {
   initSwipeKillHandler,
   destroySwipeKillHandler
 } from '@cangjie-tpc/hm_metricx_cj_hybrid';
+import { thermalTestStore } from '../store/ThermalTestStore';
 
 const DOMAIN = 0x0000;
 
@@ -78,6 +80,13 @@ initCrashHandler(
           hilog.error(DOMAIN, 'hm_metricx_cj', 'crash fix === Crash Info ===');
           hilog.error(DOMAIN, 'hm_metricx_cj', 'crash fix rawFile: %{public}s', data.rawFile);
 
+          // 供首页展示上次崩溃（重启后 reportLastCrash 回吐的那一次）
+          try {
+            AppStorage.setOrCreate<string>('lastCrashText', data.rawFile ?? '');
+          } catch (e) {
+            hilog.error(DOMAIN, 'hm_metricx_cj', 'set lastCrashText failed: %{public}s', `${e}`);
+          }
+
           if (data.rawheapFilePath) {
             hilog.error(DOMAIN, 'hm_metricx_cj', 'crash fix === OOM Info ===');
             hilog.error(DOMAIN, 'hm_metricx_cj', 'crash fix rawheapFilePath: %{public}s', data.rawheapFilePath);
@@ -94,7 +103,15 @@ initCrashHandler(
     );
     initFreezeHandler(
       () => "{}",
-      data => hilog.error(DOMAIN, 'hm_metricx_cj', 'freeze info %{public}s', data.rawFile),
+      data => {
+        hilog.error(DOMAIN, 'hm_metricx_cj', 'freeze info %{public}s', data.rawFile);
+        // 供首页展示上次 freeze（重启后回吐）
+        try {
+          AppStorage.setOrCreate<string>('lastFreezeText', data.rawFile ?? '');
+        } catch (e) {
+          hilog.error(DOMAIN, 'hm_metricx_cj', 'set lastFreezeText failed: %{public}s', `${e}`);
+        }
+      },
       this.context.cacheDir
     );
     initThermalHandler(
@@ -103,8 +120,24 @@ initCrashHandler(
         hilog.error(0x0000, 'thermal',
           `pageName=${info.pageName}, level=${info.level}, ` +
             `levelName=${info.levelName}, levelChange=${info.levelChange}, ` +
-            `threshold=${info.threshold}, isForeground=${info.isForeground}, durationMs=${info.durationMs}`
+            `threshold=${info.threshold}, isForeground=${info.isForeground}, ` +
+            `durationMs=${info.durationMs}, cpuNum=${info.cpuNum}`
         );
+        // 回吐 store，供首页 ThermalInfoCard 展示（不再恒为初始值）
+        thermalTestStore.reportCount += 1;
+        thermalTestStore.lastLevel = info.level;
+        thermalTestStore.lastLevelName = info.levelName;
+        thermalTestStore.lastPageName = info.pageName;
+        thermalTestStore.lastDurationMs = info.durationMs;
+        thermalTestStore.lastTimestamp = info.timestamp;
+        thermalTestStore.lastIsForeground = info.isForeground;
+        // demo 断言：cpuNum 取值逻辑在 Cangjie 侧(getProcessorCount)，ohosTest 无法直接测，
+        // 在发热回调里校验产出：cpuNum 应为正数。
+        if (info.cpuNum !== undefined && info.cpuNum > 0) {
+          hilog.info(0x0000, 'thermal', 'cpuNum check pass: %{public}d', info.cpuNum);
+        } else {
+          hilog.error(0x0000, 'thermal', 'cpuNum check FAIL: %{public}d', info.cpuNum);
+        }
       },
       1000,  // 1s，先把周期调短验证链路
       1000, // 1s
@@ -192,10 +225,10 @@ initCrashHandler(
     initHighCpuMonitorHandler(
       this.context,
       new HighCpuMonitorConfig(
-        0.05,        // cpuThreshold: 5% CPU 阈值
+        0.05,        // cpuThreshold: 线程级阈值 0.05（线程占进程 CPU 比例≥5% 才抓栈，挡住主线程/hilog/采样自身的偶发抖动；单 Worker 烧单核时占进程 CPU≈8%+，稳定命中）
         1000,        // foregroundIntervalMs: 前台 1 秒采样
         2000,        // backgroundIntervalMs: 后台 2 秒采样
-        33000,       // monitorDurationMs: 33000 毫秒 (33 秒) 上报一次
+        30000,       // monitorDurationMs: 30000 毫秒 (30 秒) 上报一次
         60000,       // threadCooldownMs: 线程 60 秒 cooldown
         3000,        // globalCooldownMs: 全局 3 秒 cooldown
         0.85,        // highSampleRatioThreshold: 85% 高采样比例阈值
@@ -220,10 +253,12 @@ initCrashHandler(
           hilog.warn(DOMAIN, 'HighCpuMonitor', `  采样次数：${threadInfo.sampleCount}`);
           hilog.warn(DOMAIN, 'HighCpuMonitor', `  高采样比例：${threadInfo.highSampleCount / threadInfo.sampleCount}`);
           hilog.warn(DOMAIN, 'HighCpuMonitor', `  首次检测时间：${threadInfo.firstDetectedTime}`);
+          hilog.warn(DOMAIN, 'HighCpuMonitor', `  模块名：${threadInfo.moduleName}`);
+          hilog.warn(DOMAIN, 'HighCpuMonitor', `  调用栈：\n${threadInfo.stackTrace}`);
         }
       }
     );
-    hilog.info(DOMAIN, 'HighCpuMonitor', '高 CPU 监控已启动（生产模式：33 秒上报，5% 阈值，85% 高采样比例）');
+    hilog.info(DOMAIN, 'HighCpuMonitor', '高 CPU 监控已启动（生产模式：33 秒上报，30% 阈值，85% 高采样比例）');
 
     // 后台活动超长率监控初始化
     initBackgroundCpuMonitorHandler(
@@ -252,6 +287,15 @@ initCrashHandler(
           hilog.warn(DOMAIN, 'BackgroundCpuMonitor', `  时间戳：${sample.timestamp}`);
           hilog.warn(DOMAIN, 'BackgroundCpuMonitor', `  CPU 使用率：${sample.cpuUsage}`);
           hilog.warn(DOMAIN, 'BackgroundCpuMonitor', `  后台时长：${sample.duration}ms`);
+        }
+
+        // 打印高占用线程调用栈
+        for (const threadInfo of reportInfo.highCpuThreads) {
+          hilog.warn(DOMAIN, 'BackgroundCpuMonitor', '--- 高占用线程 ---');
+          hilog.warn(DOMAIN, 'BackgroundCpuMonitor', `  TID: ${threadInfo.tid}`);
+          hilog.warn(DOMAIN, 'BackgroundCpuMonitor', `  线程名：${threadInfo.threadName}`);
+          hilog.warn(DOMAIN, 'BackgroundCpuMonitor', `  模块名：${threadInfo.moduleName}`);
+          hilog.warn(DOMAIN, 'BackgroundCpuMonitor', `  调用栈：\n${threadInfo.stackTrace}`);
         }
       }
     );
@@ -282,8 +326,17 @@ initCrashHandler(
 
     windowStage.getMainWindow().then((win) => {
       initPageEventHandler(this.context, windowStage, data => {
-    });
+        // 页面退出时上报 FPS（manual 姿势），回吐 AppStorage 供首页展示
+        AppStorage.setOrCreate<string>('lastFpsInfo',
+          `pageName=${data.pageName}, minFps=${data.minFps}, avgFps=${data.avgFps}`);
+      });
     initScrollEventHandler(this.context, data => {
+      // 滑动停止时上报掉帧率（manual 姿势），回吐 AppStorage 供首页展示
+      AppStorage.setOrCreate<string>('lastScrollHitchInfo',
+        `pageName=${data.pageName}, minFps=${data.minFps}, avgFps=${data.avgFps}, ` +
+          `frameDropRatio=${data.frameDropRatio}, jankRate=${data.jankRate}, ` +
+          `bigJankRate=${data.bigJankRate}, totalFrameCount=${data.totalFrameCount}, ` +
+          `targetFPS=${data.targetFPS}`);
     });
     initLaggyHandler(this.context, windowStage, 100, 100, data => {
     }, data => {

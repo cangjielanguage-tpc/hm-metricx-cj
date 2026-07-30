@@ -101,6 +101,15 @@ public func triggerHighCpuReportInterop(): Unit {
 }
 
 /**
+ * 抓栈自检：抓取当前线程调用栈并返回符号化文本（tid=0 同步直调，不发信号、无 cooldown）。
+ * 供 demo 自检按钮验证 native 抓栈链路，不依赖高 CPU 上报窗口。
+ */
+@Interop[ArkTS]
+public func captureCurrentThreadStackInterop(): String {
+    captureCurrentThreadStack()
+}
+
+/**
  * 检查高 CPU 监控是否正在运行
  *
  * @return true=监控正在运行，false=监控未启动或已停止

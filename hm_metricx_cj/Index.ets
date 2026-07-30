@@ -11,6 +11,7 @@ import {
   InteropCrashInfo as CrashInfo,
   InteropFreezeInfo as FreezeInfo,
   InteropSampleTrafficInfo as SampleTrafficInfo,
+  InteropPageTrafficInfo as PageTrafficInfo,
   InteropStorageInfo as StorageInfo,
   TrafficPreference,
   InteropProcessCpuInfo as ProcessCpuInfo,
@@ -43,7 +44,7 @@ import {
 } from 'libark_interop_api.so';
 import { preferences } from '@kit.ArkData';
 import { uiObserver, window } from '@kit.ArkUI';
-import { statistics } from '@kit.NetworkKit';
+import { connection, statistics } from '@kit.NetworkKit';
 import { storageStatistics } from '@kit.CoreFileKit';
 import { hiAppEvent, hidebug, hilog } from '@kit.PerformanceAnalysisKit';
 import {
@@ -108,9 +109,58 @@ export class CMemMonitorConfig {
 }
 let uid = bundleManager.getBundleInfoForSelfSync(bundleManager.BundleFlag.GET_BUNDLE_INFO_WITH_APPLICATION).appInfo.uid;
 
-let getUidRxAndTxBytes = (cb: (rxBytes: number, txBytes: number, pageName: string) => void, pageName: string) => {
+// 承载类型数组 → 承载网字符串映射（纯函数，便于单测）。
+// 约定：空数组 → 'none'；含 WIFI 优先 → 'wifi'；否则含 CELLULAR → 'mobile'；其余 → 'other'。
+// 注：'unknown' 仅在 getCurrentBearer 运行时异常路径产生，本函数不涉及。
+export function mapBearerTypes(bearerTypes: Array<connection.NetBearType>): string {
+  if (bearerTypes.length === 0) {
+    return 'none';
+  }
+  // 承载类型枚举:BEARER_CELLULAR=0, BEARER_WIFI=1, BEARER_ETHERNET=3, ...
+  if (bearerTypes.includes(connection.NetBearType.BEARER_WIFI)) {
+    return 'wifi';
+  } else if (bearerTypes.includes(connection.NetBearType.BEARER_CELLULAR)) {
+    return 'mobile';
+  } else {
+    return 'other';
+  }
+}
+
+// 查询当前默认网络的承载类型，返回 wifi/mobile/none/unknown。
+// 用于流量上报标注本次数据走的是 wlan 还是移动网络。
+// getDefaultNet()/getNetCapabilities() 均返回 Promise，结果经回调异步返回。
+let getCurrentBearer = (onBearer: (bearer: string) => void): void => {
+  try {
+    // getDefaultNet() 返回 Promise<NetHandle>；getNetCapabilities 是 connection 顶层函数
+    connection.getDefaultNet().then((netHandle: connection.NetHandle): void => {
+      if (!netHandle || !netHandle.netId) {
+        onBearer('none');
+        return;
+      }
+      connection.getNetCapabilities(netHandle).then((netCapabilities: connection.NetCapabilities): void => {
+        onBearer(mapBearerTypes(netCapabilities.bearerTypes ?? []));
+      }).catch((e: BusinessError): void => {
+        hilog.warn(DOMAIN, TAG, `getNetCapabilities failed: ${e.message}`);
+        onBearer('unknown');
+      });
+    }).catch((e: BusinessError): void => {
+      hilog.warn(DOMAIN, TAG, `getDefaultNet failed: ${e.message}`);
+      onBearer('unknown');
+    });
+  } catch (e) {
+    hilog.warn(DOMAIN, TAG, 'getCurrentBearer failed');
+    onBearer('unknown');
+  }
+};
+
+let getUidRxAndTxBytes = (
+  cb: (rxBytes: number, txBytes: number, pageName: string, bearer: string) => void,
+  pageName: string
+) => {
   statistics.getUidRxBytes(uid).then(rxBytes => {
-    statistics.getUidTxBytes(uid).then(txBytes => cb(rxBytes, txBytes, pageName));
+    statistics.getUidTxBytes(uid).then(txBytes => {
+      getCurrentBearer((bearer: string): void => cb(rxBytes, txBytes, pageName, bearer));
+    });
   });
 };
 
@@ -173,8 +223,26 @@ export function destroyTrafficHandler(): void {
   clearSampleTraffic();
   offTraffic();
   cjLibTraffic.destroyTrafficHandlerInterop((cb: (rxBytes: number, txBytes: number) => void) => {
-    getUidRxAndTxBytes(cb, '');
+    // destroy 路径只需字节累计，丢弃 pageName/bearer
+    getUidRxAndTxBytes((rxBytes: number, txBytes: number, _pageName: string, _bearer: string): void => {
+      cb(rxBytes, txBytes);
+    }, '');
   });
+}
+
+/**
+ * 获取当前页面从进入到调用时刻期间的完整流量增量，调用后自动清零，供下一页面计数。
+ * 上层在页面切换（离开上一页）时调用，即可拿到上一个页面从进入到离开期间的完整流量增量，
+ * 用于发热异常快照中关联当前页面的流量消耗。
+ *
+ * 注意：结果经回调异步返回（底层 statistics API 返回 Promise）。
+ */
+export function getAndResetCurrentPageTraffic(onResult: (info: PageTrafficInfo) => void): void {
+  if (!cjLibTraffic) {
+    hilog.warn(DOMAIN, TAG, 'getAndResetCurrentPageTraffic called but traffic module is disabled');
+    return;
+  }
+  cjLibTraffic.getAndResetCurrentPageTrafficInterop(onResult);
 }
 
 export function initStorageHandler(
@@ -1396,6 +1464,25 @@ export function triggerHighCpuReport(): void {
   cjLibCpu.triggerHighCpuReportInterop();
 }
 
+/**
+ * 仅用于抓栈自检调用的本地接口：captureCurrentThreadStackInterop 由 cpu_wrapper.cj 的
+ * @Interop[ArkTS] 导出，但聚合类型 CustomLib（ark_interop_api.d.ts，构建期由 cangjie 插件
+ * 重新生成、可能滞后）未稳定包含该方法，故在此以本地 interface 显式声明调用签名，
+ * 运行时仍走 cjLibCpu 实际加载的 wrapper.so 符号。
+ */
+interface CpuStackCaptureLib {
+  captureCurrentThreadStackInterop(): string;
+}
+
+/**
+ * 抓栈自检：抓取当前线程调用栈并返回符号化文本（同步直调，不发信号、无 cooldown）。
+ * 供 demo 自检按钮验证 native 抓栈链路，不依赖高 CPU 上报窗口。
+ */
+export function captureCurrentThreadStack(): string {
+  if (!cjLibCpu) return 'cjLibCpu disabled';
+  return cjLibCpu.captureCurrentThreadStackInterop();
+}
+
 // ==================== 后台活动超长率监控 ====================
 
 /**
@@ -1441,6 +1528,9 @@ export class BackgroundCpuMonitorConfig {
   fatalDurationMs: number = 60000;
   sampleIntervalMs: number = 1000;
   windowSizeMs: number = 5000;
+  topNThreads: number = 10;
+  threadCooldownMs: number = 600000;
+  globalCooldownMs: number = 180000;
 
   constructor(
     cpuThreshold?: number,
@@ -1448,7 +1538,10 @@ export class BackgroundCpuMonitorConfig {
     errorDurationMs?: number,
     fatalDurationMs?: number,
     sampleIntervalMs?: number,
-    windowSizeMs?: number
+    windowSizeMs?: number,
+    topNThreads?: number,
+    threadCooldownMs?: number,
+    globalCooldownMs?: number
   ) {
     if (cpuThreshold !== undefined) this.cpuThreshold = cpuThreshold;
     if (warnDurationMs !== undefined) this.warnDurationMs = warnDurationMs;
@@ -1456,6 +1549,9 @@ export class BackgroundCpuMonitorConfig {
     if (fatalDurationMs !== undefined) this.fatalDurationMs = fatalDurationMs;
     if (sampleIntervalMs !== undefined) this.sampleIntervalMs = sampleIntervalMs;
     if (windowSizeMs !== undefined) this.windowSizeMs = windowSizeMs;
+    if (topNThreads !== undefined) this.topNThreads = topNThreads;
+    if (threadCooldownMs !== undefined) this.threadCooldownMs = threadCooldownMs;
+    if (globalCooldownMs !== undefined) this.globalCooldownMs = globalCooldownMs;
   }
 
   toInteropConfig(): InteropBackgroundCpuMonitorConfig {
@@ -1468,7 +1564,10 @@ export class BackgroundCpuMonitorConfig {
       this.errorDurationMs,
       this.fatalDurationMs,
       this.sampleIntervalMs,
-      this.windowSizeMs
+      this.windowSizeMs,
+      this.topNThreads,
+      this.threadCooldownMs,
+      this.globalCooldownMs
     );
   }
 }

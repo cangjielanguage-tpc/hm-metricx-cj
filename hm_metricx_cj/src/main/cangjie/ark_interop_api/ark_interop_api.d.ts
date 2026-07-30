@@ -96,6 +96,9 @@ export declare class InteropBackgroundCpuMonitorConfig {
     fatalDurationMs: number
     sampleIntervalMs: number
     windowSizeMs: number
+    topNThreads: number
+    threadCooldownMs: number
+    globalCooldownMs: number
 }
 
 export declare class InteropAppStateInfo {
@@ -249,6 +252,7 @@ export declare class InteropThermalEventInfo {
     isForeground: boolean
     durationMs: number
     timestamp: number
+    cpuNum: number
 }
 
 export declare class InteropProcessCpuInfo {
@@ -388,6 +392,7 @@ export declare class InteropSystemTrafficInfo {
     upTotal: number
     downTotal: number
     timeStamp: string
+    bearerType: string
 }
 
 // ==================== High CPU Monitor 互操作类型定义 ====================
@@ -455,7 +460,7 @@ export declare interface CustomLib {
     SwipeKillInfo: {new (timestamp: number, isUserSwipeKill: boolean, exitInfo: string): SwipeKillInfo}
     InteropStorageFileInfo: {new (p: string, s: number, ss: Array<InteropStorageFileInfo>, i: boolean): InteropStorageFileInfo}
     InteropStorageInfo: {new (a: number, c: number, d: number, t: number, ts: Array<InteropStorageFileInfo>, es: Array<InteropStorageFileInfo>): InteropStorageInfo}
-    InteropSystemTrafficInfo: {new (u: number, d: number, t: string): InteropSystemTrafficInfo}
+    InteropSystemTrafficInfo: {new (u: number, d: number, t: string, bearer: string): InteropSystemTrafficInfo}
     InteropPageTrafficInfo: {new (u: number, d: number, p: string): InteropPageTrafficInfo}
     InteropDayTrafficInfo: {new (u: number, d: number, date: string): InteropDayTrafficInfo}
     InteropSampleTrafficInfo: {new (s: InteropSystemTrafficInfo, p: Map<string, InteropPageTrafficInfo>): InteropSampleTrafficInfo}
@@ -478,7 +483,7 @@ export declare interface CustomLib {
     initCrashHandler(addCrashWatcher: (funcArg0: (funcArgfuncArg0: string, funcArgfuncArg1: string, funcArgfuncArg2: string, funcArgfuncArg3: string, funcArgfuncArg4: string, funcArgfuncArg5: string, funcArgfuncArg6: string) => void) => void, onCrash: (funcArg0: () => void) => void, exit: () => void, collectCrashInfo: () => string, reportCrashInfo: (funcArg0: InteropCrashInfo) => void, persistentDir: string, enableDumpOnOOM: number, lastNHilogNumber: number, systemLogNumber: number, enableMemMonitor: CMemMonitorConfig | undefined): void
     getExitInfo(lastExitMessage: string, lastExitReason: number): ExitInfo
     initFreezeHandler(sdkApiVersion: number, addFreezeWatcher: (funcArg0: (funcArgfuncArg0: string, funcArgfuncArg1: string, funcArgfuncArg2: string, funcArgfuncArg3: string, funcArgfuncArg4: string) => void) => void, onFreeze: (funcArg0: () => void) => void, collectFreezeInfo: () => string, reportFreezeInfo: (funcArg0: InteropFreezeInfo) => void, persistentDir: string): void
-    initTrafficHandler(preference: TrafficPreference, onNavDestinationSwitch: (funcArg0: (funcArgfuncArg0: string) => void) => void, repeatSampleTraffic: (funcArg0: () => void) => void, getUidRxAndTxBytes: (funcArg0: (funcArgfuncArg0: number, funcArgfuncArg1: number, funcArgfuncArg2: string) => void, funcArg1: string) => void, reportTraffic: (funcArg0: InteropSampleTrafficInfo) => void, reportYesterdayTraffic: (funcArg0: InteropDayTrafficInfo) => void, sampleThreshold: number): void
+    initTrafficHandler(preference: TrafficPreference, onNavDestinationSwitch: (funcArg0: (funcArgfuncArg0: string) => void) => void, repeatSampleTraffic: (funcArg0: () => void) => void, getUidRxAndTxBytes: (funcArg0: (funcArgfuncArg0: number, funcArgfuncArg1: number, funcArgfuncArg2: string, funcArgfuncArg3: string) => void, funcArg1: string) => void, reportTraffic: (funcArg0: InteropSampleTrafficInfo) => void, reportYesterdayTraffic: (funcArg0: InteropDayTrafficInfo) => void, sampleThreshold: number): void
     destroyTrafficHandler(getUidRxAndTxBytes: (funcArg0: (funcArgfuncArg0: number, funcArgfuncArg1: number) => void) => void): void
     initStorageHandler(reportStorageInfo: (funcArg0: InteropStorageInfo) => void, sizeLimit: number, dirSizeLimit: number, reportTopNum: number): void
     reportAppStorageInfo(getCurrentBundleStats: (funcArg0: (funcArgfuncArg0: number, funcArgfuncArg1: number, funcArgfuncArg2: number) => void) => void): void
@@ -514,8 +519,9 @@ export declare interface CustomLib {
     initMemoryHandlerInterop(memoryPreference: MemoryPreference, getMemoryUsage: () => number, getArkTsMemoryUsage: () => number, getArkTsMemoryLimit: () => number, getTotalMemoryLimit: () => number, onNavDestinationSwitch: (funcArg0: (funcArgfuncArg0: string) => void) => void, repeatSampleAndReportMemory: (funcArg0: () => void, funcArg1: () => void, funcArg2: () => void) => void, reporPageMemoryInfo: (funcArg0: InteropPageMemoryInfo) => void, reporProcessMemoryInfo: (funcArg0: InteropProcessMemoryInfo) => void, memoryThreshold: number, totalRatio: number, cjRatio: number, arkTsRatio: number): void
 
     destroyMemoryHandlerInterop(): void
-    initTrafficHandlerInterop(preference: TrafficPreference, onNavDestinationSwitch: (funcArg0: (funcArgfuncArg0: string) => void) => void, repeatSampleTraffic: (funcArg0: () => void) => void, getUidRxAndTxBytes: (funcArg0: (funcArgfuncArg0: number, funcArgfuncArg1: number, funcArgfuncArg2: string) => void, funcArg1: string) => void, reportTraffic: (funcArg0: InteropSampleTrafficInfo) => void, reportYesterdayTraffic: (funcArg0: InteropDayTrafficInfo) => void, sampleThreshold: number): void
+    initTrafficHandlerInterop(preference: TrafficPreference, onNavDestinationSwitch: (funcArg0: (funcArgfuncArg0: string) => void) => void, repeatSampleTraffic: (funcArg0: () => void) => void, getUidRxAndTxBytes: (funcArg0: (funcArgfuncArg0: number, funcArgfuncArg1: number, funcArgfuncArg2: string, funcArgfuncArg3: string) => void, funcArg1: string) => void, reportTraffic: (funcArg0: InteropSampleTrafficInfo) => void, reportYesterdayTraffic: (funcArg0: InteropDayTrafficInfo) => void, sampleThreshold: number): void
     destroyTrafficHandlerInterop(getUidRxAndTxBytes: (funcArg0: (funcArgfuncArg0: number, funcArgfuncArg1: number) => void) => void): void
+    getAndResetCurrentPageTrafficInterop(onResult: (funcArg0: InteropPageTrafficInfo) => void): void
     InteropExitInfo: {new (exitMessage: string, exitReason: string, isBackground: boolean, appState: string, stateChangeTime: number, timestamp: number): InteropExitInfo}
     InteropAppStateInfo: {new (appState: string, stateChangeTime: number, timestamp: number): InteropAppStateInfo}
     initExitInfoHandler(lastExitMessage: string, lastExitReason: string, reportExitInfoHandler: (funcArg0: InteropExitInfo) => void, reportAppStateHandler: (funcArg0: InteropAppStateInfo) => void): void
@@ -536,7 +542,7 @@ export declare interface CustomLib {
     initSwipeKillHandlerInterop(lastExitReason: number, reportSwipeKillInfoHandler: (funcArg0: SwipeKillInfo) => void, onAbilityBackground: (cb: () => void) => void, thresholdMs: number): void
     destroySwipeKillHandlerInterop(): void
     initMemoryHandlerInterop(memoryPreference: MemoryPreference, getMemoryUsage: () => number, getArkTsMemoryUsage: () => number, getArkTsTotalHeap: () => number, getTotalMemoryLimit: () => number, onNavDestinationSwitch: (funcArg0: (funcArgfuncArg0: string) => void) => void, repeatSampleAndReportMemory: (funcArg0: () => void, funcArg1: () => void, funcArg2: () => void) => void, reporPageMemoryInfo: (funcArg0: InteropPageMemoryInfo) => void, reporProcessMemoryInfo: (funcArg0: InteropProcessMemoryInfo) => void, memoryThreshold: number, totalRatio: number, cjRatio: number, arkTsRatio: number): void
-    InteropBackgroundCpuMonitorConfig: {new (cpuThreshold: number, warnDurationMs: number, errorDurationMs: number, fatalDurationMs: number, sampleIntervalMs: number, windowSizeMs: number): InteropBackgroundCpuMonitorConfig}
+    InteropBackgroundCpuMonitorConfig: {new (cpuThreshold: number, warnDurationMs: number, errorDurationMs: number, fatalDurationMs: number, sampleIntervalMs: number, windowSizeMs: number, topNThreads: number, threadCooldownMs: number, globalCooldownMs: number): InteropBackgroundCpuMonitorConfig}
     destroyBackgroundCpuMonitorHandlerInterop(): void
     initBackgroundCpuMonitorHandlerInterop(config: InteropBackgroundCpuMonitorConfig, getAppThreadCpuUsageJson: () => string, repeatSample: (funcArg0: () => void) => void, clearSample: () => void, reportHighCpuInfoJson: (funcArg0: string) => void): void
     initCrashHandlerInterop(addCrashWatcher: (funcArg0: (funcArgfuncArg0: string, funcArgfuncArg1: string, funcArgfuncArg2: string, funcArgfuncArg3: string, funcArgfuncArg4: string, funcArgfuncArg5: string, funcArgfuncArg6: string) => void) => void, addResourceLeakWatcher: (funcArg0: (funcArgfuncArg0: string, funcArgfuncArg1: string, funcArgfuncArg2: string, funcArgfuncArg3: number, funcArgfuncArg4: number, funcArgfuncArg5: string) => void) => void, onCrash: (funcArg0: () => void) => void, exit: () => void, collectCrashInfo: () => string, reportCrashInfo: (funcArg0: InteropCrashInfo) => void, persistentDir: string, enableDumpOnOOM: number, lastNHilogNumber: number, systemLogNumber: number, enableMemMonitor: CMemMonitorConfig | undefined): void
@@ -567,6 +573,7 @@ export declare interface CustomLib {
     calculateFirstRenderTimeManuallyInterop(startTime: number, targetPage: string): void
     resetFirstRenderTimeMonitorInterop(): void
     initSwipeKillHandlerInterop(lastExitReason: number, reportSwipeKillInfoHandler: (funcArg0: SwipeKillInfo) => void, onAbilityBackground: (funcArg0: () => void) => void, thresholdMs: number): void
+    captureCurrentThreadStackInterop(): string
 }
 
 // ==================== 用户侧类型别名（隐藏互操作层） ====================

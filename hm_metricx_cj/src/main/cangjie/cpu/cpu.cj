@@ -16,6 +16,36 @@ import std.process.*
 import std.sort.*
 import ohos.base.AppLog
 
+// native 高 CPU 调用栈抓取（OH_HiDebug_BacktraceFromFp 实现，见 cpp/cpu/cpu_stack_capture.cpp）
+// 返回：0 成功；-2 未初始化；-3 并发占用；-5 信号超时
+foreign func InitCpuStackCapture(): Int8
+
+// 抓取指定 OS tid 线程的调用栈。tid==0 表示当前线程（自检，不发信号）。
+// stackTrace/moduleName 写入对应缓冲，返回栈文本字节数；负值表示错误码。
+foreign func CaptureThreadStack(tid: Int64, stackBuf: CPointer<UInt8>, stackSize: Int64,
+    moduleBuf: CPointer<UInt8>, moduleSize: Int64): Int64
+
+// 只回溯拿原始 PC 数组，不符号化。采样阶段高频调用（~20µs/次）。
+// tid==0 表示当前线程（自检，不发信号）。pcsBuf 写入原始 PC（UInt64=64bit），返回帧数；负值错误码：
+// -1 参数非法；-2 未初始化；-3 并发占用；-4 tgkill 失败；-5 信号超时
+foreign func CaptureThreadPcs(tid: Int64, pcsBuf: CPointer<UInt64>, pcsCapacity: Int64): Int64
+
+// 批量符号化 PC 数组，写入栈文本 + 栈顶模块名。周期末对频次 TopK 栈调用。
+// 纯读符号表，不拿 g_capturing 锁，可与回溯并发。返回栈文本字节数（<=0 失败：-2 未初始化）
+foreign func SymbolizePcs(pcsBuf: CPointer<UInt64>, count: Int64,
+    stackBuf: CPointer<UInt8>, stackSize: Int64,
+    moduleBuf: CPointer<UInt8>, moduleSize: Int64): Int64
+
+// PC 栈聚合常量（与 native MAX_PC_FRAMES 对齐）
+let MAX_PC_FRAMES: Int64 = 64
+// 每线程暂存的不同 PC 栈上限：超出后只计数不存栈，防内存膨胀（10线程×32×512B≈160KB）
+let MAX_DISTINCT_PC_STACKS: Int64 = 32
+// 周期末符号化频次 TopK（每线程）：只符号化出现次数最高的 K 个栈，其余只计数
+let TOP_K_SYMBOLIZE: Int64 = 5
+// 后台 ratio 门控阈值：BackgroundCpuMonitorConfig 未含此字段，复用前台默认值 0.85。
+// 后台级别上报前同样按 ratio 门控符号化，偶发峰值线程不符号化不上报。
+let BACKGROUND_HIGH_SAMPLE_RATIO_THRESHOLD: Float64 = 0.85
+
 public open class CpuInfo {
     private var avgCpuValue: Float64 = 0.0
     private var maxCpuValue: Float64 = 0.0
@@ -228,17 +258,118 @@ public class ThreadCpuUsageInfo {
     }
 }
 
+// 周期内同一 PC 栈的去重条目：保留原始 PC 数组 + 出现次数。
+// 采样阶段只做信号内 FP 回溯（~20µs），把 PC 数组 hash 后聚合——相同栈只计数不重复存，
+// 周期末再对频次 TopK 条目批量符号化（~10ms/栈），从而把高频采样抓栈的总开销降 1~2 个数量级。
+public class PcStackEntry {
+    public let pcs: Array<UInt64>        // 原始 PC 数组（定长 64，前 frames 个有效）
+    public var frames: Int64 = 0           // 有效帧数
+    public var count: Int64 = 0            // 该 PC 栈在周期内被采样到的次数
+
+    public init() {
+        pcs = Array<UInt64>(MAX_PC_FRAMES, repeat: UInt64(0))
+    }
+
+    // 用 srcBuf 前 n 帧覆盖本 entry 的 pcs，重置 count=1（新建条目时用）。
+    public func setPcs(srcBuf: Array<UInt64>, n: Int64): Unit {
+        let copyN = if (n > MAX_PC_FRAMES) { MAX_PC_FRAMES } else { n }
+        for (i in 0..copyN) {
+            pcs[i] = srcBuf[i]
+        }
+        frames = copyN
+        count = 1
+    }
+}
+
+// 周期内线程级 PC 栈聚合器：HashMap<栈指纹, PcStackEntry>。
+// key 为 PC 数组转 hex 串（pcs 内容指纹），相同栈只计数；上限 MAX_DISTINCT_PC_STACKS=32 个不同栈，
+// 超出后只对现有最接近的条目计数（不新增，防内存膨胀）。周期末按 count 降序取 TopK 符号化。
+public class ThreadPcAggregator {
+    private var entries: HashMap<String, PcStackEntry> = HashMap<String, PcStackEntry>()
+    private var overflowCount: Int64 = 0     // 超出上限后只计数不存栈的采样数（用于诊断）
+
+    public init() {}
+
+    // 把 pcsBuf 前 n 帧喂给聚合器：栈指纹命中则 +1，未命中且未满则新增，已满则 overflow++。
+    public func addOrUpdate(pcsBuf: Array<UInt64>, n: Int64): Unit {
+        if (n <= 0) {
+            return
+        }
+        let key = pcStackKey(pcsBuf, n)
+        if (entries.contains(key)) {
+            entries[key].count++
+            return
+        }
+        if (entries.size >= MAX_DISTINCT_PC_STACKS) {
+            overflowCount++
+            return
+        }
+        let entry = PcStackEntry()
+        entry.setPcs(pcsBuf, n)
+        entries.add(key, entry)
+    }
+
+    // 返回频次降序 TopK（K 由调用方传）。周期末符号化用。
+    public func topK(k: Int64): ArrayList<PcStackEntry> {
+        var list = ArrayList<PcStackEntry>()
+        for (e in entries) {
+            list.add(e[1])
+        }
+        sort<PcStackEntry>(
+            list,
+            lessThan: { a, b => a.count > b.count },
+            stable: false,
+            descending: false
+        )
+        let takeN = min(list.size, k)
+        var result = ArrayList<PcStackEntry>()
+        for (i in 0..takeN) {
+            result.add(list[i])
+        }
+        result
+    }
+
+    // 周期末丢弃暂存 PC（ratio 不达标时不符号化、零成本清理）。
+    public func clear(): Unit {
+        entries.clear()
+        overflowCount = 0
+    }
+
+    public func size(): Int64 {
+        entries.size
+    }
+
+    // PC 数组 → 内容指纹串（用 StringBuilder 拼 PC 的十进制表示，加逗号分隔）。
+    // 仅用作 HashMap 查重 key，无需可读性；十进制 + 分隔符保证相同栈命中相同 key。
+    private func pcStackKey(pcsBuf: Array<UInt64>, n: Int64): String {
+        let sb = StringBuilder()
+        let copyN = if (n > MAX_PC_FRAMES) { MAX_PC_FRAMES } else { n }
+        for (i in 0..copyN) {
+            if (i > 0) {
+                sb.append(",")
+            }
+            sb.append(pcsBuf[i].toString())
+        }
+        sb.toString()
+    }
+}
+
 // 线程栈信息（用于上报）
 public class ThreadStackInfo {
     private var tidValue: Int64 = 0                   // 线程 ID（唯一标识）
     private var threadNameValue: String = ""          // 线程名称
     private var avgCpuUsageValue: Float64 = 0.0       // 平均 CPU 使用率（0-1 之间）
     private var maxCpuUsageValue: Float64 = 0.0       // 最大 CPU 使用率（0-1 之间）
-    private var sampleCountValue: Int64 = 0           // 总采样次数
-    private var stackTraceValue: String = ""          // 线程调用栈（用于定位代码位置）
+    private var sampleCountValue: Int64 = 0           // 该线程在 TopN 中被采样到的总次数（ratio 分母）
+    private var stackTraceValue: String = ""          // 线程调用栈（周期末由频次 TopK 符号化拼接填入）
     private var moduleNameValue: String = ""          // 所属模块名（如 xxx.so，用于定位责任模块）
     private var firstDetectedTimeValue: Int64 = 0     // 首次检测到高占用的时间戳（毫秒）
-    private var highSampleCountValue: Int64 = 0       // CPU>50% 的采样次数（用于计算高采样比例）
+    private var highSampleCountValue: Int64 = 0       // CPU≥阈值 的采样次数（ratio 分子）
+    private var pcAggregatorValue: ThreadPcAggregator = ThreadPcAggregator()  // 周期内 PC 栈聚合
+    // 周期总采样次数（前台 totalSampleCount / 后台 bgTotalSampleCount）。由 symbolizeTopPcStacksForReport
+    // 在门控通过时回填，供 toJson 输出与门控同口径的 highSampleRatio。设计：ratio 分母用进程级周期
+    // 总采样次数而非 per-thread 出现次数，避免"只进 1 次 TopN 且恰好超标"的线程 ratio=1/1=1.0 误通过门控。
+    private var lastPeriodTotalSamplesValue: Int64 = 0
 
     public mut prop tid: Int64 {
         get() { tidValue }
@@ -276,18 +407,43 @@ public class ThreadStackInfo {
         get() { highSampleCountValue }
         set(value) { highSampleCountValue = value }
     }
+    public prop pcAggregator: ThreadPcAggregator {
+        get() { pcAggregatorValue }
+    }
+    // 周期总采样次数（门控同口径），由 symbolizeTopPcStacksForReport 门控通过时回填
+    public mut prop lastPeriodTotalSamples: Int64 {
+        get() { lastPeriodTotalSamplesValue }
+        set(value) { lastPeriodTotalSamplesValue = value }
+    }
 
     /**
-     * 计算平均 CPU 使用率并更新统计信息
+     * 记录一次该线程被采样到的结果（无论是否超标）。
      *
-     * 每次采样时调用此方法，会：
-     * 1. 更新平均 CPU 使用率（增量计算）
-     * 2. 更新最大 CPU 使用率
-     * 3. 增加采样次数
-     * 4. 如果 CPU > cpuThreshold，增加高采样次数
+     * sampleCount 无条件 +1（该线程出现在 TopN 的次数，用于诊断/聚合），
+     * 仅当 cpuUsage >= threshold 才 highSampleCount++（ratio 分子）。
+     * ratio 分母用周期总采样次数（getHighSampleRatio(periodTotalSamples)），非 sampleCount。
+     * 修 ratio bug：旧 computeAvg 只在 cpuUsage>=threshold 时被调用，导致 sampleCount 恒等于
+     * highSampleCount，getHighSampleRatio 恒为 1.0，门控形同虚设。
      *
-     * @param cpuUsage 当前 CPU 使用率（0-1 之间）
+     * @param cpuUsage 当前线程 CPU 使用率（0-1 之间）
      * @param threshold CPU 阈值（从 config 传入）
+     */
+    public func recordSample(cpuUsage: Float64, threshold!: Float64 = 0.5): Unit {
+        this.avgCpuUsageValue = this.avgCpuUsageValue + (cpuUsage - this.avgCpuUsageValue) / Float64(sampleCountValue + 1)
+        if (maxCpuUsageValue < cpuUsage) {
+            maxCpuUsageValue = cpuUsage
+        }
+        sampleCountValue++
+        if (cpuUsage >= threshold) {
+            highSampleCountValue++
+        }
+    }
+
+    /**
+     * 计算平均 CPU 使用率并更新统计信息（旧接口，保留给历史调用点）
+     *
+     * 注意：此函数只在 cpuUsage>=threshold 时被调用，sampleCount 与 highSampleCount
+     * 同步自增，导致 getHighSampleRatio 恒为 1.0。新采样流程改用 recordSample。
      */
     public func computeAvg(cpuUsage: Float64, threshold!: Float64 = 0.5): Unit {
         this.avgCpuUsageValue = this.avgCpuUsageValue + (cpuUsage - this.avgCpuUsageValue) / Float64(sampleCountValue + 1)
@@ -302,18 +458,25 @@ public class ThreadStackInfo {
     }
 
     /**
-     * 获取高采样比例
+     * 获取高采样比例（口径：周期总采样次数为分母）
      *
-     * 计算 CPU>50% 的采样次数占总采样次数的比例
-     * 用于判定线程是否持续高占用（>=85% 视为持续高占用）
+     * ratio = highSampleCount / totalSamples
+     * - highSampleCount：该线程在 TopN 中 CPU≥阈值 的采样次数（分子）
+     * - totalSamples：进程级周期总采样次数（前台 totalSampleCount / 后台 bgTotalSampleCount）
      *
-     * @return 高采样比例（0-1 之间），采样次数为 0 时返回 0.0
+     * 【为何分母用周期总采样次数】旧口径 ratio = highSampleCount / 该线程出现在 TopN 的次数，
+     * 当某线程只进入 TopN 1 次且恰好超标，ratio = 1/1 = 1.0 ≥ 门控阈值（默认 0.85）会误通过，
+     * 把单次巧合当持续热点上报，误差高。改用周期总采样次数（3min×1s≈180）作分母：
+     * 单次巧合线程 ratio ≈ 1/180 ≈ 0.006 自动被挡；持续热点（整周期都在 TopN 且超标）≈ 180/180 = 1.0 不受影响。
+     *
+     * @param totalSamples 周期内进程级采样总次数（ratio 分母），<=0 时返回 0.0
+     * @return 高采样比例（0-1 之间）
      */
-    public func getHighSampleRatio(): Float64 {
-        if (sampleCountValue == 0) {
+    public func getHighSampleRatio(totalSamples: Int64): Float64 {
+        if (totalSamples <= 0) {
             return 0.0
         }
-        return Float64(highSampleCountValue) / Float64(sampleCountValue)
+        return Float64(highSampleCountValue) / Float64(totalSamples)
     }
 
     /**
@@ -342,6 +505,13 @@ public class ThreadStackInfo {
         sb.append(this.firstDetectedTime.toString())
         sb.append(",\"highSampleCount\":")
         sb.append(this.highSampleCount.toString())
+        // 频次 TopK 符号化栈列表：每个栈带出现次数与占比，呈现周期内热点分布而非单次快照。
+        // pcAggregator 在周期末 ratio 门控通过后由 doHighCpuReport 填入 stackTrace，
+        // 此处序列化 stackTrace 解析出的多条栈 + 计数（若 stackTrace 已含 \n[count=N]\n 标记则原样上报）。
+        // highSampleRatio 与门控同口径：highSampleCount / lastPeriodTotalSamples（周期总采样次数为分母），
+        // lastPeriodTotalSamples 由 symbolizeTopPcStacksForReport 门控通过时回填。
+        sb.append(",\"highSampleRatio\":")
+        sb.append(this.getHighSampleRatio(this.lastPeriodTotalSamples).toString())
         sb.append("}")
         sb.toString()
     }
@@ -441,9 +611,14 @@ public class HighCpuMonitorConfig {
     public let backgroundIntervalMs: Int64
     // 监控时长（毫秒），默认 180000 毫秒（3 分钟）达到此时长后触发上报
     public let monitorDurationMs: Int64
-    // 单线程 cooldown 时间（毫秒），默认 10 分钟（600000ms）同一线程在此时间内最多被抓取一次栈
+    // 单线程 cooldown 时间（毫秒），默认 3 分钟（180000ms）同一线程在此时间内最多被抓取一次栈。
+    // 采样阶段已改为每次采样达标即抓栈，cooldown 默认值与监控周期（monitorDurationMs 3min）对齐，
+    // 保证同一线程在一个周期内最多被抓一次；下个周期可再次抓栈，避免跨周期漏报。
     public let threadCooldownMs: Int64
-    // 全局 cooldown 时间（毫秒），默认 3 分钟（180000ms）避免各模块重复抓取，全局在此时间内最多触发一次
+    // 全局 cooldown 时间（毫秒），默认 3 分钟（180000ms）。
+    // 注意：采样阶段每采样达标即抓栈，全局 cooldown 与该逻辑直接冲突（会拦截周期内的合法抓栈），
+    // 故全局 cooldown 已废弃——canSampleGlobal / captureStackForHighCpuThreads 不再据此限流，
+    // 字段与默认值保留仅为兼容 ArkTS 互操作配置，不再产生实际限流效果。
     public let globalCooldownMs: Int64
     // 高采样比例阈值（0-1 之间），默认 0.85 表示 85% 当某线程 85% 的采样都>50% CPU 时，判定为持续高占用
     public let highSampleRatioThreshold: Float64
@@ -455,8 +630,8 @@ public class HighCpuMonitorConfig {
     private static let DEFAULT_FOREGROUND_INTERVAL_MS: Int64 = 1000
     private static let DEFAULT_BACKGROUND_INTERVAL_MS: Int64 = 2000
     private static let DEFAULT_MONITOR_DURATION_MS: Int64 = 180000  // 3 分钟
-    private static let DEFAULT_THREAD_COOLDOWN_MS: Int64 = 600000   // 10 分钟
-    private static let DEFAULT_GLOBAL_COOLDOWN_MS: Int64 = 180000   // 3 分钟
+    private static let DEFAULT_THREAD_COOLDOWN_MS: Int64 = 180000   // 3 分钟（与监控周期对齐，每周期每线程最多抓一次）
+    private static let DEFAULT_GLOBAL_COOLDOWN_MS: Int64 = 180000   // 3 分钟（已废弃，字段保留兼容互操作，不再实际限流）
     private static let DEFAULT_HIGH_SAMPLE_RATIO_THRESHOLD: Float64 = 0.85
     private static let DEFAULT_TOP_N_THREADS: Int64 = 10
 
@@ -568,10 +743,13 @@ var threadSamples: HashMap<Int64, ThreadStackInfo> = HashMap()
 var processCpuSamples: ArrayList<Float64> = ArrayList()
 
 // --- Cooldown 记录（限流机制） ---
-// 线程 cooldown 记录：tid -> 上次抓取时间戳（毫秒）
+// 线程 cooldown 记录：tid -> 上次抓取时间戳（毫秒）。前后台共用：后台抓栈成功也会写入，
+// 读取时 threadCooldownMs 取自各自 config（前台 highCpuConfig，后台 backgroundCpuConfig）。
 var threadCooldownMap: HashMap<Int64, Int64> = HashMap()
-// 全局 cooldown 记录：上次全局抓取时间戳（毫秒）
+// 前台全局 cooldown 记录：上次全局抓取时间戳（毫秒）
 var globalLastCaptureTime: Int64 = 0
+// 后台全局 cooldown 记录：与前台独立，避免前后台互相限流
+var backgroundGlobalLastCaptureTime: Int64 = 0
 
 // --- 监控时间窗口 ---
 // 监控开始时间（毫秒）
@@ -598,6 +776,10 @@ var isCapturingStack: Bool = false
 var totalSampleCount: Int64 = 0
 // 高 CPU 采样次数（CPU>50% 的次数） 用于计算高采样比例，判定是否触发抓栈
 var highCpuSampleCount: Int64 = 0
+// 后台周期总采样次数（后台 ratio 分母）：doBackgroundCpuSample 每次自增，resetBackgroundMonitorData 清零。
+// 后台为级别模型（WARN/ERROR/FATAL），上报不立即清零，整个后台生命周期内累加——分母只增不减，
+// 巧合线程 ratio 趋近 0 自动被挡，语义自洽。与前台 totalSampleCount 对应，前后台分母互不串台。
+var bgTotalSampleCount: Int64 = 0
 
 // --- 后台监控状态 ---
 // 监控是否已初始化（防止重复初始化）
@@ -667,28 +849,34 @@ private func getThreadName(tid: Int64): String {
 /**
  * 检查是否可以对指定线程进行采样（检查线程 cooldown）
  *
- * 实现需求：同一 tid 10 分钟最多抓一次
+ * 【已废弃】回溯/符号化解耦后，采样阶段调 CaptureThreadPcs 只做信号内 FP 回溯（~20µs/次），
+ * 周期末才对频次 TopK 批量符号化。线程级 cooldown（默认 3min）是旧"每采样完整符号化 ~10ms"
+ * 时代的限流措施，与"每次采样达标即抓 PC"的设计直接冲突——3min cooldown 会让一个 3min 周期内
+ * 180 次采样只抓到 1 个 PC，频率分布形同虚设。故 captureStackForHighCpuThreads /
+ * captureStackForBackgroundCpu 已不再调用本函数。函数体保留仅为兼容 threadCooldownMs
+ * 配置字段与 ArkTS 互操作，不再产生实际限流效果。相同栈的去重靠 pcAggregator hash 聚合。
  *
  * @param tid 线程 ID
  * @param currentTime 当前时间戳（毫秒）
+ * @param cooldownMs 该场景的单线程 cooldown 时长（毫秒）
  * @return true=可以采样，false=cooldown 中
  */
-private func canSampleThread(tid: Int64, currentTime: Int64): Bool {
+private func canSampleThread(tid: Int64, currentTime: Int64, cooldownMs: Int64): Bool {
     if (threadCooldownMap.contains(tid)) {
         let lastCaptureTime = threadCooldownMap[tid]
-        if (let Some(config) <- highCpuConfig) {
-            if (currentTime - lastCaptureTime < config.threadCooldownMs) {
-                return false
-            }
+        if (currentTime - lastCaptureTime < cooldownMs) {
+            return false
         }
     }
     true
 }
 
 /**
- * 检查是否可以进行全局采样（检查全局 cooldown）
+ * 检查是否可以进行全局采样（前台，检查全局 cooldown）
  *
- * 实现需求：全局 3 分钟最多抓一次，避免各模块重复抓取
+ * 【已废弃】采样阶段改为每采样达标即抓栈后，全局 cooldown 与该逻辑直接冲突（会拦截
+ * 周期内的合法抓栈），captureStackForHighCpuThreads 不再调用本函数。函数体保留仅为
+ * 兼容 globalCooldownMs 配置字段与 ArkTS 互操作，不再产生实际限流效果。
  *
  * @param currentTime 当前时间戳（毫秒）
  * @return true=可以采样，false=cooldown 中
@@ -704,9 +892,32 @@ private func canSampleGlobal(currentTime: Int64): Bool {
 }
 
 /**
+ * 检查是否可以进行全局采样（后台，检查后台全局 cooldown）
+ *
+ * 【已废弃】采样阶段改为每采样达标即抓栈后，全局 cooldown 与该逻辑直接冲突，
+ * captureStackForBackgroundCpu 不再调用本函数。函数体保留仅为兼容 globalCooldownMs
+ * 配置字段与 ArkTS 互操作，不再产生实际限流效果。
+ *
+ * @param currentTime 当前时间戳（毫秒）
+ * @return true=可以采样，false=cooldown 中
+ */
+private func canSampleBackgroundGlobal(currentTime: Int64): Bool {
+    if (backgroundGlobalLastCaptureTime == 0) {
+        return true
+    }
+    if (let Some(config) <- backgroundCpuConfig) {
+        return currentTime - backgroundGlobalLastCaptureTime >= config.globalCooldownMs
+    }
+    true
+}
+
+/**
  * 更新线程 cooldown 时间
  *
- * 记录线程上次被抓取的时间，用于后续 cooldown 检查
+ * 【已废弃】与 canSampleThread 同理，解耦后 PC 抓取不再限流，captureStackForHighCpuThreads /
+ * captureStackForBackgroundCpu 不再调用本函数。函数体保留仅为兼容 threadCooldownMs
+ * 配置字段与 ArkTS 互操作。threadCooldownMap 仍由 resetSamplingData /
+ * resetBackgroundMonitorData 清空以防空 Map 膨胀。
  *
  * @param tid 线程 ID
  * @param currentTime 当前时间戳（毫秒）
@@ -744,31 +955,31 @@ private func getCurrentSampleInterval(): Int64 {
  * 5. 记录线程栈和模块名
  *
  * 限流规则：
- * - 全局 cooldown 检查（3 分钟最多一次）
- * - 抓栈锁检查（避免重复触发）
- * - 线程 cooldown 检查（10 分钟最多一次）
+ * - 抓栈锁检查（isCapturingStack，避免 native 回溯与采样回调并发）
+ * - 采样达标即抓栈：检测到 cpuUsage≥cpuThreshold 的线程时，本函数末尾调
+ *   captureStackForHighCpuThreads（线程级 cooldown 默认 3min，与周期对齐）
+ * - 全局 cooldown 已废弃（与“每采样抓栈”逻辑冲突，不再限流）
  */
 private func doHighCpuSample(): Unit {
     let currentTime = getCurrentTimeMillis()
 
-    // 【调试】检查全局 cooldown
-    if (!canSampleGlobal(currentTime)) {
-        AppLog.info("hm-metricx-cj: [DEBUG] Sampling skipped due to global cooldown")
-        return
-    }
-
-    // 检查是否正在抓栈
+    // 检查是否正在抓栈（抓栈期间暂停采样，避免 native 回溯与采样 JSON 回调并发）
     if (isCapturingStack) {
         AppLog.info("hm-metricx-cj: Sampling skipped, stack capture in progress")
         return
     }
+    // 注意：采样本身不受 thread cooldown 限制——cooldown 仅用于限流抓栈，
+    // 若采样也被 cooldown 拦截，totalSampleCount/highCpuSampleCount 会严重偏低，
+    // 导致周期末上报时调用栈为空。全局 cooldown 已废弃，不再限制采样与抓栈。
 
     // 获取当前进程 CPU 使用率（使用 ArkTS 传入的回调）
     let processCpuUsage = _getCpuUsage()
     processCpuSamples.add(processCpuUsage)
     totalSampleCount++
 
-    // 统计高 CPU 采样次数（使用动态阈值）
+    // 统计高 CPU 采样次数（进程级口径，仅用于 processCpuSamples/avgProcessCpu 统计展示；
+    // 抓栈触发改用线程级 cpuUsage≥cpuThreshold——doHighCpuSample 末尾检测到即调
+    // captureStackForHighCpuThreads，不依赖此进程级计数）
     if (let Some(config) <- highCpuConfig) {
         if (processCpuUsage >= config.cpuThreshold) {
             highCpuSampleCount++
@@ -797,7 +1008,6 @@ private func doHighCpuSample(): Unit {
     }
 
     // 按 CPU 使用率降序排序，保留 TopN
-    // 使用 std.sort 的 sort 函数，传入 lessThan 比较函数
     sort<(Int64, String, Float64)>(
         threadCpuList,
         lessThan: { a, b => a[2] > b[2] },
@@ -805,99 +1015,184 @@ private func doHighCpuSample(): Unit {
         descending: false
     )
 
-    // 【调试】打印排序后的 TopN 线程
+    // 记录本次采样是否出现过达标高 CPU 线程。
+    // 关键：TopN 中每个线程都调 recordSample（sampleCount++ 无条件、highSampleCount++ 仅超标）。
+    // ratio 口径为 highSampleCount / 周期总采样次数（getHighSampleRatio(periodTotalSamples)），
+    // sampleCount 记录该线程出现在 TopN 的次数（用于诊断/聚合，非 ratio 分母）。
+    // 旧逻辑只在超标时 computeAvg，导致 sampleCount 恒等于 highSampleCount，ratio 恒为 1.0。
+    var hasHighCpuThread = false
     if (let Some(config) <- highCpuConfig) {
         let topN = min(threadCpuList.size, config.topNThreads)
-        AppLog.info("hm-metricx-cj: [DEBUG] Processing top ${topN} threads (threshold=${config.cpuThreshold}):")
         for (i in 0..topN) {
             let item = threadCpuList[i]
             let tid = item[0]
             let threadName = item[1]
             let cpuUsage = item[2]
-            AppLog.info("hm-metricx-cj: [DEBUG]   #${i} TID=${tid}, name=${threadName}, cpu=${cpuUsage * 100.0}%")
 
-            // 检查是否超过阈值
+            // TopN 中每个线程都记录采样（无论是否超标），保证 ratio 分母准确
+            let threadInfo = if (!threadSamples.contains(tid)) {
+                let ni = ThreadStackInfo()
+                ni.tid = tid
+                ni.threadName = threadName
+                ni.firstDetectedTime = currentTime
+                threadSamples.add(tid, ni)
+                ni
+            } else {
+                threadSamples[tid]
+            }
+            threadInfo.recordSample(cpuUsage, threshold: config.cpuThreshold)
+
+            // 超标才触发抓栈（未超标的线程只计数，不抓 PC）
             if (cpuUsage >= config.cpuThreshold) {
-                // 创建或更新线程采样信息（总是更新，不受 cooldown 限制）
-                if (!threadSamples.contains(tid)) {
-                    let threadInfo = ThreadStackInfo()
-                    threadInfo.tid = tid
-                    threadInfo.threadName = threadName
-                    threadInfo.firstDetectedTime = currentTime
-                    if (let Some(config) <- highCpuConfig) {
-                        threadInfo.computeAvg(cpuUsage, threshold: config.cpuThreshold)
-                    } else {
-                        threadInfo.computeAvg(cpuUsage)
-                    }
-                    threadSamples.add(tid, threadInfo)
-
-                    AppLog.info("hm-metricx-cj: Detected high CPU thread: tid=${tid}, name=${threadName}, cpu=${cpuUsage}")
-                } else {
-                    let threadInfo = threadSamples[tid]
-                    if (let Some(config) <- highCpuConfig) {
-                        threadInfo.computeAvg(cpuUsage, threshold: config.cpuThreshold)
-                    } else {
-                        threadInfo.computeAvg(cpuUsage)
-                    }
-                }
-
-                // 检查线程 cooldown（只用于是否抓栈，不影响采样统计）
-                if (canSampleThread(tid, currentTime)) {
-                    // 更新线程 cooldown
-                    updateThreadCooldown(tid, currentTime)
-
-                    AppLog.info("hm-metricx-cj: Thread cooldown updated: tid=${tid}")
-                }
+                hasHighCpuThread = true
             }
         }
     }
 
-    // 更新全局 cooldown 时间
-    globalLastCaptureTime = currentTime
+    // 采样阶段即抓栈（只回溯存 PC，不符号化）：本次采样出现过 cpuUsage≥cpuThreshold
+    // 的线程时立即触发。captureStackForHighCpuThreads 内部有 isCapturingStack 锁防并发，
+    // 有线程级 cooldown 防同线程重复抓；全局 cooldown 已废弃。抓到的 PC 数组经 hash 聚合
+    // 存入对应 ThreadStackInfo.pcAggregator，周期末 doHighCpuReport 经 ratio 门控后批量符号化。
+    if (hasHighCpuThread) {
+        captureStackForHighCpuThreads()
+    }
 }
 
 /**
- * 判断是否满足抓栈条件
+ * 调用 native 层抓取指定线程的完整调用栈，并填充到 ThreadStackInfo。
  *
- * 实现需求：当 CPU 利用率>0.5 且至少有一定百分比 (0.85/0.9) 的采样次数都>0.5 时，触发抓栈
+ * 实现：通过 OH_HiDebug_BacktraceFromFp（信号安全）在目标线程的 SIGUSR2
+ * handler 中回溯 PC 数组，再在正常上下文用 OH_HiDebug_SymbolicAddress 符号化。
+ * 失败不阻断主流程，stackTrace/moduleName 保持原值（默认空/unknown）。
  *
- * 判定条件：
- * - 总采样次数 > 0
- * - 高 CPU 采样比例 >= highSampleRatioThreshold（默认 0.85）
+ * tid 为 hidebug 返回的 OS tid（gettid），native 层用 syscall(SYS_tgkill) 投递信号。
  *
- * @return true=满足抓栈条件，false=不满足
+ * @return true=成功抓到栈（n>0，已填充 stackTrace）；false=失败（n<=0 或异常），调用方不应据此更新 cooldown。
  */
-private func shouldCaptureStack(): Bool {
-    if (totalSampleCount == 0) {
-        return false
-    }
-
-    // 检查高 CPU 采样比例
-    let highRatio = Float64(highCpuSampleCount) / Float64(totalSampleCount)
-
-    if (let Some(config) <- highCpuConfig) {
-        // 条件 1: 当前 CPU 利用率 > 0.5
-        // 条件 2: 高采样比例 >= 阈值（0.85 或 0.9）
-        if (highRatio >= config.highSampleRatioThreshold) {
-            AppLog.info("hm-metricx-cj: Should capture stack: highRatio=${highRatio}, threshold=${config.highSampleRatioThreshold}")
+private func fillThreadStackInfo(threadInfo: ThreadStackInfo, tid: Int64): Bool {
+    try {
+        let stackBuf = Array<UInt8>(8192, repeat: UInt8(0))
+        let moduleBuf = Array<UInt8>(256, repeat: UInt8(0))
+        let n = captureStackNative(tid, stackBuf, moduleBuf)
+        if (n > 0) {
+            threadInfo.stackTrace = bytesToString(stackBuf, n)
+            // moduleName：以 \0 为终止符截断
+            var modLen = 0
+            while (modLen < 256 && moduleBuf[modLen] != UInt8(0)) {
+                modLen = modLen + 1
+            }
+            if (modLen > 0) {
+                threadInfo.moduleName = bytesToString(moduleBuf, modLen)
+            }
             return true
+        } else {
+            AppLog.warn("hm-metricx-cj: CaptureThreadStack tid=${tid} returned ${n}, no stack captured (see native '0 frames'/'tgkill failed'/'timeout' log)")
         }
+    } catch (e: Exception) {
+        AppLog.warn("hm-metricx-cj: fillThreadStackInfo tid=${tid} exception: ${e.message}")
     }
-    return false
+    false
 }
 
 /**
- * 执行抓栈操作
+ * 自检探针：抓取【当前线程】调用栈并返回符号化文本。
+ * tid=0 走 native 同步直调（不发信号、无 cooldown），用于在不触发高 CPU 上报的前提下
+ * 验证 native 抓栈链路（符号链接、BacktraceObject、BacktraceFromFp+SymbolicAddress）是否打通。
+ * 失败返回带错误码说明的字符串，便于在 hilog 里直接判断。
+ */
+public func captureCurrentThreadStack(): String {
+    try {
+        let stackBuf = Array<UInt8>(8192, repeat: UInt8(0))
+        let moduleBuf = Array<UInt8>(256, repeat: UInt8(0))
+        let n = captureStackNative(0, stackBuf, moduleBuf)
+        if (n > 0) {
+            let stack = bytesToString(stackBuf, n)
+            var modLen = 0
+            while (modLen < 256 && moduleBuf[modLen] != UInt8(0)) {
+                modLen = modLen + 1
+            }
+            let mod = if (modLen > 0) { bytesToString(moduleBuf, modLen) } else { "unknown" }
+            return "module=${mod}\n--- stack ---\n${stack}"
+        }
+        return "captureCurrentThreadStack: native returned ${n} (no stack; -2=not inited, -3=concurrent, -4=tgkill fail, -5=timeout)"
+    } catch (e: Exception) {
+        return "captureCurrentThreadStack exception: ${e.message}"
+    }
+}
+
+// 调 native 抓栈，把符号化栈写入 stackBuf、栈顶 so 名写入 moduleBuf。返回栈字节数（<=0 为错误码）。
+private func captureStackNative(tid: Int64, stackBuf: Array<UInt8>, moduleBuf: Array<UInt8>): Int64 {
+    unsafe {
+        let stackHandle = acquireArrayRawData(stackBuf)
+        let moduleHandle = acquireArrayRawData(moduleBuf)
+        let n = CaptureThreadStack(tid, stackHandle.pointer, 8192, moduleHandle.pointer, 256)
+        releaseArrayRawData(stackHandle)
+        releaseArrayRawData(moduleHandle)
+        n
+    }
+}
+
+// 把 buf 前 len 字节（native 已写入）转成 String。
+// native 的 SymbolizePcs 用 snprintf 累积栈文本长度，而 snprintf 的返回值是“本应写入”的字节数
+// （非实际写入，实际写入被 bufSize 截断），fa->written 累加的是这个逻辑长度，故返回的 total 会
+// 超过实际写入量、可远超 stackSize（8192）。调用方直接拿 total 当 len 传入，for (i in 0..len)
+// 会读到 buf[8192] → IndexOutOfBoundsException: array length 8192, index 8192。
+// 故在此单点做边界保护：len 截断到 buf.size，负值视为 0。
+private func bytesToString(buf: Array<UInt8>, len: Int64): String {
+    var safeLen = len
+    if (safeLen < 0) {
+        safeLen = 0
+    } else if (safeLen > buf.size) {
+        safeLen = buf.size
+    }
+    var bytes = Array<UInt8>(safeLen, repeat: UInt8(0))
+    for (i in 0..safeLen) {
+        bytes[i] = buf[i]
+    }
+    String.fromUtf8(bytes)
+}
+
+// 只回溯拿原始 PC 数组，不符号化。采样阶段高频调用（~20µs/次）。
+// pcsBuf 由调用方预分配 Array<UInt64>(64)；返回抓到的帧数（<=0 错误码）。
+private func capturePcsNative(tid: Int64, pcsBuf: Array<UInt64>): Int64 {
+    unsafe {
+        let h = acquireArrayRawData(pcsBuf)
+        let n = CaptureThreadPcs(tid, h.pointer, MAX_PC_FRAMES)
+        releaseArrayRawData(h)
+        n
+    }
+}
+
+// 批量符号化 PC 数组 → 栈文本 + 模块名。周期末对频次 TopK 栈调用。
+// 返回栈文本字节数（<=0 失败）。符号化结果写入 stackBuf/moduleBuf，再由调用方 bytesToString 取出。
+private func symbolizePcsNative(pcsBuf: Array<UInt64>, count: Int64,
+        stackBuf: Array<UInt8>, moduleBuf: Array<UInt8>): Int64 {
+    unsafe {
+        let ph = acquireArrayRawData(pcsBuf)
+        let sh = acquireArrayRawData(stackBuf)
+        let mh = acquireArrayRawData(moduleBuf)
+        let n = SymbolizePcs(ph.pointer, count, sh.pointer, 8192, mh.pointer, 256)
+        releaseArrayRawData(ph)
+        releaseArrayRawData(sh)
+        releaseArrayRawData(mh)
+        n
+    }
+}
+
+/**
+ * 执行抓栈操作（采样阶段即触发，非周期末触发）
  *
- * 实现需求：对高 CPU 占用的线程抓取调用栈，用于定位哪个模块持续占用 CPU
+ * 实现需求：doHighCpuSample 在每次采样时检测到 cpuUsage≥cpuThreshold 的线程即调用本函数。
+ * 抓取 TopN 中过阈值的线程的调用栈，用于定位哪个模块/线程持续占用 CPU。
  *
  * 核心逻辑：
- * 1. 检查抓栈锁（如果抓栈正在进行，忽略新的触发）
- * 2. 检查全局 cooldown（3 分钟最多一次）
- * 3. 获取所有线程的 CPU 使用情况
- * 4. 对超过阈值的线程抓取栈信息
- * 5. 提取模块名并记录
- * 6. 更新线程 cooldown（10 分钟最多抓一次）
+ * 1. 检查抓栈锁（如果抓栈正在进行，忽略新的触发——避免 native 回溯与采样回调并发）
+ * 2. 获取所有线程的 CPU 使用情况，按 cpuUsage 降序排序
+ * 3. 遍历 TopN，逐线程：① 线程 cooldown 中则跳过；② 过阈值才抓；③ 抓栈成功才更新该线程 cooldown
+ * 4. 抓到的栈填充到对应 ThreadStackInfo.stackTrace，供周期末 doHighCpuReport 按 tid 去重拼接上报
+ *
+ * 限流：仅保留线程级 cooldown（默认 3 分钟，与监控周期对齐）。
+ * 全局 cooldown 已废弃——采样阶段每采样达标即抓栈，全局 cooldown 会直接拦截周期内的合法抓栈。
  *
  * 安全保护：
  * - 使用 try-finally 确保抓栈锁正确释放
@@ -911,60 +1206,74 @@ private func captureStackForHighCpuThreads(): Unit {
 
     let currentTime = getCurrentTimeMillis()
 
-    // 检查全局 cooldown
-    if (!canSampleGlobal(currentTime)) {
-        AppLog.info("hm-metricx-cj: Stack capture skipped due to global cooldown")
-        return
-    }
-
     isCapturingStack = true
 
     try {
-        // 获取所有线程的 CPU 使用情况（使用 ArkTS 传入的 JSON 回调）
-        let threadCpuUsageJson = _getAppThreadCpuUsageJson()
-        let threadCpuUsageArray = parseThreadCpuUsage(threadCpuUsageJson)
-        if (threadCpuUsageArray.isEmpty()) {
-            AppLog.warn("hm-metricx-cj: parseThreadCpuUsage returned empty array during stack capture")
-            return
-        }
+        if (let Some(config) <- highCpuConfig) {
+            // 只回溯存原始 PC 数组（不符号化）。取当前帧所有线程按 cpuUsage 降序排序，
+            // 遍历前 topN 个，逐线程判断：① cooldown 中则跳过；② 过阈值才抓 PC
+            // （进入 TopN 但未过阈值的线程不抓，避免抓无关线程的栈）；
+            // ③ 抓到 PC（n>0）才更新该线程 cooldown，避免抓栈失败也占满 cooldown 额度。
+            // 抓到的 PC 数组经 hash 聚合存入 threadInfo.pcAggregator：相同栈只计数不重复存。
+            // 符号化推迟到周期末 doHighCpuReport，经 ratio 门控后只对频次 TopK 批量符号化。
+            let threadCpuUsageJson = _getAppThreadCpuUsageJson()
+            let threadCpuUsageArray = parseThreadCpuUsage(threadCpuUsageJson)
+            if (threadCpuUsageArray.isEmpty()) {
+                AppLog.warn("hm-metricx-cj: parseThreadCpuUsage returned empty array during stack capture")
+            } else if (threadCpuUsageArray.size > 0) {
+                var threadCpuList = ArrayList<(Int64, String, Float64)>()
+                for (threadUsage in threadCpuUsageArray) {
+                    let tid = Int64(threadUsage.threadId)
+                    let cpuUsage = Float64(threadUsage.cpuUsage)
+                    let threadName = getThreadName(tid)
+                    threadCpuList.add((tid, threadName, cpuUsage))
+                }
+                sort<(Int64, String, Float64)>(
+                    threadCpuList,
+                    lessThan: { a, b => a[2] > b[2] },
+                    stable: false,
+                    descending: false
+                )
+                // TopN：CPU 最高的 N 个线程（与采样阶段 doHighCpuSample 的 topN 一致）
+                let topN = min(threadCpuList.size, config.topNThreads)
+                let pcsBuf = Array<UInt64>(MAX_PC_FRAMES, repeat: UInt64(0))
+                for (i in 0..topN) {
+                    let item = threadCpuList[i]
+                    let tid = item[0]
+                    let threadName = item[1]
+                    let cpuUsage = item[2]
+                    // 阈值过滤：只抓 cpuUsage≥cpuThreshold 的线程，避免抓 TopN 中无关的低 CPU 线程
+                    if (cpuUsage < config.cpuThreshold) {
+                        continue
+                    }
+                    // 【解耦后不再限流】旧 threadCooldownMs（默认 3min）是为"每采样完整符号化 ~10ms"
+                    // 设计的限流；解耦后抓 PC 只剩信号内 FP 回溯（~20µs/次），与"每次采样达标即抓"
+                    // 的设计直接冲突——3min cooldown 会让 30s 测试窗口里 29 次采样只抓到 1 个 PC，
+                    // 频率分布形同虚设。故 PC 抓取路径去掉 cooldown，每次采样都抓，相同栈靠 hash 聚合计数。
+                    // 并发安全仍由 isCapturingStack 串行锁 + native g_capturing CAS 保证（g_pending 单槽）。
 
-        for (threadUsage in threadCpuUsageArray) {
-            let tid = Int64(threadUsage.threadId)
-            let cpuUsage = Float64(threadUsage.cpuUsage)
+                    // threadSamples 中该 tid 的 ThreadStackInfo 已在 doHighCpuSample 中创建并 recordSample
+                    let threadInfo = if (threadSamples.contains(tid)) {
+                        threadSamples[tid]
+                    } else {
+                        // 极端情况：doHighCpuSample 未创建（如本次是新超标线程，但 doHighCpuSample
+                        // 已先于本函数跑过，理论上 threadSamples 已含）。兜底创建并记录一次采样。
+                        let ni = ThreadStackInfo()
+                        ni.tid = tid
+                        ni.threadName = threadName
+                        ni.firstDetectedTime = currentTime
+                        ni.recordSample(cpuUsage, threshold: config.cpuThreshold)
+                        threadSamples.add(tid, ni)
+                        ni
+                    }
 
-            // 检查是否超过阈值
-            if (let Some(config) <- highCpuConfig) {
-                if (cpuUsage >= config.cpuThreshold) {
-                    // 检查线程 cooldown
-                    if (canSampleThread(tid, currentTime)) {
-                        // 获取线程详细信息
-                        let threadName = getThreadName(tid)
-
-                        // 创建或更新线程采样信息
-                        if (!threadSamples.contains(tid)) {
-                            let threadInfo = ThreadStackInfo()
-                            threadInfo.tid = tid
-                            threadInfo.threadName = threadName
-                            threadInfo.firstDetectedTime = currentTime
-                            if (let Some(config) <- highCpuConfig) {
-                                threadInfo.computeAvg(cpuUsage, threshold: config.cpuThreshold)
-                            } else {
-                                threadInfo.computeAvg(cpuUsage)
-                            }
-                            threadSamples.add(tid, threadInfo)
-                        } else {
-                            let threadInfo = threadSamples[tid]
-                            if (let Some(config) <- highCpuConfig) {
-                                threadInfo.computeAvg(cpuUsage, threshold: config.cpuThreshold)
-                            } else {
-                                threadInfo.computeAvg(cpuUsage)
-                            }
-                        }
-
-                        // 更新线程 cooldown
-                        updateThreadCooldown(tid, currentTime)
-
-                        AppLog.info("hm-metricx-cj: Stack captured for tid=${tid}, name=${threadName}")
+                    // 只回溯拿 PC，不符号化（~20µs/次）
+                    let n = capturePcsNative(tid, pcsBuf)
+                    if (n > 0) {
+                        // hash 聚合：相同栈只计数不重复存；超 32 种截断
+                        threadInfo.pcAggregator.addOrUpdate(pcsBuf, n)
+                    } else {
+                        AppLog.warn("hm-metricx-cj: capturePcsNative tid=${tid} returned ${n}, no PC captured")
                     }
                 }
             }
@@ -972,24 +1281,111 @@ private func captureStackForHighCpuThreads(): Unit {
     } catch (e: Exception) {
         AppLog.warn("hm-metricx-cj: Exception during stack capture: " + e.toString())
     } finally {
+        // 全局 cooldown 已废弃，不再更新 globalLastCaptureTime
         isCapturingStack = false
     }
 }
 
 /**
+ * 周期末/级别上报前的统一符号化逻辑（前台 doHighCpuReport 与后台 triggerBackgroundCpuReport 共用）。
+ *
+ * 对单个线程的暂存 PC 数组做 ratio 门控 + 频次 TopK 批量符号化：
+ * - pcAggregator 为空（该线程被采样到但从未抓到 PC）→ 不符号化，返回 false
+ * - ratio < ratioThreshold → 丢弃暂存 PC，零符号化成本，返回 false
+ * - ratio ≥ 阈值 → 取频次 TopK 栈逐个符号化，拼入 threadInfo.stackTrace（带次数/占比标记），
+ *   moduleName 取频次最高栈的栈顶 so；符号化后清理 PC 数组。stackTrace 非空返回 true。
+ *
+ * ratio 口径：getHighSampleRatio(periodTotalSamples) = highSampleCount / periodTotalSamples。
+ * 分母用周期总采样次数（非 per-thread 出现次数），挡掉"只进 1 次 TopN 且恰好超标"的巧合线程。
+ *
+ * @param threadInfo 待符号化线程
+ * @param stackBuf 符号化栈缓冲（复用，8192B）
+ * @param moduleBuf 模块名缓冲（复用，256B）
+ * @param ratioThreshold ratio 门控阈值（前台 config.highSampleRatioThreshold，后台 BACKGROUND_HIGH_SAMPLE_RATIO_THRESHOLD）
+ * @param periodTotalSamples 周期内进程级采样总次数（ratio 分母；前台 totalSampleCount / 后台 bgTotalSampleCount）
+ * @return true=该线程符号化出栈、应纳入上报；false=跳过（无 PC / ratio 不达标 / 符号化全失败）
+ */
+private func symbolizeTopPcStacksForReport(threadInfo: ThreadStackInfo,
+        stackBuf: Array<UInt8>, moduleBuf: Array<UInt8>,
+        ratioThreshold: Float64, periodTotalSamples: Int64): Bool {
+    // 该线程在周期内被采样到但从未抓到 PC（cooldown 中 / 抓栈失败）→ 跳过
+    if (threadInfo.pcAggregator.size() == 0) {
+        return false
+    }
+    let ratio = threadInfo.getHighSampleRatio(periodTotalSamples)
+    // ratio 门控：不足阈值则丢弃 PC，不符号化（偶发峰值线程）
+    if (ratio < ratioThreshold) {
+        AppLog.info("hm-metricx-cj: Discard PC (ratio below threshold): tid=${threadInfo.tid}, name=${threadInfo.threadName}, ratio=${ratio} < ${ratioThreshold}, highSamples=${threadInfo.highSampleCount}, periodTotalSamples=${periodTotalSamples}")
+        threadInfo.pcAggregator.clear()
+        return false
+    }
+    // 达标：回填周期总采样次数（toJson 输出与门控同口径的 highSampleRatio）
+    threadInfo.lastPeriodTotalSamples = periodTotalSamples
+    // 取频次 TopK 栈批量符号化，拼入 stackTrace（带次数/占比标记）
+    let topEntries = threadInfo.pcAggregator.topK(TOP_K_SYMBOLIZE)
+    var totalSamples: Int64 = 0
+    for (e in topEntries) {
+        totalSamples += e.count
+    }
+    let sb = StringBuilder()
+    for (idx in 0..topEntries.size) {
+        let e = topEntries[idx]
+        let n = symbolizePcsNative(e.pcs, e.frames, stackBuf, moduleBuf)
+        if (n > 0) {
+            let stackStr = bytesToString(stackBuf, n)
+            // 模块名：以 \0 截断
+            var modLen = 0
+            while (modLen < 256 && moduleBuf[modLen] != UInt8(0)) {
+                modLen = modLen + 1
+            }
+            let mod = if (modLen > 0) { bytesToString(moduleBuf, modLen) } else { "unknown" }
+            let pct = if (totalSamples > 0) { Float64(e.count) / Float64(totalSamples) * 100.0 } else { 0.0 }
+            if (idx > 0) {
+                sb.append("\n---\n")
+            }
+            sb.append("[module=${mod}] [count=${e.count}/${totalSamples}, ${pct}%]\n${stackStr}")
+            // 取第一个（频次最高）栈的模块名作为线程级 moduleName
+            if (idx == 0) {
+                threadInfo.moduleName = mod
+            }
+        } else {
+            AppLog.warn("hm-metricx-cj: SymbolizePcs returned ${n} for tid=${threadInfo.tid}, frames=${e.frames}")
+        }
+    }
+    let stackText = sb.toString()
+    // 符号化后清理 PC（已转成文本，PC 数组不再需要）
+    threadInfo.pcAggregator.clear()
+    if (stackText == "") {
+        return false
+    }
+    threadInfo.stackTrace = stackText
+    AppLog.info("hm-metricx-cj: Thread symbolized for report: tid=${threadInfo.tid}, name=${threadInfo.threadName}, ratio=${ratio}, highSamples=${threadInfo.highSampleCount}, periodTotalSamples=${periodTotalSamples}, threadSamples=${threadInfo.sampleCount}, distinctStacks=${topEntries.size}")
+    true
+}
+
+/**
  * 执行高 CPU 占用上报
  *
- * 实现需求：3 分钟上报一次，包含以下信息：
- * - 3 分钟内进程平均 CPU 使用率
- * - 持续高占用线程的栈信息和模块名
+ * 实现需求：3 分钟周期末上报一次，包含以下信息：
+ * - 本周期内进程平均 CPU 使用率
+ * - 本周期内出现过的不同高 CPU 线程的栈信息和模块名
  *
  * 上报条件：
- * - 监控时长达到 3 分钟（monitorDurationMs）
- * - 线程平均 CPU >= cpuThreshold（默认 0.5）
- * - 线程高采样比例 >= highSampleRatioThreshold（默认 0.85）
+ * - 监控时长达到 monitorDurationMs（默认 3 分钟）
+ * - 本周期内至少有一次采样达标并抓到栈（threadSamples 中存在 stackTrace 非空的线程）
  *
- * 上报前触发抓栈：
- * - 如果满足 shouldCaptureStack 条件，先执行抓栈
+ * 上报方式（周期末拼接）：
+ * - 抓栈已在采样阶段（doHighCpuSample 检测到 cpuUsage≥cpuThreshold 即调
+ *   captureStackForHighCpuThreads）完成，本函数不再触发抓栈
+ * - 周期内出现过的不同高 CPU 线程按 tid 去重（threadSamples 以 tid 为键），
+ *   每个 tid 只保留最近一次抓到的栈，拼接到 highCpuThreads 一起上报
+ * - 未抓到栈（cooldown 中 / 抓栈失败）的线程 stackTrace 为空，被过滤掉
+ *
+ * 【解耦符号化】周期末对每个线程先算 highSampleRatio：
+ * - ratio < highSampleRatioThreshold（默认 0.85）：丢弃暂存 PC 数据，零符号化成本
+ *   （该线程在 TopN 中真正烧 CPU 的比例不足，不值得符号化上报）
+ * - ratio ≥ 阈值：取 pcAggregator 频次 TopK（默认 5）的栈批量符号化，拼入 stackTrace
+ *   （带出现次数/占比标记），moduleName 取栈顶 so
  */
 private func doHighCpuReport(): Unit {
     let currentTime = getCurrentTimeMillis()
@@ -1020,10 +1416,7 @@ private func doHighCpuReport(): Unit {
         currentCycleMs = totalElapsedMs
     }
 
-    // 判断是否满足抓栈条件
-    if (shouldCaptureStack()) {
-        captureStackForHighCpuThreads()
-    }
+    // 周期末不再触发抓栈——抓栈已在采样阶段完成。此处仅对暂存 PC 经 ratio 门控后批量符号化。
 
     // 计算进程平均 CPU 使用率和最大 CPU 使用率
     var avgProcessCpu: Float64 = 0.0
@@ -1039,16 +1432,17 @@ private func doHighCpuReport(): Unit {
         avgProcessCpu = sum / Float64(processCpuSamples.size)
     }
 
-    // 筛选出平均 CPU 使用率超过阈值且高采样比例达标的线程
+    // 周期末符号化缓冲区（复用，避免每栈 alloc）
+    let stackBuf = Array<UInt8>(8192, repeat: UInt8(0))
+    let moduleBuf = Array<UInt8>(256, repeat: UInt8(0))
+
+    // 拼接上报线程：周期内采样达标（ratio≥阈值）且符号化出栈的线程。
+    // ratio 门控 + 频次 TopK 批量符号化逻辑封装在 symbolizeTopPcStacksForReport 中，前后台共用。
     let highCpuThreads = ArrayList<ThreadStackInfo>()
     if (let Some(config) <- highCpuConfig) {
         for (entry in threadSamples) {
-            let threadInfo = entry[1]
-            // 条件：平均 CPU > 阈值 且 高采样比例 >= 阈值
-            if (threadInfo.avgCpuUsage >= config.cpuThreshold &&
-                threadInfo.getHighSampleRatio() >= config.highSampleRatioThreshold) {
-                highCpuThreads.add(threadInfo)
-                AppLog.info("hm-metricx-cj: Thread qualified for report: tid=${threadInfo.tid}, avgCpu=${threadInfo.avgCpuUsage}, ratio=${threadInfo.getHighSampleRatio()}")
+            if (symbolizeTopPcStacksForReport(entry[1], stackBuf, moduleBuf, config.highSampleRatioThreshold, totalSampleCount)) {
+                highCpuThreads.add(entry[1])
             }
         }
     }
@@ -1085,12 +1479,10 @@ private func doHighCpuReport(): Unit {
  * 注意：不重置 monitorStartTime，保持与上报定时器同步
  */
 private func resetSamplingData(): Unit {
-    AppLog.info("hm-metricx-cj: [DEBUG] Resetting sampling data. Before reset: totalSampleCount=${totalSampleCount}, threadSamples.size=${threadSamples.size}, monitorStartTime=${monitorStartTime}")
     threadSamples.clear()
     processCpuSamples.clear()
     totalSampleCount = 0
     highCpuSampleCount = 0
-    AppLog.info("hm-metricx-cj: [DEBUG] Sampling data reset. After reset: totalSampleCount=${totalSampleCount}, threadSamples.size=${threadSamples.size}")
 }
 
 /**
@@ -1216,6 +1608,16 @@ public func initHighCpuMonitorHandlerInternal(
     // 保存上报回调
     reportHighCpuCallback = Some(reportHighCpuInfo)
     highCpuMonitorInited = true
+
+    // 初始化 native 高 CPU 调用栈抓取（一次性，创建 BacktraceObject + 注册 SIGUSR2 handler）
+    try {
+        let initRet = unsafe { InitCpuStackCapture() }
+        if (initRet != 0) {
+            AppLog.warn("hm-metricx-cj: InitCpuStackCapture failed, ret=${initRet}, stack capture disabled")
+        }
+    } catch (e: Exception) {
+        AppLog.warn("hm-metricx-cj: InitCpuStackCapture exception, stack capture disabled: ${e.message}")
+    }
 
     // 注册页面切换回调，更新 currentPageName
     onNavDestinationSwitch(
@@ -1430,9 +1832,7 @@ public class InteropHighCpuMonitorConfig {
 private func parseThreadCpuUsage(jsonStr: String): ArrayList<ThreadCpuUsageInfo> {
     let result = ArrayList<ThreadCpuUsageInfo>()
     var pos: Int64 = 0
-    
-    AppLog.info("hm-metricx-cj: parseThreadCpuUsage received: " + jsonStr)
-    
+
     while (pos < jsonStr.size) {
         let tidKey = "\"threadId\":"
         let tidKeyIdx = jsonStr[pos..].indexOf(tidKey)
@@ -1485,8 +1885,7 @@ private func parseThreadCpuUsage(jsonStr: String): ArrayList<ThreadCpuUsageInfo>
         
         pos = cpuStart + cpuEnd + 1
     }
-    
-    AppLog.info("hm-metricx-cj: parseThreadCpuUsage parsed " + result.size.toString() + " threads")
+
     result
 }
 
@@ -1612,6 +2011,15 @@ public class BackgroundCpuMonitorConfig {
     public let sampleIntervalMs: Int64
     // 滑动窗口大小（毫秒）
     public let windowSizeMs: Int64
+    // 每次抓栈保留的 TopN 线程数（默认 10），只抓 TopN 中过阈值的线程
+    public let topNThreads: Int64
+    // 单线程 cooldown（毫秒），同一线程在此时间内最多被抓取一次栈（默认 3 分钟）。
+    // 采样阶段已改为每次采样达标即抓栈，cooldown 与后台级别周期对齐，避免跨周期漏报。
+    public let threadCooldownMs: Int64
+    // 全局 cooldown（毫秒），后台抓栈整体限流（默认 3 分钟）。
+    // 注意：采样阶段每采样达标即抓栈，全局 cooldown 与该逻辑直接冲突，故已废弃——
+    // canSampleBackgroundGlobal / captureStackForBackgroundCpu 不再据此限流，字段保留兼容互操作。
+    public let globalCooldownMs: Int64
 
     // 默认值常量
     private static let DEFAULT_CPU_THRESHOLD: Float64 = 0.5
@@ -1620,6 +2028,9 @@ public class BackgroundCpuMonitorConfig {
     private static let DEFAULT_FATAL_DURATION_MS: Int64 = 60000     // 60 秒
     private static let DEFAULT_SAMPLE_INTERVAL_MS: Int64 = 1000     // 1 秒
     private static let DEFAULT_WINDOW_SIZE_MS: Int64 = 5000         // 5 秒窗口
+    private static let DEFAULT_TOP_N_THREADS: Int64 = 10
+    private static let DEFAULT_THREAD_COOLDOWN_MS: Int64 = 180000   // 3 分钟（与级别周期对齐，每周期每线程最多抓一次）
+    private static let DEFAULT_GLOBAL_COOLDOWN_MS: Int64 = 180000   // 3 分钟（已废弃，字段保留兼容互操作，不再实际限流）
 
     public init(
         cpuThreshold!: Float64 = DEFAULT_CPU_THRESHOLD,
@@ -1627,7 +2038,10 @@ public class BackgroundCpuMonitorConfig {
         errorDurationMs!: Int64 = DEFAULT_ERROR_DURATION_MS,
         fatalDurationMs!: Int64 = DEFAULT_FATAL_DURATION_MS,
         sampleIntervalMs!: Int64 = DEFAULT_SAMPLE_INTERVAL_MS,
-        windowSizeMs!: Int64 = DEFAULT_WINDOW_SIZE_MS
+        windowSizeMs!: Int64 = DEFAULT_WINDOW_SIZE_MS,
+        topNThreads!: Int64 = DEFAULT_TOP_N_THREADS,
+        threadCooldownMs!: Int64 = DEFAULT_THREAD_COOLDOWN_MS,
+        globalCooldownMs!: Int64 = DEFAULT_GLOBAL_COOLDOWN_MS
     ) {
         // 校验 cpuThreshold: 必须在 [0.0, 1.0] 范围内
         this.cpuThreshold = if (cpuThreshold < 0.0 || cpuThreshold > 1.0) {
@@ -1670,12 +2084,34 @@ public class BackgroundCpuMonitorConfig {
         } else {
             windowSizeMs
         }
+
+        // 校验 topNThreads: 必须在 (0, Int64.Max] 范围内
+        this.topNThreads = if (topNThreads <= 0 || topNThreads > Int64.Max) {
+            throw Exception("Invalid topNThreads: ${topNThreads}, expected (0, Int64.Max]")
+        } else {
+            topNThreads
+        }
+
+        // 校验 threadCooldownMs: 必须在 [0, Int64.Max] 范围内
+        this.threadCooldownMs = if (threadCooldownMs < 0 || threadCooldownMs > Int64.Max) {
+            throw Exception("Invalid threadCooldownMs: ${threadCooldownMs}, expected [0, Int64.Max]")
+        } else {
+            threadCooldownMs
+        }
+
+        // 校验 globalCooldownMs: 必须在 [0, Int64.Max] 范围内
+        this.globalCooldownMs = if (globalCooldownMs < 0 || globalCooldownMs > Int64.Max) {
+            throw Exception("Invalid globalCooldownMs: ${globalCooldownMs}, expected [0, Int64.Max]")
+        } else {
+            globalCooldownMs
+        }
     }
 
     public func toInterop(): InteropBackgroundCpuMonitorConfig {
         InteropBackgroundCpuMonitorConfig(
             this.cpuThreshold, this.warnDurationMs, this.errorDurationMs,
-            this.fatalDurationMs, this.sampleIntervalMs, this.windowSizeMs
+            this.fatalDurationMs, this.sampleIntervalMs, this.windowSizeMs,
+            this.topNThreads, this.threadCooldownMs, this.globalCooldownMs
         )
     }
 }
@@ -1691,20 +2127,19 @@ public class BackgroundCpuMonitorConfig {
  * 5. 检查是否满足上报条件
  */
 private func doBackgroundCpuSample(): Unit {
-    AppLog.info("hm-metricx-cj: [DEBUG] doBackgroundCpuSample called, isInBackground=${isInBackground}")
-    
     if (!isInBackground) {
-        AppLog.info("hm-metricx-cj: [DEBUG] Sampling skipped, not in background")
         return
     }
 
     let currentTime = getCurrentTimeMillis()
     let cpuUsage = _getCpuUsage() // 复用高 CPU 监控的获取函数
     let backgroundDuration = currentTime - backgroundStartTime
-    
-    AppLog.info("hm-metricx-cj: [DEBUG] Sample #${backgroundCpuSamples.size + 1}, cpuUsage=${cpuUsage}, backgroundDuration=${backgroundDuration}ms")
 
     backgroundCpuSamples.add(cpuUsage)
+    // 后台周期总采样次数自增（后台 ratio 分母）。与前台 totalSampleCount 语义对齐：
+    // 每次进程级采样 +1，作为 symbolizeTopPcStacksForReport 的 periodTotalSamples 传入，
+    // 使 ratio = highSampleCount / bgTotalSampleCount，挡掉"只进 1 次 TopN 且达标"的巧合线程。
+    bgTotalSampleCount++
 
     let sample = WindowSample()
     sample.timestamp = currentTime
@@ -1732,24 +2167,21 @@ private func doBackgroundCpuSample(): Unit {
                 windowAvgCpu = sum / Float64(windowSamplesList.size)
             }
 
-            AppLog.info("hm-metricx-cj: [DEBUG] backgroundDuration=${backgroundDuration}ms, windowAvgCpu=${windowAvgCpu}, threshold=${config.cpuThreshold}")
-            AppLog.info("hm-metricx-cj: [DEBUG] warnReported=${warnReported}, errorReported=${errorReported}, fatalReported=${fatalReported}")
-
             if (windowAvgCpu >= config.cpuThreshold) {
+                // 采样阶段即抓栈：窗口均值达标立即触发后台抓 PC（与前台一致）。
+                // captureStackForBackgroundCpu 内有 isBackgroundCapturingStack 串行锁防并发；
+                // 抓到的 PC 经 hash 聚合存入 backgroundThreadSamples，级别上报时经 ratio 门控
+                // 后批量符号化。
+                if (!isBackgroundCapturingStack) { captureStackForBackgroundCpu() }
                 // 分级上报：从高级别到低级别判断，每次只触发一个级别
                 if (backgroundDuration >= config.fatalDurationMs && !fatalReported) {
-                    AppLog.info("hm-metricx-cj: [DEBUG] Triggering FATAL report")
                     triggerBackgroundCpuReport(BackgroundCpuLevel.FATAL, windowAvgCpu, cpuUsage)
                 } else if (backgroundDuration >= config.errorDurationMs && !errorReported) {
-                    AppLog.info("hm-metricx-cj: [DEBUG] Triggering ERROR report")
                     triggerBackgroundCpuReport(BackgroundCpuLevel.ERROR, windowAvgCpu, cpuUsage)
                 } else if (backgroundDuration >= config.warnDurationMs && !warnReported) {
-                    AppLog.info("hm-metricx-cj: [DEBUG] Triggering WARN report")
                     triggerBackgroundCpuReport(BackgroundCpuLevel.WARN, windowAvgCpu, cpuUsage)
                 }
             }
-        } else {
-            AppLog.info("hm-metricx-cj: [DEBUG] backgroundDuration=${backgroundDuration}ms < warnDurationMs=${config.warnDurationMs}ms, skipping report check")
         }
     }
 }
@@ -1757,13 +2189,15 @@ private func doBackgroundCpuSample(): Unit {
 /**
  * 触发后台 CPU 占用上报
  *
- * 根据异常级别（WARN/ERROR/FATAL）上报后台活动超长率信息
+ * 根据异常级别（WARN/ERROR/FATAL）上报后台活动超长率信息。
+ *
+ * 抓栈已在采样阶段（doBackgroundCpuSample 窗口均值达标即调 captureStackForBackgroundCpu）完成，
+ * 本函数不再触发抓栈，仅对暂存 PC 经 ratio 门控后批量符号化：backgroundThreadSamples 以 tid 为键，
+ * 天然按 tid 去重；ratio 不达标线程丢弃 PC 零符号化成本，达标线程取频次 TopK 符号化拼入 stackTrace。
  */
 private func triggerBackgroundCpuReport(level: BackgroundCpuLevel, avgCpu: Float64, maxCpu: Float64): Unit {
     let currentTime = getCurrentTimeMillis()
     let backgroundDuration = currentTime - backgroundStartTime
-
-    if (!isBackgroundCapturingStack) { captureStackForBackgroundCpu() }
 
     let reportInfo = BackgroundCpuReportInfo()
     reportInfo.timestamp = currentTime
@@ -1774,10 +2208,19 @@ private func triggerBackgroundCpuReport(level: BackgroundCpuLevel, avgCpu: Float
     reportInfo.avgCpuUsage = avgCpu
     reportInfo.maxCpuUsage = maxCpu
     reportInfo.windowSamples = windowSamplesList
-    
+
+    // 周期末符号化缓冲区（复用，避免每栈 alloc）
+    let stackBuf = Array<UInt8>(8192, repeat: UInt8(0))
+    let moduleBuf = Array<UInt8>(256, repeat: UInt8(0))
+
     reportInfo.highCpuThreads = ArrayList()
     for (entry in backgroundThreadSamples) {
-        reportInfo.highCpuThreads.add(entry[1])
+        // ratio 门控 + 频次 TopK 批量符号化（与前台 doHighCpuReport 共用 symbolizeTopPcStacksForReport）。
+        // 后台 config 无 highSampleRatioThreshold 字段，复用模块级 BACKGROUND_HIGH_SAMPLE_RATIO_THRESHOLD。
+        // 分母用 bgTotalSampleCount（后台生命周期内累加，进前台/销毁时 reset）。
+        if (symbolizeTopPcStacksForReport(entry[1], stackBuf, moduleBuf, BACKGROUND_HIGH_SAMPLE_RATIO_THRESHOLD, bgTotalSampleCount)) {
+            reportInfo.highCpuThreads.add(entry[1])
+        }
     }
 
     if (let Some(callback) <- backgroundCpuCallback) {
@@ -1792,35 +2235,76 @@ private func triggerBackgroundCpuReport(level: BackgroundCpuLevel, avgCpu: Float
 }
 
 /**
- * 执行后台抓栈操作
+ * 执行后台抓栈操作（采样阶段即触发，只回溯存 PC，不符号化）
  *
- * 抓取高 CPU 占用线程的调用栈信息
+ * 与前台 captureStackForHighCpuThreads 一致：取当前帧所有线程按 cpuUsage 降序排序，遍历前 topN 个，
+ * 逐线程判断：① 过阈值才抓 PC（未过阈值的 TopN 线程不抓）；② 线程级 cooldown 中则跳过该线程；
+ * ③ 抓到 PC（n>0）才更新该线程 cooldown。抓到的 PC 数组 hash 聚合存入 threadInfo.pcAggregator，
+ * 级别上报时（triggerBackgroundCpuReport）经 ratio 门控后批量符号化。
+ *
+ * 限流：仅保留线程级 cooldown（默认 3min，与级别周期对齐）。后台全局 cooldown 已废弃。
  */
 private func captureStackForBackgroundCpu(): Unit {
     if (isBackgroundCapturingStack) { return }
     isBackgroundCapturingStack = true
 
+    let currentTime = getCurrentTimeMillis()
     try {
         let threadCpuUsageJson = _getAppThreadCpuUsageJson()
         let threadCpuUsageArray = parseThreadCpuUsage(threadCpuUsageJson)
-        
-        let currentTime = getCurrentTimeMillis()
+
         if (let Some(config) <- backgroundCpuConfig) {
-            for (threadUsage in threadCpuUsageArray) {
-                let tid = Int64(threadUsage.threadId)
-                let cpuUsage = Float64(threadUsage.cpuUsage)
-                if (cpuUsage >= config.cpuThreshold) {
+            if (threadCpuUsageArray.size > 0) {
+                var threadCpuList = ArrayList<(Int64, String, Float64)>()
+                for (threadUsage in threadCpuUsageArray) {
+                    let tid = Int64(threadUsage.threadId)
+                    let cpuUsage = Float64(threadUsage.cpuUsage)
                     let threadName = getThreadName(tid)
-                    if (!backgroundThreadSamples.contains(tid)) {
-                        let threadInfo = ThreadStackInfo()
-                        threadInfo.tid = tid
-                        threadInfo.threadName = threadName
-                        threadInfo.firstDetectedTime = currentTime
-                        threadInfo.computeAvg(cpuUsage, threshold: config.cpuThreshold)
-                        backgroundThreadSamples.add(tid, threadInfo)
+                    threadCpuList.add((tid, threadName, cpuUsage))
+                }
+                sort<(Int64, String, Float64)>(
+                    threadCpuList,
+                    lessThan: { a, b => a[2] > b[2] },
+                    stable: false,
+                    descending: false
+                )
+                // TopN：CPU 最高的 N 个线程
+                let topN = min(threadCpuList.size, config.topNThreads)
+                let pcsBuf = Array<UInt64>(MAX_PC_FRAMES, repeat: UInt64(0))
+                for (i in 0..topN) {
+                    let item = threadCpuList[i]
+                    let tid = item[0]
+                    let threadName = item[1]
+                    let cpuUsage = item[2]
+                    // 阈值过滤：只抓 cpuUsage≥cpuThreshold 的线程
+                    if (cpuUsage < config.cpuThreshold) {
+                        continue
+                    }
+                    // 【解耦后不再限流】与前台同理：threadCooldownMs 是旧"完整符号化"限流，
+                    // 与"每次采样达标即抓 PC（~20µs）"冲突，会让短窗口只抓到 1 个 PC。去掉 cooldown，
+                    // 每次采样都抓，相同栈靠 hash 聚合计数。并发安全由 isBackgroundCapturingStack
+                    // 串行锁 + native g_capturing CAS 保证。
+
+                    // 后台级别模型下，doBackgroundCpuSample 不会为每个 TopN 线程 recordSample
+                    // （它只看窗口均值），故此处兜底：抓 PC 前先记录一次该线程采样。
+                    let threadInfo = if (backgroundThreadSamples.contains(tid)) {
+                        backgroundThreadSamples[tid]
                     } else {
-                        let threadInfo = backgroundThreadSamples[tid]
-                        threadInfo.computeAvg(cpuUsage, threshold: config.cpuThreshold)
+                        let ni = ThreadStackInfo()
+                        ni.tid = tid
+                        ni.threadName = threadName
+                        ni.firstDetectedTime = currentTime
+                        ni.recordSample(cpuUsage, threshold: config.cpuThreshold)
+                        backgroundThreadSamples.add(tid, ni)
+                        ni
+                    }
+
+                    // 只回溯拿 PC，不符号化（~20µs/次）
+                    let n = capturePcsNative(tid, pcsBuf)
+                    if (n > 0) {
+                        threadInfo.pcAggregator.addOrUpdate(pcsBuf, n)
+                    } else {
+                        AppLog.warn("hm-metricx-cj: [BG] capturePcsNative tid=${tid} returned ${n}, no PC captured")
                     }
                 }
             }
@@ -1828,6 +2312,7 @@ private func captureStackForBackgroundCpu(): Unit {
     } catch (e: Exception) {
         AppLog.warn("hm-metricx-cj: Exception during background stack capture: " + e.toString())
     } finally {
+        // 后台全局 cooldown 已废弃，不再更新 backgroundGlobalLastCaptureTime
         isBackgroundCapturingStack = false
     }
 }
@@ -1863,7 +2348,9 @@ private func resetBackgroundMonitorData(): Unit {
     windowSamplesList.clear()
     backgroundCpuSamples.clear()
     backgroundThreadSamples.clear()
+    bgTotalSampleCount = 0
     isBackgroundCapturingStack = false
+    backgroundGlobalLastCaptureTime = 0
 }
 
 /**
@@ -1889,7 +2376,9 @@ public func initBackgroundCpuMonitorHandlerInternal(
     backgroundCpuConfig = Some(BackgroundCpuMonitorConfig(
         cpuThreshold: config.cpuThreshold, warnDurationMs: config.warnDurationMs,
         errorDurationMs: config.errorDurationMs, fatalDurationMs: config.fatalDurationMs,
-        sampleIntervalMs: config.sampleIntervalMs, windowSizeMs: config.windowSizeMs
+        sampleIntervalMs: config.sampleIntervalMs, windowSizeMs: config.windowSizeMs,
+        topNThreads: config.topNThreads, threadCooldownMs: config.threadCooldownMs,
+        globalCooldownMs: config.globalCooldownMs
     ))
     
     // 保存线程 CPU 获取回调
@@ -1934,10 +2423,17 @@ public class InteropBackgroundCpuMonitorConfig {
     public let fatalDurationMs: Int64
     public let sampleIntervalMs: Int64
     public let windowSizeMs: Int64
+    // 每次抓栈保留的 TopN 线程数（默认 10）
+    public let topNThreads: Int64
+    // 单线程 cooldown（ms），同一线程在此时间内最多被抓取一次栈
+    public let threadCooldownMs: Int64
+    // 全局 cooldown（ms），后台抓栈整体限流
+    public let globalCooldownMs: Int64
 
     public init(
         cpuThreshold: Float64, warnDurationMs: Int64, errorDurationMs: Int64,
-        fatalDurationMs: Int64, sampleIntervalMs: Int64, windowSizeMs: Int64
+        fatalDurationMs: Int64, sampleIntervalMs: Int64, windowSizeMs: Int64,
+        topNThreads: Int64, threadCooldownMs: Int64, globalCooldownMs: Int64
     ) {
         this.cpuThreshold = cpuThreshold
         this.warnDurationMs = warnDurationMs
@@ -1945,5 +2441,8 @@ public class InteropBackgroundCpuMonitorConfig {
         this.fatalDurationMs = fatalDurationMs
         this.sampleIntervalMs = sampleIntervalMs
         this.windowSizeMs = windowSizeMs
+        this.topNThreads = topNThreads
+        this.threadCooldownMs = threadCooldownMs
+        this.globalCooldownMs = globalCooldownMs
     }
 }

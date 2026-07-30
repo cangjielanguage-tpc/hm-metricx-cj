@@ -375,6 +375,7 @@ export function initThermalHandler(
 - `threshold` 所指定异常的阈值
 - `isForeground` 是否在前台
 - `durationMs` 异常持续时长
+- `cpuNum` CPU 核心数
 
 使用示例：
 
@@ -804,7 +805,7 @@ export function initCpuHandler(
  - `sampleCount` CPU采样次数 
  - `pid` 进程ID
 
-#### 新增CPU异常监控 : 1）3分钟线程栈异常监控
+#### 新增CPU异常监控 : 1）30秒线程栈异常监控
 ```text
 //注册CPU异常监控
 export function initHighCpuMonitorHandler(
@@ -829,8 +830,8 @@ export function destroyHighCpuMonitorHandler(): void
 - `monitorDurationMS` 异常上报频率（ms，如果1s则设置为1000），如果是负数，会调用系统设置的默认值
 - `threadCoolDownMs` 安全限流设置（ms，如果1s则设置为1000），如果是负数，会调用系统设置的默认值，针对本模块内的冷却限限流，假如时间是60s，在threadCoolDownMs时间内，如果有异常汇报过同线程，这个threadCoolDownMs会开启，在这个冷却时间内，不会重复上报已有的异常信息。
 - `globalCooldownMs` 安全限流设置（ms，如果1s则设置为1000），如果是负数，会调用系统设置的默认值，针对全局APM的冷却限限流，假如时间是180s，在globalCooldownMs时间内，如果有异常汇报过同线程，这个globalCooldownMs会开启，在这个冷却时间内，不会重复上报已有的异常信息。
-- `highSampleRatioThreshold` 高采样比例阈值，在3分钟内所有采样个数内，需要保证整体采样sample异常比例超过设定阈值，且CPU使用率平均值大于cpuThreshold，最后异常事件才会上报，范围是0-1，如果是负数或者超过1，会调用系统设置的默认值
-- `topNthreads` 每次采用异常线程数，0 - 200，如果在范围外，会调用系统设置的默认值
+- `highSampleRatioThreshold` 高采样比例阈值，在30秒内所有采样个数内，需要保证整体采样sample异常比例超过设定阈值，且CPU使用率平均值大于cpuThreshold，最后异常事件才会上报，范围是0-1，如果是负数或者超过1，会调用系统设置的默认值
+- `topNthreads` 每次抓栈与上报保留的 TopN 异常线程数，0 - 200，如果在范围外，会调用系统设置的默认值。抓栈时按 CPU 降序取前 N 个，不再二次过滤阈值（阈值过滤已在采样阶段完成），只看线程级 cooldown：在 cooldown 中的跳过，其余抓栈成功即上报（0~N 个）
 
 `HighCpuReportInfo` 包含以下信息：
 - `timestamp` timestamp
@@ -848,7 +849,8 @@ export function destroyHighCpuMonitorHandler(): void
 - `maxCpuUsage` 最大CPU
 - `sampleCount` 采样次数
 - `hightSampleCount/sampleCount` 高采样比例
-- `moduleBane` 模块名
+- `moduleName` 模块名
+- `stackTrace` 异常线程调用栈
 - `firstDetectedTime` 首次检测时间
 
 使用示例：
@@ -890,6 +892,8 @@ export default class EntryAbility extends UIAbility {
           hilog.warn(DOMAIN, 'HighCpuMonitor', `  采样次数：${threadInfo.sampleCount}`);
           hilog.warn(DOMAIN, 'HighCpuMonitor', `  高采样比例：${threadInfo.highSampleCount / threadInfo.sampleCount}`);
           hilog.warn(DOMAIN, 'HighCpuMonitor', `  首次检测时间：${threadInfo.firstDetectedTime}`);
+          hilog.warn(DOMAIN, 'HighCpuMonitor', `  模块名：${threadInfo.moduleName}`);
+          hilog.warn(DOMAIN, 'HighCpuMonitor', `  调用栈：\n${threadInfo.stackTrace}`);
         }
       }
     );
@@ -931,9 +935,12 @@ public func getBackgroundCpuConfig(): Option<BackgroundCpuMonitorConfig>
 - `cpuThreshold` CPU使用率平均值，以比例值表示（如使用率50%，则返回0.5），范围是0-1，如果是负数或者超过1，会调用系统设置的默认值
 - `warnDurationMs`: (int64) 最小异常上报时长（ms），超过此时长触发warn级别上报。
 - `errorDurationMs`: (int64) 最小异常上报时长（ms），超过此时长触发error级别上报。
-- `errorDurationMs`: (int64) 最小异常上报时长（ms），超过此时长触发fatal级别上报。
+- `fatalDurationMs`: (int64) 最小异常上报时长（ms），超过此时长触发fatal级别上报。
 - `sampleIntervalMs`: (int64) 采样间隔(ms)。
 - `windowSizeMs`: (int64) 滑动窗口大小(ms)。
+- `topNThreads`: (int64) 每次抓栈与上报保留的 TopN 异常线程数，默认 10。抓栈时按 CPU 降序取前 N 个，逐线程判断过阈值/cooldown，0~N 个上报。
+- `threadCooldownMs`: (int64) 单线程 cooldown（ms），同一线程在此时间内最多被抓取一次栈，默认 600000（10 分钟）。与前台共用同一限流表。
+- `globalCooldownMs`: (int64) 后台全局 cooldown（ms），后台抓栈整体限流，默认 180000（3 分钟）。与前台独立，互不限流。
 
 `BackgroundCpuReportInfo` 包含以下信息：
 - `timestamp` timestamp
@@ -944,6 +951,7 @@ public func getBackgroundCpuConfig(): Option<BackgroundCpuMonitorConfig>
 - `avgProcessCpu` CPU平均值
 - `backgroundDuration` 监控时长
 - `windowSamples.size` 滑动窗口采样数
+- `highCpuThreads` 高占用线程调用栈列表（含 tid/threadName/cpuUsage/moduleName/stackTrace，取 TopN 中抓栈成功且不在 cooldown 内的线程）
 
 ```arkts
 export default class EntryAbility extends UIAbility {
@@ -956,7 +964,10 @@ export default class EntryAbility extends UIAbility {
         30000,           // 30 秒触发 ERROR
         60000,          // 60 秒触发 FATAL
         1000,            // 1 秒采样一次
-        5000            // 5 秒滑动窗口
+        5000,           // 5 秒滑动窗口
+        10,             // topNThreads: 保留 Top10 线程
+        600000,         // threadCooldownMs: 线程 10 分钟 cooldown
+        180000          // globalCooldownMs: 后台全局 3 分钟 cooldown
       ),
       (reportInfo: BackgroundCpuReportInfo) => {
         hilog.warn(DOMAIN, 'BackgroundCpuMonitor', '===== 后台 CPU 活动超长率上报 =====');
@@ -974,6 +985,15 @@ export default class EntryAbility extends UIAbility {
           hilog.warn(DOMAIN, 'BackgroundCpuMonitor', `  时间戳：${sample.timestamp}`);
           hilog.warn(DOMAIN, 'BackgroundCpuMonitor', `  CPU 使用率：${sample.cpuUsage}`);
           hilog.warn(DOMAIN, 'BackgroundCpuMonitor', `  后台时长：${sample.duration}ms`);
+        }
+
+        // 打印高占用线程调用栈
+        for (const threadInfo of reportInfo.highCpuThreads) {
+          hilog.warn(DOMAIN, 'BackgroundCpuMonitor', '--- 高占用线程 ---');
+          hilog.warn(DOMAIN, 'BackgroundCpuMonitor', `  TID: ${threadInfo.tid}`);
+          hilog.warn(DOMAIN, 'BackgroundCpuMonitor', `  线程名：${threadInfo.threadName}`);
+          hilog.warn(DOMAIN, 'BackgroundCpuMonitor', `  模块名：${threadInfo.moduleName}`);
+          hilog.warn(DOMAIN, 'BackgroundCpuMonitor', `  调用栈：\n${threadInfo.stackTrace}`);
         }
       }
     );
@@ -1091,6 +1111,9 @@ export function initTrafficHandler(
 // 取消流量监控
 export function destroyTrafficHandler(): void
 
+// 获取当前页面从进入到调用时刻期间的完整流量增量，调用后自动清零，供下一页面计数
+export function getAndResetCurrentPageTraffic(onResult: (info: PageTrafficInfo) => void): void
+
 ```
 
 接口对app占用存储空间获取并进行上报。
@@ -1116,6 +1139,7 @@ export function destroyTrafficHandler(): void
 `SystemTrafficInfo` 在 `TrafficInfo` 基础上，添加如下信息：
 
 - `timeStamp` 时间戳，表示流量数据的采集时间
+- `bearerType` 本次上报的承载网类型，标注流量走的是 wlan 还是移动网络，取值为 `wifi`/`mobile`/`other`/`none`/`unknown`
 
 `PageTrafficInfo` 在 `TrafficInfo` 基础上，添加如下信息：
 
@@ -1124,6 +1148,8 @@ export function destroyTrafficHandler(): void
 `DayTrafficInfo` 在 `TrafficInfo` 基础上，添加如下信息：
 
 - `date` 日期
+
+`getAndResetCurrentPageTraffic` 用于获取当前页面从进入到调用时刻期间的完整流量增量，调用后基线自动清零，供下一页面重新计数。上层在页面切换（离开上一页）时调用，即可拿到上一个页面从进入到离开期间的完整流量增量，常用于发热异常快照中关联当前页面的流量消耗。结果经回调 `onResult` 异步返回（底层网络统计 API 返回 Promise）。回调参数为 `PageTrafficInfo`，归属页名取调用瞬间的当前页名。
 
 使用示例：
 
