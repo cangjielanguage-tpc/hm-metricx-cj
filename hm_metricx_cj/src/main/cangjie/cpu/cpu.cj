@@ -366,6 +366,10 @@ public class ThreadStackInfo {
     private var firstDetectedTimeValue: Int64 = 0     // 首次检测到高占用的时间戳（毫秒）
     private var highSampleCountValue: Int64 = 0       // CPU≥阈值 的采样次数（ratio 分子）
     private var pcAggregatorValue: ThreadPcAggregator = ThreadPcAggregator()  // 周期内 PC 栈聚合
+    // 周期总采样次数（前台 totalSampleCount / 后台 bgTotalSampleCount）。由 symbolizeTopPcStacksForReport
+    // 在门控通过时回填，供 toJson 输出与门控同口径的 highSampleRatio。设计：ratio 分母用进程级周期
+    // 总采样次数而非 per-thread 出现次数，避免"只进 1 次 TopN 且恰好超标"的线程 ratio=1/1=1.0 误通过门控。
+    private var lastPeriodTotalSamplesValue: Int64 = 0
 
     public mut prop tid: Int64 {
         get() { tidValue }
@@ -406,14 +410,20 @@ public class ThreadStackInfo {
     public prop pcAggregator: ThreadPcAggregator {
         get() { pcAggregatorValue }
     }
+    // 周期总采样次数（门控同口径），由 symbolizeTopPcStacksForReport 门控通过时回填
+    public mut prop lastPeriodTotalSamples: Int64 {
+        get() { lastPeriodTotalSamplesValue }
+        set(value) { lastPeriodTotalSamplesValue = value }
+    }
 
     /**
      * 记录一次该线程被采样到的结果（无论是否超标）。
      *
-     * 与 computeAvg 的区别：sampleCount 无条件 +1（ratio 分母——该线程被采样到的总次数），
-     * 仅当 cpuUsage >= threshold 才 highSampleCount++（ratio 分子）。修 ratio bug：
-     * 旧 computeAvg 只在 cpuUsage>=threshold 时被调用，导致 sampleCount 恒等于
-     * highSampleCount，getHighSampleRatio() 恒为 1.0，门控形同虚设。
+     * sampleCount 无条件 +1（该线程出现在 TopN 的次数，用于诊断/聚合），
+     * 仅当 cpuUsage >= threshold 才 highSampleCount++（ratio 分子）。
+     * ratio 分母用周期总采样次数（getHighSampleRatio(periodTotalSamples)），非 sampleCount。
+     * 修 ratio bug：旧 computeAvg 只在 cpuUsage>=threshold 时被调用，导致 sampleCount 恒等于
+     * highSampleCount，getHighSampleRatio 恒为 1.0，门控形同虚设。
      *
      * @param cpuUsage 当前线程 CPU 使用率（0-1 之间）
      * @param threshold CPU 阈值（从 config 传入）
@@ -448,18 +458,25 @@ public class ThreadStackInfo {
     }
 
     /**
-     * 获取高采样比例
+     * 获取高采样比例（口径：周期总采样次数为分母）
      *
-     * 计算 CPU>50% 的采样次数占总采样次数的比例
-     * 用于判定线程是否持续高占用（>=85% 视为持续高占用）
+     * ratio = highSampleCount / totalSamples
+     * - highSampleCount：该线程在 TopN 中 CPU≥阈值 的采样次数（分子）
+     * - totalSamples：进程级周期总采样次数（前台 totalSampleCount / 后台 bgTotalSampleCount）
      *
-     * @return 高采样比例（0-1 之间），采样次数为 0 时返回 0.0
+     * 【为何分母用周期总采样次数】旧口径 ratio = highSampleCount / 该线程出现在 TopN 的次数，
+     * 当某线程只进入 TopN 1 次且恰好超标，ratio = 1/1 = 1.0 ≥ 门控阈值（默认 0.85）会误通过，
+     * 把单次巧合当持续热点上报，误差高。改用周期总采样次数（3min×1s≈180）作分母：
+     * 单次巧合线程 ratio ≈ 1/180 ≈ 0.006 自动被挡；持续热点（整周期都在 TopN 且超标）≈ 180/180 = 1.0 不受影响。
+     *
+     * @param totalSamples 周期内进程级采样总次数（ratio 分母），<=0 时返回 0.0
+     * @return 高采样比例（0-1 之间）
      */
-    public func getHighSampleRatio(): Float64 {
-        if (sampleCountValue == 0) {
+    public func getHighSampleRatio(totalSamples: Int64): Float64 {
+        if (totalSamples <= 0) {
             return 0.0
         }
-        return Float64(highSampleCountValue) / Float64(sampleCountValue)
+        return Float64(highSampleCountValue) / Float64(totalSamples)
     }
 
     /**
@@ -491,8 +508,10 @@ public class ThreadStackInfo {
         // 频次 TopK 符号化栈列表：每个栈带出现次数与占比，呈现周期内热点分布而非单次快照。
         // pcAggregator 在周期末 ratio 门控通过后由 doHighCpuReport 填入 stackTrace，
         // 此处序列化 stackTrace 解析出的多条栈 + 计数（若 stackTrace 已含 \n[count=N]\n 标记则原样上报）。
+        // highSampleRatio 与门控同口径：highSampleCount / lastPeriodTotalSamples（周期总采样次数为分母），
+        // lastPeriodTotalSamples 由 symbolizeTopPcStacksForReport 门控通过时回填。
         sb.append(",\"highSampleRatio\":")
-        sb.append(this.getHighSampleRatio().toString())
+        sb.append(this.getHighSampleRatio(this.lastPeriodTotalSamples).toString())
         sb.append("}")
         sb.toString()
     }
@@ -757,6 +776,10 @@ var isCapturingStack: Bool = false
 var totalSampleCount: Int64 = 0
 // 高 CPU 采样次数（CPU>50% 的次数） 用于计算高采样比例，判定是否触发抓栈
 var highCpuSampleCount: Int64 = 0
+// 后台周期总采样次数（后台 ratio 分母）：doBackgroundCpuSample 每次自增，resetBackgroundMonitorData 清零。
+// 后台为级别模型（WARN/ERROR/FATAL），上报不立即清零，整个后台生命周期内累加——分母只增不减，
+// 巧合线程 ratio 趋近 0 自动被挡，语义自洽。与前台 totalSampleCount 对应，前后台分母互不串台。
+var bgTotalSampleCount: Int64 = 0
 
 // --- 后台监控状态 ---
 // 监控是否已初始化（防止重复初始化）
@@ -993,9 +1016,10 @@ private func doHighCpuSample(): Unit {
     )
 
     // 记录本次采样是否出现过达标高 CPU 线程。
-    // 关键：TopN 中每个线程都调 recordSample（sampleCount++ 无条件、highSampleCount++ 仅超标），
-    // 这样 getHighSampleRatio() = highSampleCount/sampleCount 才能真实反映"该线程被采样到时
-    // 有多少比例在烧 CPU"。旧逻辑只在超标时 computeAvg，导致 ratio 恒为 1.0。
+    // 关键：TopN 中每个线程都调 recordSample（sampleCount++ 无条件、highSampleCount++ 仅超标）。
+    // ratio 口径为 highSampleCount / 周期总采样次数（getHighSampleRatio(periodTotalSamples)），
+    // sampleCount 记录该线程出现在 TopN 的次数（用于诊断/聚合，非 ratio 分母）。
+    // 旧逻辑只在超标时 computeAvg，导致 sampleCount 恒等于 highSampleCount，ratio 恒为 1.0。
     var hasHighCpuThread = false
     if (let Some(config) <- highCpuConfig) {
         let topN = min(threadCpuList.size, config.topNThreads)
@@ -1260,27 +1284,33 @@ private func captureStackForHighCpuThreads(): Unit {
  * - ratio ≥ 阈值 → 取频次 TopK 栈逐个符号化，拼入 threadInfo.stackTrace（带次数/占比标记），
  *   moduleName 取频次最高栈的栈顶 so；符号化后清理 PC 数组。stackTrace 非空返回 true。
  *
+ * ratio 口径：getHighSampleRatio(periodTotalSamples) = highSampleCount / periodTotalSamples。
+ * 分母用周期总采样次数（非 per-thread 出现次数），挡掉"只进 1 次 TopN 且恰好超标"的巧合线程。
+ *
  * @param threadInfo 待符号化线程
  * @param stackBuf 符号化栈缓冲（复用，8192B）
  * @param moduleBuf 模块名缓冲（复用，256B）
  * @param ratioThreshold ratio 门控阈值（前台 config.highSampleRatioThreshold，后台 BACKGROUND_HIGH_SAMPLE_RATIO_THRESHOLD）
+ * @param periodTotalSamples 周期内进程级采样总次数（ratio 分母；前台 totalSampleCount / 后台 bgTotalSampleCount）
  * @return true=该线程符号化出栈、应纳入上报；false=跳过（无 PC / ratio 不达标 / 符号化全失败）
  */
 private func symbolizeTopPcStacksForReport(threadInfo: ThreadStackInfo,
         stackBuf: Array<UInt8>, moduleBuf: Array<UInt8>,
-        ratioThreshold: Float64): Bool {
+        ratioThreshold: Float64, periodTotalSamples: Int64): Bool {
     // 该线程在周期内被采样到但从未抓到 PC（cooldown 中 / 抓栈失败）→ 跳过
     if (threadInfo.pcAggregator.size() == 0) {
         return false
     }
-    let ratio = threadInfo.getHighSampleRatio()
+    let ratio = threadInfo.getHighSampleRatio(periodTotalSamples)
     // ratio 门控：不足阈值则丢弃 PC，不符号化（偶发峰值线程）
     if (ratio < ratioThreshold) {
-        AppLog.info("hm-metricx-cj: Discard PC (ratio below threshold): tid=${threadInfo.tid}, name=${threadInfo.threadName}, ratio=${ratio} < ${ratioThreshold}")
+        AppLog.info("hm-metricx-cj: Discard PC (ratio below threshold): tid=${threadInfo.tid}, name=${threadInfo.threadName}, ratio=${ratio} < ${ratioThreshold}, highSamples=${threadInfo.highSampleCount}, periodTotalSamples=${periodTotalSamples}")
         threadInfo.pcAggregator.clear()
         return false
     }
-    // 达标：取频次 TopK 栈批量符号化，拼入 stackTrace（带次数/占比标记）
+    // 达标：回填周期总采样次数（toJson 输出与门控同口径的 highSampleRatio）
+    threadInfo.lastPeriodTotalSamples = periodTotalSamples
+    // 取频次 TopK 栈批量符号化，拼入 stackTrace（带次数/占比标记）
     let topEntries = threadInfo.pcAggregator.topK(TOP_K_SYMBOLIZE)
     var totalSamples: Int64 = 0
     for (e in topEntries) {
@@ -1318,7 +1348,7 @@ private func symbolizeTopPcStacksForReport(threadInfo: ThreadStackInfo,
         return false
     }
     threadInfo.stackTrace = stackText
-    AppLog.info("hm-metricx-cj: Thread symbolized for report: tid=${threadInfo.tid}, name=${threadInfo.threadName}, ratio=${ratio}, samples=${threadInfo.sampleCount}, highSamples=${threadInfo.highSampleCount}, distinctStacks=${topEntries.size}")
+    AppLog.info("hm-metricx-cj: Thread symbolized for report: tid=${threadInfo.tid}, name=${threadInfo.threadName}, ratio=${ratio}, highSamples=${threadInfo.highSampleCount}, periodTotalSamples=${periodTotalSamples}, threadSamples=${threadInfo.sampleCount}, distinctStacks=${topEntries.size}")
     true
 }
 
@@ -1400,7 +1430,7 @@ private func doHighCpuReport(): Unit {
     let highCpuThreads = ArrayList<ThreadStackInfo>()
     if (let Some(config) <- highCpuConfig) {
         for (entry in threadSamples) {
-            if (symbolizeTopPcStacksForReport(entry[1], stackBuf, moduleBuf, config.highSampleRatioThreshold)) {
+            if (symbolizeTopPcStacksForReport(entry[1], stackBuf, moduleBuf, config.highSampleRatioThreshold, totalSampleCount)) {
                 highCpuThreads.add(entry[1])
             }
         }
@@ -2095,6 +2125,10 @@ private func doBackgroundCpuSample(): Unit {
     let backgroundDuration = currentTime - backgroundStartTime
 
     backgroundCpuSamples.add(cpuUsage)
+    // 后台周期总采样次数自增（后台 ratio 分母）。与前台 totalSampleCount 语义对齐：
+    // 每次进程级采样 +1，作为 symbolizeTopPcStacksForReport 的 periodTotalSamples 传入，
+    // 使 ratio = highSampleCount / bgTotalSampleCount，挡掉"只进 1 次 TopN 且达标"的巧合线程。
+    bgTotalSampleCount++
 
     let sample = WindowSample()
     sample.timestamp = currentTime
@@ -2172,7 +2206,8 @@ private func triggerBackgroundCpuReport(level: BackgroundCpuLevel, avgCpu: Float
     for (entry in backgroundThreadSamples) {
         // ratio 门控 + 频次 TopK 批量符号化（与前台 doHighCpuReport 共用 symbolizeTopPcStacksForReport）。
         // 后台 config 无 highSampleRatioThreshold 字段，复用模块级 BACKGROUND_HIGH_SAMPLE_RATIO_THRESHOLD。
-        if (symbolizeTopPcStacksForReport(entry[1], stackBuf, moduleBuf, BACKGROUND_HIGH_SAMPLE_RATIO_THRESHOLD)) {
+        // 分母用 bgTotalSampleCount（后台生命周期内累加，进前台/销毁时 reset）。
+        if (symbolizeTopPcStacksForReport(entry[1], stackBuf, moduleBuf, BACKGROUND_HIGH_SAMPLE_RATIO_THRESHOLD, bgTotalSampleCount)) {
             reportInfo.highCpuThreads.add(entry[1])
         }
     }
@@ -2302,6 +2337,7 @@ private func resetBackgroundMonitorData(): Unit {
     windowSamplesList.clear()
     backgroundCpuSamples.clear()
     backgroundThreadSamples.clear()
+    bgTotalSampleCount = 0
     isBackgroundCapturingStack = false
     backgroundGlobalLastCaptureTime = 0
 }
