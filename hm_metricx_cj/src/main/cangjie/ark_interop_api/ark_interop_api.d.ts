@@ -489,7 +489,7 @@ export declare interface CustomLib {
     reportAppStorageInfo(getCurrentBundleStats: (funcArg0: (funcArgfuncArg0: number, funcArgfuncArg1: number, funcArgfuncArg2: number) => void) => void): void
     getPageCpuInfo(): InteropPageCpuInfo
     getProcessCpuInfo(): InteropProcessCpuInfo
-    initCpuHandler(getCpuUsage: () => number, onNavDestinationSwitch: (funcArg0: (funcArgfuncArg0: string) => void) => void, repeatSampleAndReportCpu: (funcArg0: () => void, funcArg1: () => void) => void, reporPageCpuInfo: (funcArg0: InteropPageCpuInfo) => void, reporProcessCpuInfo: (funcArg0: InteropProcessCpuInfo) => void): void
+    initCpuHandler(onNavDestinationSwitch: (funcArg0: (funcArgfuncArg0: string) => void) => void, repeatSampleAndReportCpu: (funcArg0: () => void, funcArg1: () => void) => void, reporPageCpuInfo: (funcArg0: InteropPageCpuInfo) => void, reporProcessCpuInfo: (funcArg0: InteropProcessCpuInfo) => void): void
     getPageMemoryInfo(): InteropPageMemoryInfo
     getProcessMemoryInfo(): InteropProcessMemoryInfo
     initMemoryHandler(memoryPreference: MemoryPreference, getMemoryUsage: () => number, getArkTsMemoryUsage: () => number, getArkTsTotalHeap: () => number, onNavDestinationSwitch: (funcArg0: (funcArgfuncArg0: string) => void) => void, repeatSampleAndReportMemory: (funcArg0: () => void, funcArg1: () => void, funcArg2: () => void) => void, reporPageMemoryInfo: (funcArg0: InteropPageMemoryInfo) => void, reporProcessMemoryInfo: (funcArg0: InteropProcessMemoryInfo) => void, memoryThreshold: number): void
@@ -513,7 +513,7 @@ export declare interface CustomLib {
     initLaggyHandlerInterop(onDisplay: DisplaySync, onAbilityBackground: (funcArg0: () => void) => void, onNavDestinationSwitch: (funcArg0: (funcArgfuncArg0: string) => void) => void, onDidClick: (funcArg0: (funcArgfuncArg0: ClickInfo) => void) => void, maxTime: number, maxArraySize: number, reportResponseEvent: (funcArg0: ResponseEvent) => void, reportPageResponseLaggyModel: (funcArg0: InteropPageResponseLaggyModel) => void): void
     getPageCpuInfoInterop(): InteropPageCpuInfo
     getProcessCpuInfoInterop(): InteropProcessCpuInfo
-    initCpuHandlerInterop(getCpuUsage: () => number, onNavDestinationSwitch: (funcArg0: (funcArgfuncArg0: string) => void) => void, repeatSampleAndReportCpu: (funcArg0: () => void, funcArg1: () => void) => void, reporPageCpuInfo: (funcArg0: InteropPageCpuInfo) => void, reporProcessCpuInfo: (funcArg0: InteropProcessCpuInfo) => void): void
+    initCpuHandlerInterop(onNavDestinationSwitch: (funcArg0: (funcArgfuncArg0: string) => void) => void, repeatSampleAndReportCpu: (funcArg0: () => void, funcArg1: () => void) => void, reporPageCpuInfo: (funcArg0: InteropPageCpuInfo) => void, reporProcessCpuInfo: (funcArg0: InteropProcessCpuInfo) => void): void
     getPageMemoryInfoInterop(): InteropPageMemoryInfo
     getProcessMemoryInfoInterop(): InteropProcessMemoryInfo
     initMemoryHandlerInterop(memoryPreference: MemoryPreference, getMemoryUsage: () => number, getArkTsMemoryUsage: () => number, getArkTsMemoryLimit: () => number, getTotalMemoryLimit: () => number, onNavDestinationSwitch: (funcArg0: (funcArgfuncArg0: string) => void) => void, repeatSampleAndReportMemory: (funcArg0: () => void, funcArg1: () => void, funcArg2: () => void) => void, reporPageMemoryInfo: (funcArg0: InteropPageMemoryInfo) => void, reporProcessMemoryInfo: (funcArg0: InteropProcessMemoryInfo) => void, memoryThreshold: number, totalRatio: number, cjRatio: number, arkTsRatio: number): void
@@ -528,7 +528,7 @@ export declare interface CustomLib {
     destroyExitInfoHandler(): void
     destroyExitInfoHandlerWrapper(): void
     // ==================== High CPU Monitor 互操作方法 ====================
-    initHighCpuMonitorHandlerInterop(getCpuUsage: () => number, getAppThreadCpuUsageJson: () => string, onNavDestinationSwitch: (funcArg0: (funcArgfuncArg0: string) => void) => void, repeatHighCpuSample: (funcArg0: () => void) => void, repeatHighCpuReport: (funcArg0: () => void) => void, reportHighCpuInfoJson: (funcArg0: string) => void): void
+    initHighCpuMonitorHandlerInterop(onNavDestinationSwitch: (funcArg0: (funcArgfuncArg0: string) => void) => void, repeatHighCpuSample: (funcArg0: () => void) => void, repeatHighCpuReport: (funcArg0: () => void) => void, reportHighCpuInfoJson: (funcArg0: string) => void): void
     onAppForegroundInterop(): void
     onAppBackgroundInterop(): void
     startHighCpuMonitorInterop(config: InteropHighCpuMonitorConfig): void
@@ -544,7 +544,7 @@ export declare interface CustomLib {
     initMemoryHandlerInterop(memoryPreference: MemoryPreference, getMemoryUsage: () => number, getArkTsMemoryUsage: () => number, getArkTsTotalHeap: () => number, getTotalMemoryLimit: () => number, onNavDestinationSwitch: (funcArg0: (funcArgfuncArg0: string) => void) => void, repeatSampleAndReportMemory: (funcArg0: () => void, funcArg1: () => void, funcArg2: () => void) => void, reporPageMemoryInfo: (funcArg0: InteropPageMemoryInfo) => void, reporProcessMemoryInfo: (funcArg0: InteropProcessMemoryInfo) => void, memoryThreshold: number, totalRatio: number, cjRatio: number, arkTsRatio: number): void
     InteropBackgroundCpuMonitorConfig: {new (cpuThreshold: number, warnDurationMs: number, errorDurationMs: number, fatalDurationMs: number, sampleIntervalMs: number, windowSizeMs: number, topNThreads: number, threadCooldownMs: number, globalCooldownMs: number): InteropBackgroundCpuMonitorConfig}
     destroyBackgroundCpuMonitorHandlerInterop(): void
-    initBackgroundCpuMonitorHandlerInterop(config: InteropBackgroundCpuMonitorConfig, getAppThreadCpuUsageJson: () => string, repeatSample: (funcArg0: () => void) => void, clearSample: () => void, reportHighCpuInfoJson: (funcArg0: string) => void): void
+    initBackgroundCpuMonitorHandlerInterop(config: InteropBackgroundCpuMonitorConfig, repeatSample: (funcArg0: () => void) => void, clearSample: () => void, reportHighCpuInfoJson: (funcArg0: string) => void): void
     initCrashHandlerInterop(addCrashWatcher: (funcArg0: (funcArgfuncArg0: string, funcArgfuncArg1: string, funcArgfuncArg2: string, funcArgfuncArg3: string, funcArgfuncArg4: string, funcArgfuncArg5: string, funcArgfuncArg6: string) => void) => void, addResourceLeakWatcher: (funcArg0: (funcArgfuncArg0: string, funcArgfuncArg1: string, funcArgfuncArg2: string, funcArgfuncArg3: number, funcArgfuncArg4: number, funcArgfuncArg5: string) => void) => void, onCrash: (funcArg0: () => void) => void, exit: () => void, collectCrashInfo: () => string, reportCrashInfo: (funcArg0: InteropCrashInfo) => void, persistentDir: string, enableDumpOnOOM: number, lastNHilogNumber: number, systemLogNumber: number, enableMemMonitor: CMemMonitorConfig | undefined): void
     RawheapInfo: {new (): RawheapInfo}
     InteropRawheapInfo: {new (): InteropRawheapInfo}

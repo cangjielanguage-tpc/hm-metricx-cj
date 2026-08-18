@@ -42,14 +42,12 @@ export declare function getPageCpuInfoInterop(): InteropPageCpuInfo
 
 export declare function getProcessCpuInfoInterop(): InteropProcessCpuInfo
 
-export declare function initCpuHandlerInterop(getCpuUsage: () => number, onNavDestinationSwitch: (funcArg0: (funcArgfuncArg0: string) => void) => void, repeatSampleAndReportCpu: (funcArg0: () => void, funcArg1: () => void) => void, reporPageCpuInfo: (funcArg0: InteropPageCpuInfo) => void, reporProcessCpuInfo: (funcArg0: InteropProcessCpuInfo) => void): void
+export declare function initCpuHandlerInterop(onNavDestinationSwitch: (funcArg0: (funcArgfuncArg0: string) => void) => void, repeatSampleAndReportCpu: (funcArg0: () => void, funcArg1: () => void) => void, reporPageCpuInfo: (funcArg0: InteropPageCpuInfo) => void, reporProcessCpuInfo: (funcArg0: InteropProcessCpuInfo) => void): void
 
 /**
  * 初始化高 CPU 监控
  */
 export declare function initHighCpuMonitorHandlerInterop(
-    getCpuUsage: () => number,
-    getAppThreadCpuUsageJson: () => string,
     onNavDestinationSwitch: (funcArg0: (funcArgfuncArg0: string) => void) => void,
     repeatHighCpuSample: (funcArg0: () => void) => void,
     repeatHighCpuReport: (funcArg0: () => void) => void,
@@ -123,7 +121,6 @@ export declare class InteropBackgroundCpuMonitorConfig {
  */
 export declare function initBackgroundCpuMonitorHandlerInterop(
     config: InteropBackgroundCpuMonitorConfig,
-    getAppThreadCpuUsageJson: () => string,
     repeatSample: (funcArg0: () => void) => void,
     clearSample: () => void,
     reportHighCpuInfoJson: (funcArg0: string) => void

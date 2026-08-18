@@ -319,7 +319,7 @@ export function initCpuHandler(
       }
     }, 2 * 1000);
   };
-  cjLibCpu.initCpuHandlerInterop(hidebug.getCpuUsage, onNavDestinationSwitch, repeatSampleAndReportCpu, reportPageCpuInfo,
+  cjLibCpu.initCpuHandlerInterop(onNavDestinationSwitch, repeatSampleAndReportCpu, reportPageCpuInfo,
     reportProcessCpuInfo);
 }
 
@@ -1407,21 +1407,6 @@ export function initHighCpuMonitorHandler(
     }
   };
 
-  // 获取线程 CPU 使用率 JSON
-  // 格式：[{"threadId":123,"cpuUsage":0.5}, ...]
-  const getAppThreadCpuUsageJson = (): string => {
-    try {
-      const threadCpuArray = hidebug.getAppThreadCpuUsage();
-      // 将 ThreadCpuUsage[] 转换为 JSON 字符串
-      const jsonStr = JSON.stringify(threadCpuArray);
-      hilog.info(DOMAIN, TAG, 'getAppThreadCpuUsageJson: ' + jsonStr);
-      return jsonStr;
-    } catch (e) {
-      hilog.error(DOMAIN, TAG, 'getAppThreadCpuUsageJson failed: ' + JSON.stringify(e));
-      return '[]';
-    }
-  };
-
   // 注册页面切换回调，用于更新当前页面名称
   let onNavDestinationSwitch = (cb: (targetPageName: string) => void) => {
     let callback = (info: uiObserver.NavDestinationSwitchInfo) => cb(getTargetPageName(info));
@@ -1430,8 +1415,6 @@ export function initHighCpuMonitorHandler(
   };
 
   cjLibCpu.initHighCpuMonitorHandlerInterop(
-    hidebug.getCpuUsage,
-    getAppThreadCpuUsageJson,
     onNavDestinationSwitch,
     repeatHighCpuSample,
     repeatHighCpuReport,
@@ -1704,24 +1687,9 @@ export function initBackgroundCpuMonitorHandler(
     }
   };
 
-  // 获取线程 CPU 使用率 JSON
-  // 格式：[{"threadId":123,"cpuUsage":0.5}, ...]
-  const getAppThreadCpuUsageJson = (): string => {
-    try {
-      const threadCpuArray = hidebug.getAppThreadCpuUsage();
-      // 将 ThreadCpuUsage[] 转换为 JSON 字符串
-      const jsonStr = JSON.stringify(threadCpuArray);
-      return jsonStr;
-    } catch (e) {
-      hilog.error(DOMAIN, TAG, 'getAppThreadCpuUsageJson failed: ' + JSON.stringify(e));
-      return '[]';
-    }
-  };
-
   // 调用仓颉侧初始化
   cjLibCpu.initBackgroundCpuMonitorHandlerInterop(
     config.toInteropConfig(),
-    getAppThreadCpuUsageJson,
     repeatSample,
     clearSample,
     reportCallbackJson
