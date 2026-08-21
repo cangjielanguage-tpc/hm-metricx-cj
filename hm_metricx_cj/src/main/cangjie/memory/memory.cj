@@ -8,6 +8,17 @@ import ohos.ark_interop.*
 import ohos.ark_interop_macro.*
 import std.runtime.*
 
+// ============== native PSS/rssLimit 直读包装（OH_HiDebug C API，替代 hidebug ArkTS 热路径）=============
+// 详见 cpp/memory/memory_stats.cpp。互操作签名不变，Index.ets 的 hidebug 回调变死代码（向后兼容）。
+
+// 进程级 PSS（KB）。native 调 OH_HiDebug_GetAppNativeMemInfo(&info) 读 info.pss。
+// 与 hidebug.getPss 口径对齐。返回 <0 失败。
+foreign func CaptureProcessPss(): Int64
+
+// 进程级 rss 内存上限（KB）。native 调 OH_HiDebug_GetAppMemoryLimit(&limit) 读 limit.rssLimit。
+// 与 hidebug.getAppMemoryLimit().rssLimit 口径对齐。返回 <0 失败。
+foreign func CaptureProcessRssLimit(): Int64
+
 public open class MemoryInfo {
     private var avgMemoryValue: Int64 = 0
     private var maxMemoryValue: Int64 = 0
@@ -540,10 +551,6 @@ var processMemoryInfo = ProcessMemoryInfo()
 var currentPageName: String = defaultPageName
 var _reportPageMemoryInfo: (info: InteropPageMemoryInfo) -> Unit = {_ =>}
 var _reportProcessMemoryInfo: (info: InteropProcessMemoryInfo) -> Unit = {_ =>}
-var _getMemoryUsage: () -> Int64 = {=> 0}
-var _getArkTsMemoryUsage: () -> Int64 = {=> 0}
-var _getArkTsMemoryLimit: () -> Int64 = {=> 0}
-var _getTotalMemoryLimit: () -> Int64 = {=> 0}
 var _memoryPreference: Option<MemoryPreference> = None
 var memory_init_flag = false
 
@@ -557,13 +564,45 @@ func getCJMemoryUsageFromCJ(): Int64 {
     }
 }
 
+// 进程级 PSS（KB）。失败返回 0（与原 ArkTS hidebug.getPss 回调失败口径一致）。
+// try-catch 保护避免 native 异常杀死 2s setInterval 采样循环。
+func getPssNative(): Int64 {
+    try {
+        let pss = unsafe { CaptureProcessPss() }
+        if (pss < 0) {
+            return 0
+        }
+        return pss
+    } catch (e: Exception) {
+        metricx_warn("hm-metricx-cj: getPssNative exception: " + e.toString())
+        return 0
+    }
+}
+
+// 进程级 rss 内存上限（KB）。失败返回 0。
+func getRssLimitNative(): Int64 {
+    try {
+        let limit = unsafe { CaptureProcessRssLimit() }
+        if (limit < 0) {
+            return 0
+        }
+        return limit
+    } catch (e: Exception) {
+        metricx_warn("hm-metricx-cj: getRssLimitNative exception: " + e.toString())
+        return 0
+    }
+}
+
 let doMemorySample: () -> Unit = {
     =>
-        let memoryUsage = _getMemoryUsage()
+        // PSS 与 rssLimit 改 native OH_HiDebug 直读，绕开 hidebug NAPI 退避路径。
+        // ArkTS VM 堆 used/limit 无 native 等价物（OH_HiDebug_MemoryLimit 仅暴露
+        // rssLimit/vssLimit），业务确认置 0 保留字段位。
+        let memoryUsage = getPssNative()
         let cjMemoryUsage = getCJMemoryUsageFromCJ()
-        let arkTsMemoryUsage = _getArkTsMemoryUsage()
-        let arkTsMemoryLimit = _getArkTsMemoryLimit()
-        let totalMemoryLimit = _getTotalMemoryLimit()
+        let arkTsMemoryUsage = 0
+        let arkTsMemoryLimit = 0
+        let totalMemoryLimit = getRssLimitNative()
         if (!thresholdReported) {
             if (memoryUsage >= MEMOMRY_THRESHOLD) {
                 processMemoryInfo.maxMemory = memoryUsage
@@ -628,10 +667,6 @@ private func getStoragedProcessMemory(): ProcessMemoryInfo {
 
 public func initMemoryHandler(
     memoryPreference: MemoryPreference,
-    getMemoryUsage: () -> Int64,
-    getArkTsMemoryUsage: () -> Int64,
-    getArkTsMemoryLimit: () -> Int64,
-    getTotalMemoryLimit: () -> Int64,
     onNavDestinationSwitch: (cb: (targetPageName: String) -> Unit) -> Unit,
     repeatSampleAndReportMemory: (sample: () -> Unit, report: () -> Unit, save: () -> Unit) -> Unit,
     reporPageMemoryInfo: (info: InteropPageMemoryInfo) -> Unit,
@@ -646,10 +681,6 @@ public func initMemoryHandler(
     }
     memory_init_flag = true
     _memoryPreference = memoryPreference
-    _getMemoryUsage = getMemoryUsage
-    _getArkTsMemoryUsage = getArkTsMemoryUsage
-    _getArkTsMemoryLimit = getArkTsMemoryLimit
-    _getTotalMemoryLimit = getTotalMemoryLimit
     _reportPageMemoryInfo = reporPageMemoryInfo
     _reportProcessMemoryInfo = reporProcessMemoryInfo
     MEMOMRY_THRESHOLD = memoryThreshold

@@ -46,7 +46,7 @@ import { preferences } from '@kit.ArkData';
 import { uiObserver, window } from '@kit.ArkUI';
 import { connection, statistics } from '@kit.NetworkKit';
 import { storageStatistics } from '@kit.CoreFileKit';
-import { hiAppEvent, hidebug, hilog } from '@kit.PerformanceAnalysisKit';
+import { hiAppEvent, hilog } from '@kit.PerformanceAnalysisKit';
 import {
   batteryInfo,
   BusinessError,
@@ -675,40 +675,6 @@ let offMemory = () => {
 let clearSampleMemory = () => {
 };
 
-function getMemoryUsage(): number {
-  return Number(hidebug.getPss());
-}
-
-function getArkTsMemoryUsage(): number {
-  try {
-    const vmMemoryInfo = hidebug.getAppVMMemoryInfo();
-    return Number(vmMemoryInfo.heapUsed);
-  } catch (e) {
-    hilog.warn(DOMAIN, TAG, 'getArkTsMemoryUsage failed: ' + JSON.stringify(e));
-    return 0;
-  }
-}
-
-function getArkTsTotalHeap(): number {
-  try {
-    const appMemoryLimit = hidebug.getAppMemoryLimit();
-    return Number(appMemoryLimit.vmHeapLimit);
-  } catch (e) {
-    hilog.warn(DOMAIN, TAG, 'getArkTsTotalHeap failed: ' + JSON.stringify(e));
-    return 0;
-  }
-}
-
-function getTotalMemoryLimit(): number {
-  try {
-    const appMemoryLimit = hidebug.getAppMemoryLimit();
-    return Number(appMemoryLimit.rssLimit);
-  } catch (e) {
-    hilog.warn(DOMAIN, TAG, 'getTotalMemoryLimit failed: ' + JSON.stringify(e));
-    return 0;
-  }
-}
-
 // 时间间隔边界值常量（毫秒）
 const MIN_INTERVAL = 0;           // 最小间隔：0ms
 const MAX_INTERVAL = 60 * 60 * 1000; // 最大间隔：1 小时
@@ -785,9 +751,9 @@ export function initMemoryHandler(
       }
     }, validSampleInterval);
   };
-  cjLibMemory.initMemoryHandlerInterop(p, getMemoryUsage, getArkTsMemoryUsage, getArkTsTotalHeap,
-    getTotalMemoryLimit, onNavDestinationSwitch, repeatSampleAndReportMemory, reportPageMemoryInfo,
-    reportProcessMemoryInfo, memoryThreshold, validTotalRatio, validCjRatio, validArkTsRatio);
+  cjLibMemory.initMemoryHandlerInterop(p, onNavDestinationSwitch, repeatSampleAndReportMemory,
+    reportPageMemoryInfo, reportProcessMemoryInfo, memoryThreshold, validTotalRatio, validCjRatio,
+    validArkTsRatio);
 }
 
 export function destroyMemoryHandler(): void {

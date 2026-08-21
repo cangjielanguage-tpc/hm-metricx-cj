@@ -17,10 +17,6 @@ public func getProcessMemoryInfoInterop(): InteropProcessMemoryInfo {
 @Interop[ArkTS]
 public func initMemoryHandlerInterop(
     memoryPreference: MemoryPreference,
-    getMemoryUsage: () -> Int64,
-    getArkTsMemoryUsage: () -> Int64,
-    getArkTsTotalHeap: () -> Int64,
-    getTotalMemoryLimit: () -> Int64,
     onNavDestinationSwitch: ((String) -> Unit) -> Unit,
     repeatSampleAndReportMemory: (() -> Unit, () -> Unit, () -> Unit) -> Unit,
     reporPageMemoryInfo: (InteropPageMemoryInfo) -> Unit,
@@ -30,8 +26,7 @@ public func initMemoryHandlerInterop(
     cjRatio: Float64,
     arkTsRatio: Float64
 ): Unit {
-    initMemoryHandler(memoryPreference, getMemoryUsage, getArkTsMemoryUsage, getArkTsTotalHeap,
-        getTotalMemoryLimit, onNavDestinationSwitch, repeatSampleAndReportMemory,
+    initMemoryHandler(memoryPreference, onNavDestinationSwitch, repeatSampleAndReportMemory,
         reporPageMemoryInfo, reporProcessMemoryInfo, memoryThreshold: memoryThreshold,
         totalRatio: totalRatio, cjRatio: cjRatio, arkTsRatio: arkTsRatio)
 }
