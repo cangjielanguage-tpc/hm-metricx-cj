@@ -707,7 +707,9 @@ export function initMemoryHandler(
   saveInterval?: number,
   totalRatio?: number,
   cjRatio?: number,
-  arkTsRatio?: number
+  arkTsRatio?: number,
+  startArkTsHeapSampler?: () => void,
+  stopArkTsHeapSampler?: () => void
 ): void {
   if (!cjLibMemory) {
     hilog.warn(DOMAIN, TAG, 'initMemoryHandler called but memory module is disabled');
@@ -744,10 +746,17 @@ export function initMemoryHandler(
       let sampleId = setInterval(sample, validSampleInterval);
       let reportId = setInterval(report, validReportInterval);
       let saveId = setInterval(save, validSaveInterval);
+      // 启动 ArkTS VM 堆异步采样 Worker（主线程零 hidebug 调用，防 THREAD_BLOCK_6S ANR）。
+      if (startArkTsHeapSampler) {
+        startArkTsHeapSampler();
+      }
       clearSampleMemory = () => {
         clearInterval(sampleId);
         clearInterval(reportId);
         clearInterval(saveId);
+        if (stopArkTsHeapSampler) {
+          stopArkTsHeapSampler();
+        }
       }
     }, validSampleInterval);
   };
@@ -777,6 +786,16 @@ export function getProcessMemoryInfo(): ProcessMemoryInfo {
     return {} as ProcessMemoryInfo;
   }
   return cjLibMemory.getProcessMemoryInfoInterop();
+}
+
+// ArkTS VM 堆异步采样回调灌缓存。由 ArkTsHeapWorker 的 onmessage（主线程）调用，
+// 把 heapUsed/vmHeapLimit 写入 Cangjie 缓存，供 doMemorySample 读取。
+// 主线程零 hidebug 调用，防 THREAD_BLOCK_6S ANR；全字段恢复有效。
+export function setArkTsMemoryCacheInterop(usage: number, limit: number): void {
+  if (!cjLibMemory) {
+    return;
+  }
+  cjLibMemory.setArkTsMemoryCacheInterop(Math.max(0, Math.floor(usage)), Math.max(0, Math.floor(limit)));
 }
 
 let offBatteryHandlerCallback = () => {

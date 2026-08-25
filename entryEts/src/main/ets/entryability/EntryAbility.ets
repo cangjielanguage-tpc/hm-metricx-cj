@@ -1,4 +1,5 @@
 import { AbilityConstant, UIAbility, Want } from '@kit.AbilityKit';
+import { ErrorEvent, MessageEvents, worker } from '@kit.ArkTS';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { window } from '@kit.ArkUI';
 
@@ -15,6 +16,7 @@ import {
   initFreezeHandler,
   initMemoryHandler,
   destroyMemoryHandler,
+  setArkTsMemoryCacheInterop,
   initBatteryHandler,
   destroyBatteryHandler,
   initScrollEventHandler,
@@ -45,6 +47,49 @@ import {
 import { thermalTestStore } from '../store/ThermalTestStore';
 
 const DOMAIN = 0x0000;
+
+// ArkTS VM 堆异步采样 Worker（独立子线程）。
+// hidebug.getAppVMMemoryInfo()/getAppMemoryLimit() 无 native 等价 API（见 hidebug_type.h，
+// HiDebug_NativeMemInfo/HiDebug_MemoryLimit 无 JS 堆字段），唯一数据源是 ArkTS NAPI；
+// 主线程 2s 热循环直调会经 FFRT 退避触发 THREAD_BLOCK_6S ANR。故挪进 Worker 线程采样，
+// onmessage 回主线程调 setArkTsMemoryCacheInterop 灌 Cangjie 缓存，主线程零 hidebug 调用。
+let arkTsHeapWorker: worker.ThreadWorker | null = null;
+
+function startArkTsHeapSampler(): void {
+  if (arkTsHeapWorker) {
+    return;
+  }
+  arkTsHeapWorker = new worker.ThreadWorker('../workers/ArkTsHeapWorker');
+  arkTsHeapWorker.onmessage = (e: MessageEvents): void => {
+    // Worker 采到 {heapUsed, vmHeapLimit}（KB），在主线程 onmessage 灌缓存，
+    // 与 doMemorySample 读同线程，无并发写。
+    const data = e.data as ArkTsHeapSample;
+    setArkTsMemoryCacheInterop(
+      Math.max(0, Math.floor(data.heapUsed)),
+      Math.max(0, Math.floor(data.vmHeapLimit))
+    );
+  };
+  arkTsHeapWorker.onerror = (e: ErrorEvent): void => {
+    hilog.warn(DOMAIN, 'memory', 'ArkTsHeapWorker error: %{public}s', e.message);
+  };
+  arkTsHeapWorker.postMessage('start');
+  hilog.info(DOMAIN, 'memory', 'ArkTsHeapWorker started');
+}
+
+function stopArkTsHeapSampler(): void {
+  if (!arkTsHeapWorker) {
+    return;
+  }
+  arkTsHeapWorker.postMessage('stop');
+  arkTsHeapWorker.terminate();
+  arkTsHeapWorker = null;
+  hilog.info(DOMAIN, 'memory', 'ArkTsHeapWorker stopped');
+}
+
+interface ArkTsHeapSample {
+  heapUsed: number
+  vmHeapLimit: number
+}
 
 export default class EntryAbility extends UIAbility {
   onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): void {
@@ -210,7 +255,9 @@ initCrashHandler(
       10 * 1000,       // saveInterval: 10 秒（测试用）
       0.6,
       0.6,
-      0.6
+      0.6,
+      startArkTsHeapSampler,   // ArkTS VM 堆异步采样（Worker 线程，防主线程 ANR）
+      stopArkTsHeapSampler
     );
     hilog.info(0x0000, 'memory', '测试：initMemoryHandler 使用自定义间隔 (5s/15s/10s)');
 

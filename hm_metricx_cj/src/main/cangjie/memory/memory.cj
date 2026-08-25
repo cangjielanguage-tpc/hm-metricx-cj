@@ -554,6 +554,27 @@ var _reportProcessMemoryInfo: (info: InteropProcessMemoryInfo) -> Unit = {_ =>}
 var _memoryPreference: Option<MemoryPreference> = None
 var memory_init_flag = false
 
+// ArkTS VM 堆缓存（heapUsed / vmHeapLimit，KB）。
+// native OH_HiDebug 无 ArkTS VM 堆等价字段（HiDebug_NativeMemInfo 是 smaps，HiDebug_MemoryLimit
+// 仅 rss/vss），唯一数据源是 hidebug.getAppVMMemoryInfo()/getAppMemoryLimit() ArkTS NAPI——
+// 主线程 2s 热循环直调会触发 ApiInvokeRecorder 析构 FFRT 退避致 THREAD_BLOCK_6S ANR。
+// 故由 ArkTS 侧 Worker 线程异步采样、经 onmessage 回主线程调本 setter 灌缓存。
+// doMemorySample 读缓存（滞后 ≤1 周期可接受），主线程零 hidebug 调用，ANR 根除，字段全有效。
+var _arkTsMemoryUsage: Int64 = 0
+var _arkTsMemoryLimit: Int64 = 0
+
+/**
+ * ArkTS 端 Worker 异步采样到 heapUsed/vmHeapLimit 后经 interop 调本 setter 灌入缓存。
+ * 必须在主线程调（onmessage 回调上下文），保证与 doMemorySample 读同线程、无并发写。
+ * limit 只在首次非 0 时写一次（对齐 computeAvg 行 153 的「只设一次」语义）。
+ */
+public func setArkTsMemoryCache(usage: Int64, limit: Int64): Unit {
+    _arkTsMemoryUsage = usage
+    if (limit > 0) {
+        _arkTsMemoryLimit = limit
+    }
+}
+
 /**
  * 仓颉侧直接获取 CJ 堆内存大小
  * 使用仓颉运行时 API getAllocatedHeapSize()
@@ -596,12 +617,12 @@ func getRssLimitNative(): Int64 {
 let doMemorySample: () -> Unit = {
     =>
         // PSS 与 rssLimit 改 native OH_HiDebug 直读，绕开 hidebug NAPI 退避路径。
-        // ArkTS VM 堆 used/limit 无 native 等价物（OH_HiDebug_MemoryLimit 仅暴露
-        // rssLimit/vssLimit），业务确认置 0 保留字段位。
+        // ArkTS VM 堆 used/limit native 无等价字段，改由 ArkTS Worker 异步采样灌缓存
+        // （见 setArkTsMemoryCache）。本处读缓存，滞后 ≤1 周期可接受，主线程零 hidebug 调用。
         let memoryUsage = getPssNative()
         let cjMemoryUsage = getCJMemoryUsageFromCJ()
-        let arkTsMemoryUsage = 0
-        let arkTsMemoryLimit = 0
+        let arkTsMemoryUsage = _arkTsMemoryUsage
+        let arkTsMemoryLimit = _arkTsMemoryLimit
         let totalMemoryLimit = getRssLimitNative()
         if (!thresholdReported) {
             if (memoryUsage >= MEMOMRY_THRESHOLD) {
