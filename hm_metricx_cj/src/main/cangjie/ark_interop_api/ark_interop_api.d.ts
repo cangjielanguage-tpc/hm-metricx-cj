@@ -514,6 +514,8 @@ export declare interface CustomLib {
     getPageCpuInfoInterop(): InteropPageCpuInfo
     getProcessCpuInfoInterop(): InteropProcessCpuInfo
     initCpuHandlerInterop(onNavDestinationSwitch: (funcArg0: (funcArgfuncArg0: string) => void) => void, repeatSampleAndReportCpu: (funcArg0: () => void, funcArg1: () => void) => void, reporPageCpuInfo: (funcArg0: InteropPageCpuInfo) => void, reporProcessCpuInfo: (funcArg0: InteropProcessCpuInfo) => void): void
+    setProcessNameInterop(name: string): void
+    destroyCpuHandlerInterop(): void
     getPageMemoryInfoInterop(): InteropPageMemoryInfo
     getProcessMemoryInfoInterop(): InteropProcessMemoryInfo
     initMemoryHandlerInterop(memoryPreference: MemoryPreference, onNavDestinationSwitch: (funcArg0: (funcArgfuncArg0: string) => void) => void, repeatSampleAndReportMemory: (funcArg0: () => void, funcArg1: () => void, funcArg2: () => void) => void, reporPageMemoryInfo: (funcArg0: InteropPageMemoryInfo) => void, reporProcessMemoryInfo: (funcArg0: InteropProcessMemoryInfo) => void, memoryThreshold: number, totalRatio: number, cjRatio: number, arkTsRatio: number): void

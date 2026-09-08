@@ -13,6 +13,15 @@ public func getProcessCpuInfoInterop(): InteropProcessCpuInfo {
     getProcessCpuInfo()
 }
 
+/**
+ * 设置进程名（包名），供 CPU/高CPU/后台CPU 上报 reportInfo.processName 使用。
+ * 由 ArkTS 端在 init 时调用，替代 cpu.cj 内 getpid().toString()（与 pid 字段重复且语义错误）。
+ */
+@Interop[ArkTS]
+public func setProcessNameInterop(name: String): Unit {
+    processName = name
+}
+
 @Interop[ArkTS]
 public func initCpuHandlerInterop(
     onNavDestinationSwitch: ((String) -> Unit) -> Unit,
@@ -21,6 +30,14 @@ public func initCpuHandlerInterop(
     reporProcessCpuInfo: (InteropProcessCpuInfo) -> Unit
 ): Unit {
     initCpuHandler(onNavDestinationSwitch, repeatSampleAndReportCpu, reporPageCpuInfo, reporProcessCpuInfo)
+}
+
+/**
+ * 销毁普通 CPU 采样监控（复位 cpu_init_flag 以允许再次 init）。
+ */
+@Interop[ArkTS]
+public func destroyCpuHandlerInterop(): Unit {
+    destroyCpuHandler()
 }
 
 /**

@@ -221,6 +221,10 @@ let handleCpuReport: () -> Unit = {
 var cpu_init_flag = false
 var high_cpu_init_flag = false
 
+// 进程名（包名）。由 ArkTS 端 init 时经 setProcessNameInterop 注入；
+// 上报 reportInfo.processName 用此值，替代原 getpid().toString()（与 pid 字段重复且语义错误）。
+var processName: String = ""
+
 public func getPageCpuInfo(): InteropPageCpuInfo {
     pageCpuInfo.toInteropPageCpuInfo()
 }
@@ -253,6 +257,21 @@ public func initCpuHandler(
                 pageCpuInfo.pageName = currentPageName
         }
     )
+}
+
+/**
+ * 销毁普通 CPU 采样监控（内部版本）
+ *
+ * 复位 cpu_init_flag 以允许再次 init，清空上报回调。
+ * ArkTS 侧 destroyCpuHandler 在清完定时器/监听后经 interop 调用本函数。
+ */
+public func destroyCpuHandler(): Unit {
+    if (!cpu_init_flag) {
+        return
+    }
+    cpu_init_flag = false
+    _reporProcessCpuInfo = {_ =>}
+    AppLog.info("hm-metricx-cj: CPU handler destroyed")
 }
 
 /**
@@ -724,6 +743,10 @@ var isAppForeground: Bool = true
 // --- 采样数据 ---
 // 线程采样数据：tid -> ThreadStackInfo 记录每个高占用线程的统计信息
 var threadSamples: HashMap<Int64, ThreadStackInfo> = HashMap()
+// 线程名缓存：tid -> name。原 getThreadName 每次采样对全量线程读 /proc/.../comm，
+// 且 doHighCpuSample 与其末尾触发的 captureStack 在同一次触发中各读一遍。
+// 缓存避免重复 procfs 读 + 字符串分配；周期末 resetSamplingData 清空（线程可重命名）。
+var threadNameCache: HashMap<Int64, String> = HashMap()
 // 进程 CPU 采样列表
 var processCpuSamples: ArrayList<Float64> = ArrayList()
 
@@ -804,6 +827,16 @@ private func getCurrentTimeMillis(): Int64 {
  * @return 线程名称，获取失败时返回 "Thread-{tid}"
  */
 private func getThreadName(tid: Int64): String {
+    // 命中缓存直接返回，避免每次采样重复读 /proc/self/task/{tid}/comm + 字符串分配。
+    if (let Some(name) <- threadNameCache.get(tid)) {
+        return name
+    }
+    let name = getThreadNameUncached(tid)
+    threadNameCache.add(tid, name)
+    name
+}
+
+private func getThreadNameUncached(tid: Int64): String {
     try {
         let commPath = Path("/proc/self/task/${tid}/comm")
         if (exists(commPath)) {
@@ -845,7 +878,7 @@ private func getCurrentSampleInterval(): Int64 {
  *
  * 核心采样逻辑，实现以下功能：
  * 1. 固定时间间隔获取当前进程 CPU 使用率
- * 2. 获取所有线程的 CPU 使用情况（使用 getAppThreadCpuUsage）
+ * 2. 获取所有线程的 CPU 使用情况（native OH_HiDebug_GetAppThreadCpuUsage）
  * 3. 按 CPU 使用率降序排序，保留 TopN 线程
  * 4. 对超过阈值的线程进行采样（检查 cooldown）
  * 5. 记录线程栈和模块名
@@ -1383,7 +1416,7 @@ private func doHighCpuReport(): Unit {
         let reportInfo = HighCpuReportInfo()
         reportInfo.timestamp = currentTime
         reportInfo.pid = getpid()
-        reportInfo.processName = getpid().toString()
+        reportInfo.processName = processName
         reportInfo.pageName = currentPageName
         reportInfo.avgProcessCpu = avgProcessCpu
         reportInfo.maxProcessCpu = maxProcessCpu
@@ -1411,6 +1444,7 @@ private func doHighCpuReport(): Unit {
  */
 private func resetSamplingData(): Unit {
     threadSamples.clear()
+    threadNameCache.clear()
     processCpuSamples.clear()
     totalSampleCount = 0
     highCpuSampleCount = 0
@@ -1499,8 +1533,9 @@ private func updateSampleInterval(): Unit {
  * - 全局 3 分钟（可配置）最多抓一次
  * - 抓栈进行中忽略新触发
  *
- * @param getCpuUsage 获取 CPU 使用率的回调（由 ArkTS 传入）
- * @param getAppThreadCpuUsageJson 获取线程 CPU 使用率 JSON 的回调（由 ArkTS 传入）
+ * CPU 采集与线程级 CPU 采集均已改为 native OH_HiDebug C API 直读（见 cpu_stack_capture.cpp），
+ * 不再经 ArkTS hidebug 回调，故本函数无 getCpuUsage / getAppThreadCpuUsageJson 参数。
+ *
  * @param onNavDestinationSwitch 页面切换回调（由 ArkTS 传入，用于更新当前页面名称）
  * @param repeatHighCpuSample 重复采样回调（由 ArkTS 传入，用于启动采样定时器）
  * @param repeatHighCpuReport 重复上报回调（由 ArkTS 传入，用于启动上报定时器）
@@ -1649,9 +1684,9 @@ public func stopHighCpuMonitorInternal(): Unit {
     reportHighCpuCallback = None
     resetSamplingData()
     isCapturingStack = false
-    cpu_init_flag = false
+    // 仅复位高 CPU 自己的 flag。cpu_init_flag 属于普通 CPU 采样（initCpuHandler）的 init 保护，
+    // 原实现把二者一起置 false 会让 initCpuHandler 的 init 保护失效、重复注册采样定时器。
     high_cpu_init_flag = false
-    sleep(Duration.millisecond * 0.1)
     AppLog.info("hm-metricx-cj: High CPU monitor destroyed")
 }
 
@@ -2122,7 +2157,7 @@ private func triggerBackgroundCpuReport(level: BackgroundCpuLevel, avgCpu: Float
     let reportInfo = BackgroundCpuReportInfo()
     reportInfo.timestamp = currentTime
     reportInfo.pid = getpid()
-    reportInfo.processName = getpid().toString()
+    reportInfo.processName = processName
     reportInfo.level = level
     reportInfo.backgroundDuration = backgroundDuration
     reportInfo.avgCpuUsage = avgCpu
@@ -2267,6 +2302,7 @@ private func resetBackgroundMonitorData(): Unit {
     windowSamplesList.clear()
     backgroundCpuSamples.clear()
     backgroundThreadSamples.clear()
+    threadNameCache.clear()
     bgTotalSampleCount = 0
     isBackgroundCapturingStack = false
 }
@@ -2277,7 +2313,6 @@ private func resetBackgroundMonitorData(): Unit {
  * 启动后台活动超长率监控功能，可配置采样间隔、异常级别阈值等
  *
  * @param config 后台 CPU 监控配置
- * @param getAppThreadCpuUsageJson 获取线程 CPU 使用率 JSON 的回调（由 ArkTS 传入）
  * @param repeatSample 重复采样回调（由 ArkTS 传入，用于启动采样定时器）
  * @param clearSample 清除采样定时器回调（由 ArkTS 传入）
  * @param reportCallback 后台 CPU 占用上报回调
@@ -2319,7 +2354,6 @@ public func destroyBackgroundCpuMonitorHandlerInternal(): Unit {
     backgroundCpuMonitorInited = false
     backgroundCpuConfig = None
     backgroundCpuCallback = None
-    sleep(Duration.millisecond * 0.1)
     AppLog.info("hm-metricx-cj: Background CPU monitor destroyed")
 }
 

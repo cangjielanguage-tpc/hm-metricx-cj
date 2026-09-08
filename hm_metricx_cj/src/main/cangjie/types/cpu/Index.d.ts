@@ -42,6 +42,16 @@ export declare function getPageCpuInfoInterop(): InteropPageCpuInfo
 
 export declare function getProcessCpuInfoInterop(): InteropProcessCpuInfo
 
+/**
+ * 设置进程名（包名），供 CPU/高CPU/后台CPU 上报 reportInfo.processName 使用。
+ */
+export declare function setProcessNameInterop(name: string): void
+
+/**
+ * 销毁普通 CPU 采样监控（复位 cpu_init_flag 以允许再次 init）。
+ */
+export declare function destroyCpuHandlerInterop(): void
+
 export declare function initCpuHandlerInterop(onNavDestinationSwitch: (funcArg0: (funcArgfuncArg0: string) => void) => void, repeatSampleAndReportCpu: (funcArg0: () => void, funcArg1: () => void) => void, reporPageCpuInfo: (funcArg0: InteropPageCpuInfo) => void, reporProcessCpuInfo: (funcArg0: InteropProcessCpuInfo) => void): void
 
 /**

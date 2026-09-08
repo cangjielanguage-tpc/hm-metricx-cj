@@ -1,4 +1,4 @@
-import { AbilityConstant, bundleManager, common, errorManager } from '@kit.AbilityKit';
+import { AbilityConstant, AbilityLifecycleCallback, bundleManager, common, errorManager } from '@kit.AbilityKit';
 import { ApplicationStateChangeCallback, appManager } from '@kit.AbilityKit';
 import {thermal} from '@kit.BasicServicesKit';
 import { requireCJLib } from 'libark_interop_loader.so';
@@ -60,8 +60,12 @@ import { image } from '@kit.ImageKit';
 
 
 // ==================== 仓颉库动态加载 ====================
+// 原模块加载即 `throw new Error("Does not work on worker")` 硬阻断 worker 中加载，
+// 与 ANR 采样 worker 化方案直接冲突。现改为仅打 warn 不抛错，解除加载拦路：
+// 模块本身可被 worker 加载，但其中 uiObserver/window/displaySync 等主线程绑定 API
+// 仍不可在 worker 调用（会在调用点抛错，由调用方规避），worker 迁移只需调主线程安全子集。
 if (process.pid != process.tid) {
-  throw new Error("Does not work on worker")
+  hilog.warn(0x0021, 'hm_metricx_cj', 'hm_metricx_cj loaded in non-main thread (worker); main-thread-bound APIs must not be called here');
 }
 
 const cjLib = requireCJLib('libohos_app_cangjie_hm_metricx_cj.wrapper.so') as CustomLib;
@@ -80,13 +84,27 @@ const cjLibBattery = loadCJLibSafe('battery');
 const cjLibCpu = loadCJLibSafe('cpu');
 const cjLibCrash = loadCJLibSafe('crash');
 const cjLibExitInfo = loadCJLibSafe('exitInfo');
-const cjLibFps = loadCJLibSafe('fps');
 const cjLibFreeze = loadCJLibSafe('freeze');
 const cjLibLaggy = loadCJLibSafe('laggy');
 const cjLibMemory = loadCJLibSafe('memory');
 const cjLibStorage = loadCJLibSafe('storage');
 const cjLibThermal = loadCJLibSafe('thermal');
 const cjLibTraffic = loadCJLibSafe('traffic');
+
+// fps 库采用惰性加载 + 失败重试：模块加载时若 .so 尚未就绪会失败，这里在首次使用时
+// 加载；命中非空后缓存，仍为空则不缓存、下次调用再试（保留原 8 处局部重载的重试语义，
+// 避免模块加载时机不对时永久 null）。requireCJLib 内部已对 .so 做缓存，重试开销极小。
+let fpsLibCache: CustomLib | null | undefined = undefined;
+function getFpsLib(): CustomLib | null {
+  if (fpsLibCache !== undefined) {
+    return fpsLibCache;
+  }
+  const lib = loadCJLibSafe('fps');
+  if (lib !== null) {
+    fpsLibCache = lib;
+  }
+  return lib;
+}
 
 
 const DOMAIN = 0x0021;
@@ -108,6 +126,8 @@ export class CMemMonitorConfig {
   }
 }
 let uid = bundleManager.getBundleInfoForSelfSync(bundleManager.BundleFlag.GET_BUNDLE_INFO_WITH_APPLICATION).appInfo.uid;
+// 进程名（包名），供 CPU 上报 reportInfo.processName 使用。模块加载时一次性读取。
+let processName = bundleManager.getBundleInfoForSelfSync(bundleManager.BundleFlag.GET_BUNDLE_INFO_WITH_APPLICATION).name;
 
 // 承载类型数组 → 承载网字符串映射（纯函数，便于单测）。
 // 约定：空数组 → 'none'；含 WIFI 优先 → 'wifi'；否则含 CELLULAR → 'mobile'；其余 → 'other'。
@@ -157,10 +177,15 @@ let getUidRxAndTxBytes = (
   cb: (rxBytes: number, txBytes: number, pageName: string, bearer: string) => void,
   pageName: string
 ) => {
+  // 任一 statistics 调用失败都不能让回调静默挂起（原实现无 catch → 流量上报永久不触发）。
   statistics.getUidRxBytes(uid).then(rxBytes => {
     statistics.getUidTxBytes(uid).then(txBytes => {
       getCurrentBearer((bearer: string): void => cb(rxBytes, txBytes, pageName, bearer));
+    }).catch((e: BusinessError) => {
+      hilog.warn(DOMAIN, TAG, 'getUidTxBytes failed: ' + e.message);
     });
+  }).catch((e: BusinessError) => {
+    hilog.warn(DOMAIN, TAG, 'getUidRxBytes failed: ' + e.message);
   });
 };
 
@@ -172,17 +197,11 @@ let clearSampleTraffic = () => {
 
 let offHighCpu = () => {
 };
-
-// @Concurrent function worker(){
-//   requireCJLib(`libohos_app_cangjie_hm_metricx_cj.traffic.so`) as CustomLib;
-//   return
-// }
-
-// async function run_worker ():Promise <void>{
-//   await taskpool.execute(worker)
-//   return
-// }
-//export async function initTrafficHandler(
+// 高 CPU/后台 CPU 的 applicationStateChange 监听 off 闭包（原实现注册后未保存 → 永久泄漏）。
+let offHighCpuAppStateChange = () => {
+};
+let offBackgroundCpuAppStateChange = () => {
+};
 
 export function initTrafficHandler(
   context: common.UIAbilityContext,
@@ -197,9 +216,15 @@ export function initTrafficHandler(
   }
   let preference = preferences.getPreferencesSync(context, { name: 'hm_metricx_cj:Traffic' });
   let p: TrafficPreference = {
+    // putSync 仅写内存缓冲，flush 异步落盘不阻塞主线程（原 flushSync 在每次采样都同步
+    // fsync，属低频但确为主线程磁盘 I/O；流量计数下次采样从 /proc 差值重算，落盘延迟无害）。
     put: (key: string, value: string): void => {
       preference.putSync(key, value);
-      preference.flushSync();
+      preference.flush((err: BusinessError) => {
+        if (err) {
+          hilog.warn(DOMAIN, TAG, `traffic preference flush failed: ${err.message}`);
+        }
+      });
     },
     has: (key: string): boolean => preference.hasSync(key),
     get: (key: string, defaultValue: string): string => preference.getSync(key, defaultValue) as string
@@ -304,6 +329,8 @@ export function initCpuHandler(
     hilog.warn(DOMAIN, TAG, 'initCpuHandler called but cpu module is disabled');
     return;
   }
+  // 注入进程名（包名），供 CPU/高CPU/后台CPU 上报 reportInfo.processName 使用。
+  cjLibCpu.setProcessNameInterop(processName);
   let onNavDestinationSwitch = (cb: (targetPageName: string) => void) => {
     let callback = (info: uiObserver.NavDestinationSwitchInfo) => cb(getTargetPageName(info));
     uiObserver.on('navDestinationSwitch', context, callback);
@@ -327,6 +354,8 @@ export function destroyCpuHandler(): void {
   if (!cjLibCpu) return;
   offCpu();
   clearSampleCpu();
+  // 复位仓颉侧 cpu_init_flag，否则再 init 会在 init 保护处直接 return。
+  cjLibCpu.destroyCpuHandlerInterop();
 }
 
 function getTargetPageName(info: uiObserver.NavDestinationSwitchInfo): string {
@@ -558,6 +587,9 @@ export function destroyExitInfoHandler(): void {
 // ==================== SwipeKill 相关接口 ====================
 
 let swipeKillWrapperDestroyed = false;
+// 保存 abilityLifecycle 回调对象以便 destroy 时配对 off（原实现未保存 → 监听永久泄漏）。
+let offSwipeKillAbilityLifecycle = () => {
+};
 
 /**
  * 初始化 SwipeKill Handler
@@ -589,7 +621,7 @@ export function initSwipeKillHandler(
 
   // 定义 onAbilityBackground 回调，传给仓颉层注册生命周期监听
   const onAbilityBackgroundCallback = (cb: () => void) => {
-    context.getApplicationContext().on('abilityLifecycle', {
+    const abilityLifecycleCallback: AbilityLifecycleCallback = {
       onAbilityCreate() {},
       onWindowStageCreate() {},
       onWindowStageActive() {},
@@ -601,7 +633,15 @@ export function initSwipeKillHandler(
         cb();
       },
       onAbilityContinue() {}
-    })
+    };
+    // on('abilityLifecycle') 返回数字 callbackId，off 需用该 id 注销（与 applicationStateChange
+    // 用回调对象 off 的签名不同）。保存 id，destroy 时配对注销（原实现未注销 → 监听永久泄漏）。
+    const callbackId = context.getApplicationContext().on('abilityLifecycle', abilityLifecycleCallback);
+    offSwipeKillAbilityLifecycle = () => {
+      context.getApplicationContext().off('abilityLifecycle', callbackId, (err: BusinessError) => {
+        if (err) { /* may already be removed */ }
+      });
+    };
   };
 
   cjLibExitInfo.initSwipeKillHandlerInterop(
@@ -617,9 +657,18 @@ export function initSwipeKillHandler(
  */
 export function destroySwipeKillHandler(): void {
   swipeKillWrapperDestroyed = true;
+  offSwipeKillAbilityLifecycle();
+  offSwipeKillAbilityLifecycle = () => {
+  };
   if (!cjLibExitInfo) return;
   cjLibExitInfo!.destroySwipeKillHandlerInterop();
 }
+
+// freeze 监听 off 闭包（原实现注册后未保存 → 永久泄漏）。
+let offFreezeError = () => {
+};
+let offFreezeWatcher = () => {
+};
 
 export function initFreezeHandler(
   collectFreezeInfo: () => string,
@@ -630,12 +679,23 @@ export function initFreezeHandler(
     hilog.warn(DOMAIN, TAG, 'initFreezeHandler called but freeze module is disabled');
     return;
   }
+  // 重置 off 闭包（重新 init 前若已 destroy）。
+  offFreezeError = () => {
+  };
+  offFreezeWatcher = () => {
+  };
   let onFreeze = (cb: () => void) => {
     errorManager.on('freeze', cb);
+    offFreezeError = () => {
+      try {
+        errorManager.off('freeze', cb);
+      } catch (e) { /* may already be off */
+      }
+    };
   };
   let addFreezeWatcher =
     (cb: (time: string, pid: string, exception: string, hilog: string, external_log: string) => void) => {
-      hiAppEvent.addWatcher({
+      const freezeWatcher: hiAppEvent.Watcher = {
         name: 'freezeWatcher',
         appEventFilters: [
           {
@@ -664,10 +724,30 @@ export function initFreezeHandler(
             break;
           }
         }
-      });
+      };
+      hiAppEvent.addWatcher(freezeWatcher);
+      offFreezeWatcher = () => {
+        try {
+          hiAppEvent.removeWatcher(freezeWatcher);
+        } catch (e) { /* may already be removed */
+        }
+      };
     };
   cjLibFreeze.initFreezeHandlerInterop(deviceInfo.sdkApiVersion, addFreezeWatcher, onFreeze, collectFreezeInfo, reportFreezeInfo,
     persistentDir);
+}
+
+/**
+ * 销毁 Freeze Handler：注销 errorManager freeze 监听 + hiAppEvent watcher。
+ */
+export function destroyFreezeHandler(): void {
+  if (!cjLibFreeze) return;
+  offFreezeError();
+  offFreezeError = () => {
+  };
+  offFreezeWatcher();
+  offFreezeWatcher = () => {
+  };
 }
 
 let offMemory = () => {
@@ -676,7 +756,8 @@ let clearSampleMemory = () => {
 };
 
 // 时间间隔边界值常量（毫秒）
-const MIN_INTERVAL = 0;           // 最小间隔：0ms
+// MIN_INTERVAL=1：传 0 会让 setInterval(cb,0) 空转打满主线程，故下限取 1ms。
+const MIN_INTERVAL = 1;           // 最小间隔：1ms
 const MAX_INTERVAL = 60 * 60 * 1000; // 最大间隔：1 小时
 
 // 默认时间间隔（毫秒）
@@ -728,9 +809,15 @@ export function initMemoryHandler(
 
   let preference = preferences.getPreferencesSync(context, { name: 'hm_metricx_cj:Memory' });
   let p: MemoryPreference = {
+    // putSync 仅写内存缓冲，flush 异步落盘不阻塞主线程（原 flushSync 同步 fsync；内存基线
+    // 阈值下次采样重算，落盘延迟无害）。
     put: (key: string, value: number): void => {
       preference.putSync(key, value);
-      preference.flushSync();
+      preference.flush((err: BusinessError) => {
+        if (err) {
+          hilog.warn(DOMAIN, TAG, `memory preference flush failed: ${err.message}`);
+        }
+      });
     },
     has: (key: string): boolean => preference.hasSync(key),
     get: (key: string, defaultValue: number): number => preference.getSync(key, defaultValue) as number
@@ -804,6 +891,22 @@ let clearCpuUsageHandler = () => {
 };
 let unsubscribe = () => {
 };
+// 各 UI 监听器独立的 nav-switch off 闭包。
+// 原实现 battery/scroll/laggy 三者共用 offBatteryHandlerCallback，后初始化者覆盖先者，
+// 导致 destroyBatteryHandler 只能注销最后一个，其余永久泄漏。此处拆为独立变量。
+let offScrollNav = () => {
+};
+let offPageNav = () => {
+};
+let offLaggyNav = () => {
+};
+// battery 生命周期监听 off 闭包（原实现注册后未保存 → 永久泄漏）。
+let offBatteryAppStateChange = () => {
+};
+let offBatteryAbilityLifecycle = () => {
+};
+let offLaggyAbilityLifecycle = () => {
+};
 
 export function initBatteryHandler(
   context: common.UIAbilityContext,
@@ -825,9 +928,12 @@ export function initBatteryHandler(
       }
     };
     context.getApplicationContext().on('applicationStateChange', applicationStateChageCallback);
+    offBatteryAppStateChange = () => {
+      context.getApplicationContext().off('applicationStateChange', applicationStateChageCallback);
+    };
   };
   let onAbilityForeGround = (cb: () => void) => {
-    context.getApplicationContext().on('abilityLifecycle', {
+    let abilityLifecycleCallback: AbilityLifecycleCallback = {
       onAbilityCreate() {
       },
       onWindowStageCreate() {
@@ -847,7 +953,15 @@ export function initBatteryHandler(
       },
       onAbilityContinue() {
       }
-    });
+    };
+    // on('abilityLifecycle') 返回数字 callbackId，off 需用该 id 注销（与 applicationStateChange
+    // 用回调对象 off 的签名不同）。保存 id，destroy 时配对注销。
+    const callbackId = context.getApplicationContext().on('abilityLifecycle', abilityLifecycleCallback);
+    offBatteryAbilityLifecycle = () => {
+      context.getApplicationContext().off('abilityLifecycle', callbackId, (err: BusinessError) => {
+        if (err) { /* may already be removed */ }
+      });
+    };
   };
 
   let getRunningProcessInfo = (cb: (status: boolean) => void) => {
@@ -928,6 +1042,8 @@ export function initBatteryHandler(
     }
   };
 
+  // 亮度经 settings.getValueSync 同步读取系统设置 provider（非磁盘 I/O，量级轻）；
+  // 仓颉侧 getBrightness: () -> Int32 为同步契约，异步化需改接口与 .d.ts，留待 worker 化一并处理。
   let getBrightness = (): number => {
     return Number.parseInt(settings.getValueSync(context, settings.display.SCREEN_BRIGHTNESS_STATUS, '0'));
   };
@@ -976,6 +1092,8 @@ export function initBatteryHandler(
 export function destroyBatteryHandler(): void {
   if (!cjLibBattery) return;
   offBatteryHandlerCallback();
+  offBatteryAppStateChange();
+  offBatteryAbilityLifecycle();
   clearCpuUsageHandler();
   unsubscribe();
 }
@@ -984,6 +1102,7 @@ export function initScrollEventHandler(
   context: common.UIAbilityContext,
   reportPageScrollInfo: (info: ScrollHitchInfo) => void
 ): void {
+  const cjLibFps = getFpsLib();
   if (!cjLibFps) {
     hilog.warn(DOMAIN, TAG, 'initScrollEventHandler called but fps module is disabled');
     return;
@@ -1000,9 +1119,18 @@ export function initScrollEventHandler(
   let onNavDestinationSwitch = (cb: (targetPageName: string) => void) => {
     let callback = (info: uiObserver.NavDestinationSwitchInfo) => cb(getTargetPageName(info));
     uiObserver.on('navDestinationSwitch', context, callback);
-    offBatteryHandlerCallback = () => uiObserver.off('navDestinationSwitch', context, callback);
+    offScrollNav = () => uiObserver.off('navDestinationSwitch', context, callback);
   };
   cjLibFps.initScrollEventHandlerInterop(getDisplaySync(), onScrollEvent, onNavDestinationSwitch, reportPageScrollInfo);
+}
+
+export function destroyScrollEventHandler(): void {
+  const cjLibFps = getFpsLib();
+  if (!cjLibFps) return;
+  offScrollNav();
+  offScrollNav = () => {
+  };
+  stopSharedDisplaySync();
 }
 
 export function initPageEventHandler(
@@ -1010,6 +1138,7 @@ export function initPageEventHandler(
   windowStage: window.WindowStage,
   reportFpsInfo: (info: FpsEventInfo) => void
 ): void {
+  const cjLibFps = getFpsLib();
   if (!cjLibFps) {
     hilog.warn(DOMAIN, TAG, 'initPageEventHandler called but fps module is disabled');
     return;
@@ -1017,17 +1146,35 @@ export function initPageEventHandler(
   let onNavDestinationSwitch = (cb: (targetPageName: string) => void) => {
     let callback = (info: uiObserver.NavDestinationSwitchInfo) => cb(getTargetPageName(info));
     uiObserver.on('navDestinationSwitch', context, callback);
+    offPageNav = () => uiObserver.off('navDestinationSwitch', context, callback);
   };
   let onWindowEvent = (windowActive: () => void, windowInActive: () => void) => {
-    windowStage.getMainWindowSync().on('windowEvent', (data: window.WindowEventType) => {
+    let mainWindow = windowStage.getMainWindowSync();
+    mainWindow.on('windowEvent', (data: window.WindowEventType) => {
       if (data === window.WindowEventType.WINDOW_ACTIVE) {
         windowActive();
       } else if (data === window.WindowEventType.WINDOW_INACTIVE) {
         windowInActive();
       }
     });
+    offPageWindowEvent = () => mainWindow.off('windowEvent');
   };
   cjLibFps.initPageEventHandlerInterop(getDisplaySync(), onNavDestinationSwitch, onWindowEvent, reportFpsInfo);
+}
+
+let offPageWindowEvent = () => {
+};
+
+export function destroyPageEventHandler(): void {
+  const cjLibFps = getFpsLib();
+  if (!cjLibFps) return;
+  offPageNav();
+  offPageNav = () => {
+  };
+  offPageWindowEvent();
+  offPageWindowEvent = () => {
+  };
+  stopSharedDisplaySync();
 }
 
 let offThermalHandlerCallback = () => {
@@ -1153,7 +1300,7 @@ export function initLaggyHandler(
     return;
   }
   let onAbilityBackGround = (cb: () => void) => {
-    context.getApplicationContext().on('abilityLifecycle', {
+    let abilityLifecycleCallback: AbilityLifecycleCallback = {
       onAbilityCreate() {
       },
       onWindowStageCreate() {
@@ -1173,13 +1320,21 @@ export function initLaggyHandler(
       },
       onAbilityContinue() {
       }
-    });
+    };
+    // on('abilityLifecycle') 返回数字 callbackId，off 需用该 id 注销（与 applicationStateChange
+    // 用回调对象 off 的签名不同）。保存 id，destroy 时配对注销。
+    const callbackId = context.getApplicationContext().on('abilityLifecycle', abilityLifecycleCallback);
+    offLaggyAbilityLifecycle = () => {
+      context.getApplicationContext().off('abilityLifecycle', callbackId, (err: BusinessError) => {
+        if (err) { /* may already be removed */ }
+      });
+    };
   };
 
   let onNavDestinationSwitch = (cb: (targetPageName: string) => void) => {
     let callback = (info: uiObserver.NavDestinationSwitchInfo) => cb(getTargetPageName(info));
     uiObserver.on('navDestinationSwitch', context, callback);
-    offBatteryHandlerCallback = () => uiObserver.off('navDestinationSwitch', context, callback);
+    offLaggyNav = () => uiObserver.off('navDestinationSwitch', context, callback);
   };
 
   let onDidClick = (cb: (info: ClickInfo) => void) => {
@@ -1193,14 +1348,46 @@ export function initLaggyHandler(
             frameNode?.getMeasuredSize().width ?? 0);
         cb(info);
       });
+      offLaggyClick = () => {
+        try {
+          win.getUIContext().getUIObserver().off('didClick');
+        } catch (e) { /* window may be destroyed */
+        }
+      };
     });
   };
   cjLibLaggy.initLaggyHandlerInterop(getDisplaySync(), onAbilityBackGround, onNavDestinationSwitch,
     onDidClick, maxTime, maxArraySize, reportResponseEvent, reportPageResponseLaggyModel);
 }
 
+let offLaggyClick = () => {
+};
+
+export function destroyLaggyHandler(): void {
+  if (!cjLibLaggy) return;
+  offLaggyNav();
+  offLaggyNav = () => {
+  };
+  offLaggyClick();
+  offLaggyClick = () => {
+  };
+  offLaggyAbilityLifecycle();
+  offLaggyAbilityLifecycle = () => {
+  };
+  stopSharedDisplaySync();
+}
+
+// 共享 DisplaySync 实例。原 getDisplaySync() 每次调用都 displaySync.create() 新建实例且无
+// 释放路径（scroll/page/laggy 各建一个 → 句柄泄漏）。改为模块级单例，多监听共用同一实例。
+let sharedDisplaySync: DisplaySync | null = null;
+let sharedDisplaySyncD: displaySync.DisplaySync | null = null;
+
 function getDisplaySync() {
+  if (sharedDisplaySync) {
+    return sharedDisplaySync;
+  }
   let d = displaySync.create();
+  sharedDisplaySyncD = d;
   let dSync: DisplaySync = {
     start: (): void => {
       d.start();
@@ -1217,7 +1404,19 @@ function getDisplaySync() {
       d.off('frame');
     }
   }
+  sharedDisplaySync = dSync;
   return dSync;
+}
+
+// 停止共享 DisplaySync 帧回调（不 off 监听，避免下次 init 因幂等标志跳过注册）。
+// 供 destroyScroll/Page/LaggyHandler 统一调用。displaySync 句柄由单例缓存复用，不再泄漏。
+function stopSharedDisplaySync(): void {
+  if (sharedDisplaySync) {
+    try {
+      sharedDisplaySync.stop();
+    } catch (e) { /* 已停止或未启动 */
+    }
+  }
 }
 
 // ==================== High CPU Monitor 互操作接口 ====================
@@ -1253,14 +1452,15 @@ export class HighCpuMonitorConfig {
     if (cpuThreshold !== undefined) {
       this.cpuThreshold = cpuThreshold;
     }
+    // 采样/上报间隔下限 1ms，防 setInterval(cb, 0) 空转打满主线程。
     if (foregroundIntervalMs !== undefined) {
-      this.foregroundIntervalMs = foregroundIntervalMs;
+      this.foregroundIntervalMs = Math.max(MIN_INTERVAL, foregroundIntervalMs);
     }
     if (backgroundIntervalMs !== undefined) {
-      this.backgroundIntervalMs = backgroundIntervalMs;
+      this.backgroundIntervalMs = Math.max(MIN_INTERVAL, backgroundIntervalMs);
     }
     if (monitorDurationMs !== undefined) {
-      this.monitorDurationMs = monitorDurationMs;
+      this.monitorDurationMs = Math.max(MIN_INTERVAL, monitorDurationMs);
     }
     if (threadCooldownMs !== undefined) {
       this.threadCooldownMs = threadCooldownMs;
@@ -1344,6 +1544,10 @@ export function initHighCpuMonitorHandler(
     }
   };
   context.getApplicationContext().on('applicationStateChange', applicationStateChangeCallback);
+  // 保存 off 闭包，destroy 时配对注销（原实现未保存 → 监听永久泄漏）。
+  offHighCpuAppStateChange = () => {
+    context.getApplicationContext().off('applicationStateChange', applicationStateChangeCallback);
+  };
 
   const repeatHighCpuSample = (sample: () => void) => {
     const sampleId = setInterval(sample, config.foregroundIntervalMs);
@@ -1420,6 +1624,9 @@ export function destroyHighCpuMonitorHandler(): void {
   clearHighCpuSample();
   clearHighCpuReport();
   offHighCpu();
+  offHighCpuAppStateChange();
+  offHighCpuAppStateChange = () => {
+  };
   cjLibCpu.stopHighCpuMonitorInterop();
   hilog.info(DOMAIN, TAG, 'High CPU monitor destroyed');
 }
@@ -1626,6 +1833,10 @@ export function initBackgroundCpuMonitorHandler(
     }
   };
   context.getApplicationContext().on('applicationStateChange', applicationStateChangeCallback);
+  // 保存 off 闭包，destroy 时配对注销（原实现未保存 → 监听永久泄漏）。
+  offBackgroundCpuAppStateChange = () => {
+    context.getApplicationContext().off('applicationStateChange', applicationStateChangeCallback);
+  };
 
   // 定义定时器控制逻辑
   const repeatSample = (sample: () => void) => {
@@ -1691,6 +1902,9 @@ export function destroyBackgroundCpuMonitorHandler(): void {
   clearBackgroundSampleTimer();
   // 销毁时也取消后台延时任务
   cancelBackgroundDelayTask();
+  offBackgroundCpuAppStateChange();
+  offBackgroundCpuAppStateChange = () => {
+  };
   cjLibCpu.destroyBackgroundCpuMonitorHandlerInterop();
 }
 
@@ -1722,7 +1936,7 @@ export function initWhiteScreenHandler(
   config: WhiteScreenConfig,
   reportWhiteScreenInfo: (data: InteropWhiteScreenEventInfo) => void
 ): void {
-  const cjLibFps = loadCJLibSafe('fps');
+  const cjLibFps = getFpsLib();
   if (!cjLibFps) {
     hilog.warn(DOMAIN, TAG, 'initWhiteScreenHandler called but fps module is disabled');
     return;
@@ -1857,7 +2071,7 @@ export function initWhiteScreenHandler(
  * 销毁白屏检测
  */
 export function destroyWhiteScreenHandler(): void {
-  const cjLibFps = loadCJLibSafe('fps');
+  const cjLibFps = getFpsLib();
   if (!cjLibFps) return;
 
   // 停止 DisplaySync 帧监听
@@ -1893,7 +2107,7 @@ export function destroyWhiteScreenHandler(): void {
  * 通知首帧到达
  */
 export function notifyFirstFrameReceived(): void {
-  const cjLibFps = loadCJLibSafe('fps');
+  const cjLibFps = getFpsLib();
   if (!cjLibFps) return;
   cjLibFps.onFirstFrameReceivedInterop();
 }
@@ -1902,7 +2116,7 @@ export function notifyFirstFrameReceived(): void {
  * 通知帧到达
  */
 export function notifyFrameReceived(): void {
-  const cjLibFps = loadCJLibSafe('fps');
+  const cjLibFps = getFpsLib();
   if (!cjLibFps) return;
   cjLibFps.onFrameReceivedInterop();
 }
@@ -1911,7 +2125,7 @@ export function notifyFrameReceived(): void {
  * 触发快照分析
  */
 export function notifyPerformSnapshotAnalyze(): void {
-  const cjLibFps = loadCJLibSafe('fps');
+  const cjLibFps = getFpsLib();
   if (!cjLibFps) return;
   cjLibFps.performSnapshotAndAnalyzeInterop();
 }
@@ -1920,7 +2134,7 @@ export function notifyPerformSnapshotAnalyze(): void {
  * 触发快照分析
  */
 export function notifyPerformSwitchResultSnapshotAnalyze(): void {
-  const cjLibFps = loadCJLibSafe('fps');
+  const cjLibFps = getFpsLib();
   if (!cjLibFps) return;
   cjLibFps.performSnapshotAndAnalyzeInterop();
 }
@@ -2000,6 +2214,7 @@ export class WhiteScreenConfig {
   }
 
   toInteropConfig(): InteropWhiteScreenConfig {
+    const cjLibFps = getFpsLib();
     if (!cjLibFps) {
       throw new Error('cjLibFps is not available');
     }
@@ -2099,17 +2314,6 @@ export class WhiteScreenEventInfo {
       this.frameCountInNSeconds = frameCountInNSeconds;
     }
   }
-}
-
-/**
- * 同步获取窗口快照
- */
-function getWindowSnapshotSync(
-  windowStage: window.WindowStage,
-  rootComponentId: string
-): string {
-  hilog.info(DOMAIN, TAG, 'getWindowSnapshotSync called');
-  return '{"distinctCount": 1}';
 }
 
 function performWindowSnapshotAsync(
@@ -2276,6 +2480,7 @@ export class FirstRenderTimeConfig {
   }
 
   toInteropConfig(): InteropFirstRenderTimeConfig {
+    const cjLibFps = getFpsLib();
     if (!cjLibFps) {
       throw new Error('cjLibFps is not available');
     }
@@ -2295,7 +2500,7 @@ export function initFirstRenderTimeHandler(
   config: FirstRenderTimeConfig,
   reportFirstRenderTimeInfo: (data: FirstRenderTimeEventInfo) => void
 ): void {
-  const cjLibFps = loadCJLibSafe('fps');
+  const cjLibFps = getFpsLib();
   if (!cjLibFps) {
     hilog.warn(DOMAIN, 'firstRenderTime', 'initFirstRenderTimeHandler called but fps module is disabled');
     return;
@@ -2391,7 +2596,7 @@ export function initFirstRenderTimeHandler(
  * 销毁首帧渲染时间监控
  */
 export function destroyFirstRenderTimeHandler(): void {
-  const cjLibFps = loadCJLibSafe('fps');
+  const cjLibFps = getFpsLib();
   if (!cjLibFps) return;
   if (offClick) {
     offClick();
