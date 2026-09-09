@@ -19,3 +19,15 @@
 **/build-script-cache
 # macOS
 .DS_Store
+# IDE / local tool config
+/.vscode
+/.claude
+# lockfile noise (DevEco 自动生成，按 oh-package.json5 重新生成)
+/oh-package-lock.json5
+hm_metricx_cj/cjpm.lock
+hm_metricx_cj/oh-package-lock.json5
+# DevEco 6.1 构建生成的重复 .d.ts 产物（正式定义在 types/<module>/，memory 的 lib* 为历史已跟踪例外）
+hm_metricx_cj/src/main/cangjie/types/libhm_metricx_cj_*/
+hm_metricx_cj/src/main/cangjie/types/libohos_app_cangjie_hm_metricx_cj_*/
+!hm_metricx_cj/src/main/cangjie/types/libhm_metricx_cj_memory/
+!hm_metricx_cj/src/main/cangjie/types/libohos_app_cangjie_hm_metricx_cj_memory/
