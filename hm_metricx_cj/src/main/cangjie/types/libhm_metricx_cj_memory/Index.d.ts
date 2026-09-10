@@ -51,6 +51,8 @@ export declare class InteropPageMemoryInfo {
     arkTsMemoryMaxUsageRate: number
     constructor (a: number, m: number, acj: number, mcj: number, aark: number, mark: number, s: number, p: string, tml: number, cjl: number, atl: number, itt: boolean, ict: boolean, iat: boolean, maur: number, mmur: number, cmaur: number, cmmur: number, atmaur: number, atmmur: number)
 }
+
+
 export declare function getPageMemoryInfoInterop(): InteropPageMemoryInfo
 
 export declare function getProcessMemoryInfoInterop(): InteropProcessMemoryInfo

@@ -301,6 +301,15 @@ static bool WaitReady(std::atomic<bool> &ready, int32_t timeoutMs) {
     }
     return ready.load(std::memory_order_acquire);
 }
+
+/* ============== native CPU usage via OH_HiDebug_* ==============
+ * 替代 hidebug.getAppThreadCpuUsage()/getCpuUsage() 经 NAPI 回调的路径，消除 hidebug
+ * 内部 ApiInvokeRecorder FFRT 退避导致的主线程 ANR。
+ * /proc/self/stat 与 /proc/stat 在 HarmonyOS 沙箱下 native 无权读，改走
+ * OH_HiDebug_GetAppCpuUsage / OH_HiDebug_GetAppThreadCpuUsage native C 直调：
+ * 不经 ArkTS NAPI 包装层，不触发 ApiInvokeRecorder 析构退避，主线程安全。
+ */
+
 } // namespace
 
 extern "C" {
@@ -532,6 +541,71 @@ int64_t SymbolizePcs(const uint64_t *pcs, int64_t count,
     }
     ExtractTopModule(pcPtrs, n, module, moduleSize);
     return total;
+}
+
+/* ============== native CPU 使用率（OH_HiDebug C API，extern C 导出） ============== */
+
+int64_t CaptureProcessCpuUsagePermille(void) {
+    // OH_HiDebug_GetAppCpuUsage 返回 0-1 浮点（多核可>1），与 hidebug.getCpuUsage 口径对齐。
+    // ×1000 转千分比，沿用 wrapper getCpuUsageNative 的 /1000 还原逻辑。
+    double cpu = OH_HiDebug_GetAppCpuUsage();
+    if (cpu < 0) {
+        return -1;
+    }
+    int64_t permille = static_cast<int64_t>(cpu * 1000.0);
+    if (permille < 0) permille = 0;
+    return permille;
+}
+
+int64_t CaptureThreadCpuUsageJson(uint8_t *outBuf, int64_t outSize) {
+    char *out = reinterpret_cast<char *>(outBuf);
+    if (out == nullptr || outSize <= 2) {
+        return -1;
+    }
+    HiDebug_ThreadCpuUsagePtr head = OH_HiDebug_GetAppThreadCpuUsage();
+    if (head == nullptr) {
+        out[0] = '['; out[1] = ']'; out[2] = '\0';
+        return 2;
+    }
+
+    // 拼接 JSON：[{"threadId":T,"cpuUsage":C}, ...]
+    // 元素间逗号在元素前（首个元素不带逗号），超长截到最后一个 '}' 后补 ']'（合法 JSON）。
+    int64_t written = 0;
+    out[written++] = '[';
+    bool first = true;
+    HiDebug_ThreadCpuUsagePtr p = head;
+    while (p != nullptr) {
+        // cpuUsage 0-1（线程级口径，所有线程相加≈1.0），5 位小数足够
+        char element[64];
+        int n = std::snprintf(element, sizeof(element), "%s{\"threadId\":%u,\"cpuUsage\":%.5f}",
+                              first ? "" : ",", p->threadId, p->cpuUsage);
+        if (n < 0) {
+            p = p->next;
+            continue;
+        }
+        // 截断保护：若本元素写不下，截到最后一个 '}' 后补 ']'
+        if (written + n + 1 > outSize - 1) {
+            if (written > 1 && out[written - 1] == '}') {
+                out[written] = ']';
+                out[written + 1] = '\0';
+                OH_HiDebug_FreeThreadCpuUsage(&head);
+                return written + 1;
+            }
+            // 连第一个元素都写不下
+            out[0] = '['; out[1] = ']'; out[2] = '\0';
+            OH_HiDebug_FreeThreadCpuUsage(&head);
+            return 2;
+        }
+        std::memcpy(out + written, element, n);
+        written += n;
+        first = false;
+        p = p->next;
+    }
+    out[written++] = ']';
+    out[written] = '\0';
+
+    OH_HiDebug_FreeThreadCpuUsage(&head);
+    return written;
 }
 
 } // extern "C"

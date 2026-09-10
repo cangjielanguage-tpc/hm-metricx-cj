@@ -85,6 +85,11 @@ public open class FpsEvent {
     protected var minFps: Int64 = Int64.Max
     private let framesInOnePer = ArrayDeque<Int64>()
 
+    // 帧监听幂等标志：displySync.on('frame') 是累加注册，重复调用会导致
+    // 同一帧 callback 多次触发、totalFrameCount 重复累加 → avgFps 成倍虚高。
+    // 单例 + 同一 displySync 实例下只需注册一次，reset() 不清此标志。
+    protected var frameListenerRegistered: Bool = false
+
     protected let displySync: DisplaySync
 
     public init(d: DisplaySync) {
@@ -159,6 +164,12 @@ public class PageFpsEvent <: FpsEvent {
     }
     // 监控每一帧，计算Fps
     public func frameEventListener() {
+        // 幂等：displySync.on 是累加注册，重复调用会让同一帧 callback 多次触发、
+        // totalFrameCount 重复累加 → avgFps 成倍虚高。已注册则直接返回。
+        if (frameListenerRegistered) {
+            return
+        }
+        frameListenerRegistered = true
         let callback = {
             frameTime: Int64, frameTargetTime: Int64 =>
                 if (isFirstFrame) {
@@ -327,6 +338,11 @@ public class ScrollFpsEvent <: FpsEvent {
     }
     // 监控每一帧，计算Fps和滑动掉帧时间
     public func frameEventListener() {
+        // 幂等：同 PageFpsEvent，防止 displySync.on 累加注册导致 avgFps 虚高。
+        if (frameListenerRegistered) {
+            return
+        }
+        frameListenerRegistered = true
         let callback = {
             frameTime: Int64, frameTargetTime: Int64 =>
                 if (isFirstFrame) {
