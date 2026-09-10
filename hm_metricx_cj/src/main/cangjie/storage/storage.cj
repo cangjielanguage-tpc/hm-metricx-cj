@@ -1,7 +1,7 @@
 /**
  * Created on 2025/9/18
  */
-package ohos_app_cangjie_hm_metricx_cj.storage
+package hm_metricx_cj.storage
 
 import std.fs.{Directory, Path, exists, FileInfo}
 import std.collection.{TreeSet, ArrayList}

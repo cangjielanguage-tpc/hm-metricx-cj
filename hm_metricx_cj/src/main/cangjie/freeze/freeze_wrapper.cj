@@ -1,5 +1,5 @@
 
-package ohos_app_cangjie_hm_metricx_cj.freeze
+package hm_metricx_cj.freeze
 
 import ohos.ark_interop_macro.*
 import ohos.ark_interop.*

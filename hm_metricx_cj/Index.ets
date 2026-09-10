@@ -68,12 +68,12 @@ if (process.pid != process.tid) {
   hilog.warn(0x0021, 'hm_metricx_cj', 'hm_metricx_cj loaded in non-main thread (worker); main-thread-bound APIs must not be called here');
 }
 
-const cjLib = requireCJLib('libohos_app_cangjie_hm_metricx_cj.wrapper.so') as CustomLib;
+const cjLib = requireCJLib('libhm_metricx_cj.wrapper.so') as CustomLib;
 
 // 动态加载功能库：如果库不存在则返回 null
 function loadCJLibSafe(feature: string): CustomLib | null {
   try {
-    return requireCJLib(`libohos_app_cangjie_hm_metricx_cj.${feature}.so`) as CustomLib;
+    return requireCJLib(`libhm_metricx_cj.${feature}.so`) as CustomLib;
   } catch (e) {
     return null;
   }

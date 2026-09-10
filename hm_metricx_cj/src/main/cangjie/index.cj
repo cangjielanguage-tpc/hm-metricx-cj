@@ -1,1 +1,1 @@
-package ohos_app_cangjie_hm_metricx_cj
+package hm_metricx_cj

@@ -1,9 +1,9 @@
 /**
  * Created on 2025/9/20
  */
-package ohos_app_cangjie_hm_metricx_cj.fps
+package hm_metricx_cj.fps
 
-import ohos_app_cangjie_hm_metricx_cj.util.*
+import hm_metricx_cj.util.*
 import std.collection.*
 import ohos.ark_interop_macro.*
 import ohos.ark_interop.*

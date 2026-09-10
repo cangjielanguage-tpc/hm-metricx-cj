@@ -43,8 +43,8 @@ const ALWAYS_INCLUDED_FEATURES = new Set([
   'wrapper',
 ]);
 
-const SO_PREFIX = 'libohos_app_cangjie_hm_metricx_cj.';
-const GENERATED_TYPES_PREFIX = 'libohos_app_cangjie_hm_metricx_cj_';
+const SO_PREFIX = 'libhm_metricx_cj.';
+const GENERATED_TYPES_PREFIX = 'libhm_metricx_cj_';
 
 const KEEP_CANGJIE_DIRS = new Set([
   'ark_interop_api',
@@ -53,7 +53,7 @@ const KEEP_CANGJIE_DIRS = new Set([
 ]);
 
 const KEEP_TYPE_DIRS = new Set([
-  'libohos_app_cangjie_hm_metricx_cj',
+  'libhm_metricx_cj',
 ]);
 
 function ensureDir(p: string) {

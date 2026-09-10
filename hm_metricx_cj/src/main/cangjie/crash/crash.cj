@@ -1,9 +1,9 @@
 /**
  * Created on 2025/3/28
  */
-package ohos_app_cangjie_hm_metricx_cj.crash
+package hm_metricx_cj.crash
 
-import ohos_app_cangjie_hm_metricx_cj.util.*
+import hm_metricx_cj.util.*
 import std.fs.*
 import std.collection.*
 import std.convert.*
@@ -13,7 +13,7 @@ import std.convert.*
 import std.sort.*
 import ohos.ark_interop_macro.*
 import ohos.ark_interop.*
-import ohos_app_cangjie_hm_metricx_cj.util.zlib.*
+import hm_metricx_cj.util.zlib.*
 
 public class CrashInfo {
     public var language: ?String = None

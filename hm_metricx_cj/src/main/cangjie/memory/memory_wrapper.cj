@@ -1,5 +1,5 @@
 
-package ohos_app_cangjie_hm_metricx_cj.memory
+package hm_metricx_cj.memory
 
 import ohos.ark_interop_macro.*
 import ohos.ark_interop.*

@@ -17,6 +17,7 @@
 **/libs
 **/IDL_Dependencies_List~
 **/build-script-cache
+**/libhm_metricx_cj_*/*
 # macOS
 .DS_Store
 # IDE / local tool config

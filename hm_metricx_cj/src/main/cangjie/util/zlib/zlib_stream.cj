@@ -11,7 +11,7 @@
  *
  * Define CompressInputStream/CompressOutputStream/DevompressInputStream/DecompressOutputStream class
  */
-package ohos_app_cangjie_hm_metricx_cj.util.zlib
+package hm_metricx_cj.util.zlib
 
 import std.io.OutputStream
 

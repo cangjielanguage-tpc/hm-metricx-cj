@@ -1,7 +1,7 @@
 /**
  * Created on 2025/9/18
  */
-package ohos_app_cangjie_hm_metricx_cj.util
+package hm_metricx_cj.util
 
 import std.fs.*
 import std.time.*
