@@ -8,11 +8,13 @@ import { PageOpenTriggerPage } from './whitescreen/PageOpenTriggerPage'
 import { SwitchResultTriggerPage } from './whitescreen/SwitchResultTriggerPage'
 import { CpuStressTestPage } from './cpu/CpuStressTestPage'
 import { FpsScrollTestPage } from './fps/FpsScrollTestPage'
+import { MemoryStressTestPage } from './memory/MemoryStressTestPage'
 import { ThermalInfoCard } from '../components/ThermalInfoCard'
 import { TrafficTestCard } from '../components/TrafficTestCard'
 import { CpuStressCard } from '../components/CpuStressCard'
 import { FpsTestCard } from '../components/FpsTestCard'
 import { CrashLeakCard } from '../components/CrashLeakCard'
+import { MemoryStressCard } from '../components/MemoryStressCard'
 
 /**
  * 应用首页:Navigation 容器 + pageMap 路由 + 各功能卡片。
@@ -65,6 +67,12 @@ struct Index {
             this.pageStack.pushPath(new NavPathInfo('CpuStressTestPage', ''))
           })
 
+        Button('内存压力测试页面（验证 native PSS/rssLimit）')
+          .width('100%')
+          .onClick((): void => {
+            this.pageStack.pushPath(new NavPathInfo('MemoryStressTestPage', ''))
+          })
+
         Divider().margin({ top: 4, bottom: 4 })
 
         // 功能卡片(各自维护状态与定时器)
@@ -73,6 +81,7 @@ struct Index {
         CpuStressCard()
         FpsTestCard({ pageStack: this.pageStack })
         CrashLeakCard()
+        MemoryStressCard({ pageStack: this.pageStack })
       }
       .width('100%')
       .justifyContent(FlexAlign.Center)
@@ -102,6 +111,8 @@ struct Index {
       SwitchResultBlankPage()
     } else if (name === 'CpuStressTestPage') {
       CpuStressTestPage()
+    } else if (name === 'MemoryStressTestPage') {
+      MemoryStressTestPage()
     } else if (name === 'FpsScrollTestPage') {
       FpsScrollTestPage()
     }

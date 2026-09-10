@@ -62,6 +62,32 @@ int64_t SymbolizePcs(const uint64_t *pcs, int64_t count,
                       uint8_t *stackBuf, int64_t stackSize,
                       uint8_t *moduleBuf, int64_t moduleSize);
 
+/* ============== native CPU 使用率（OH_HiDebug C API，替代 hidebug ArkTS 热路径） ==============
+ * 背景：原经 ArkTS 回调调 hidebug.getAppThreadCpuUsage()/getCpuUsage()，hidebug 内部
+ * ApiInvokeRecorder 析构经 FFRT CheckTaskWaterLine→sleep_for/nanosleep 退避，主线程高频
+ * 同步调用累积 >6s 触发 THREAD_BLOCK_6S ANR。改用 OH_HiDebug_GetAppCpuUsage /
+ * OH_HiDebug_GetAppThreadCpuUsage native C 直调：不经 ArkTS NAPI 包装层，
+ * 不触发 ApiInvokeRecorder 析构退避，主线程安全。同时绕开 HarmonyOS 沙箱对
+ * /proc/self/stat、/proc/stat 的读权限限制。
+ */
+
+/*
+ * 读取本进程所有线程的 CPU 使用率，输出 JSON：[{"threadId":123,"cpuUsage":0.05}, ...]
+ *   线程级口径：OH_HiDebug_GetAppThreadCpuUsage 返回每线程 0-1，所有线程相加≈1.0。
+ *   outBuf: 调用方分配的输出缓冲；outSize: 缓冲容量。
+ *   超长时截到最后一个 '}' 后补 ']'（元素间逗号在元素前，故 '}'+']' 恒合法 JSON）。
+ * @return 写入字节数（不含 '\0'）；<0 失败。
+ */
+int64_t CaptureThreadCpuUsageJson(uint8_t *outBuf, int64_t outSize);
+
+/*
+ * 读取进程级 CPU 使用率（千分比，0-1000，多核可>1000）。
+ *   进程级口径：OH_HiDebug_GetAppCpuUsage 返回 0-1 浮点（与 hidebug.getCpuUsage 对齐）。
+ *   OH_HiDebug 返回瞬时值，无需预热。
+ * @return 千分比（0-1000+）；<0 失败。
+ */
+int64_t CaptureProcessCpuUsagePermille(void);
+
 #ifdef __cplusplus
 }
 #endif

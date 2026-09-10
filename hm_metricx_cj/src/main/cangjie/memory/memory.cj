@@ -8,6 +8,17 @@ import ohos.ark_interop.*
 import ohos.ark_interop_macro.*
 import std.runtime.*
 
+// ============== native PSS/rssLimit 直读包装（OH_HiDebug C API，替代 hidebug ArkTS 热路径）=============
+// 详见 cpp/memory/memory_stats.cpp。互操作签名不变，Index.ets 的 hidebug 回调变死代码（向后兼容）。
+
+// 进程级 PSS（KB）。native 调 OH_HiDebug_GetAppNativeMemInfo(&info) 读 info.pss。
+// 与 hidebug.getPss 口径对齐。返回 <0 失败。
+foreign func CaptureProcessPss(): Int64
+
+// 进程级 rss 内存上限（KB）。native 调 OH_HiDebug_GetAppMemoryLimit(&limit) 读 limit.rssLimit。
+// 与 hidebug.getAppMemoryLimit().rssLimit 口径对齐。返回 <0 失败。
+foreign func CaptureProcessRssLimit(): Int64
+
 public open class MemoryInfo {
     private var avgMemoryValue: Int64 = 0
     private var maxMemoryValue: Int64 = 0
@@ -540,12 +551,29 @@ var processMemoryInfo = ProcessMemoryInfo()
 var currentPageName: String = defaultPageName
 var _reportPageMemoryInfo: (info: InteropPageMemoryInfo) -> Unit = {_ =>}
 var _reportProcessMemoryInfo: (info: InteropProcessMemoryInfo) -> Unit = {_ =>}
-var _getMemoryUsage: () -> Int64 = {=> 0}
-var _getArkTsMemoryUsage: () -> Int64 = {=> 0}
-var _getArkTsMemoryLimit: () -> Int64 = {=> 0}
-var _getTotalMemoryLimit: () -> Int64 = {=> 0}
 var _memoryPreference: Option<MemoryPreference> = None
 var memory_init_flag = false
+
+// ArkTS VM 堆缓存（heapUsed / vmHeapLimit，KB）。
+// native OH_HiDebug 无 ArkTS VM 堆等价字段（HiDebug_NativeMemInfo 是 smaps，HiDebug_MemoryLimit
+// 仅 rss/vss），唯一数据源是 hidebug.getAppVMMemoryInfo()/getAppMemoryLimit() ArkTS NAPI——
+// 主线程 2s 热循环直调会触发 ApiInvokeRecorder 析构 FFRT 退避致 THREAD_BLOCK_6S ANR。
+// 故由 ArkTS 侧 Worker 线程异步采样、经 onmessage 回主线程调本 setter 灌缓存。
+// doMemorySample 读缓存（滞后 ≤1 周期可接受），主线程零 hidebug 调用，ANR 根除，字段全有效。
+var _arkTsMemoryUsage: Int64 = 0
+var _arkTsMemoryLimit: Int64 = 0
+
+/**
+ * ArkTS 端 Worker 异步采样到 heapUsed/vmHeapLimit 后经 interop 调本 setter 灌入缓存。
+ * 必须在主线程调（onmessage 回调上下文），保证与 doMemorySample 读同线程、无并发写。
+ * limit 只在首次非 0 时写一次（对齐 computeAvg 行 153 的「只设一次」语义）。
+ */
+public func setArkTsMemoryCache(usage: Int64, limit: Int64): Unit {
+    _arkTsMemoryUsage = usage
+    if (limit > 0) {
+        _arkTsMemoryLimit = limit
+    }
+}
 
 /**
  * 仓颉侧直接获取 CJ 堆内存大小
@@ -557,13 +585,45 @@ func getCJMemoryUsageFromCJ(): Int64 {
     }
 }
 
+// 进程级 PSS（KB）。失败返回 0（与原 ArkTS hidebug.getPss 回调失败口径一致）。
+// try-catch 保护避免 native 异常杀死 2s setInterval 采样循环。
+func getPssNative(): Int64 {
+    try {
+        let pss = unsafe { CaptureProcessPss() }
+        if (pss < 0) {
+            return 0
+        }
+        return pss
+    } catch (e: Exception) {
+        metricx_warn("hm-metricx-cj: getPssNative exception: " + e.toString())
+        return 0
+    }
+}
+
+// 进程级 rss 内存上限（KB）。失败返回 0。
+func getRssLimitNative(): Int64 {
+    try {
+        let limit = unsafe { CaptureProcessRssLimit() }
+        if (limit < 0) {
+            return 0
+        }
+        return limit
+    } catch (e: Exception) {
+        metricx_warn("hm-metricx-cj: getRssLimitNative exception: " + e.toString())
+        return 0
+    }
+}
+
 let doMemorySample: () -> Unit = {
     =>
-        let memoryUsage = _getMemoryUsage()
+        // PSS 与 rssLimit 改 native OH_HiDebug 直读，绕开 hidebug NAPI 退避路径。
+        // ArkTS VM 堆 used/limit native 无等价字段，改由 ArkTS Worker 异步采样灌缓存
+        // （见 setArkTsMemoryCache）。本处读缓存，滞后 ≤1 周期可接受，主线程零 hidebug 调用。
+        let memoryUsage = getPssNative()
         let cjMemoryUsage = getCJMemoryUsageFromCJ()
-        let arkTsMemoryUsage = _getArkTsMemoryUsage()
-        let arkTsMemoryLimit = _getArkTsMemoryLimit()
-        let totalMemoryLimit = _getTotalMemoryLimit()
+        let arkTsMemoryUsage = _arkTsMemoryUsage
+        let arkTsMemoryLimit = _arkTsMemoryLimit
+        let totalMemoryLimit = getRssLimitNative()
         if (!thresholdReported) {
             if (memoryUsage >= MEMOMRY_THRESHOLD) {
                 processMemoryInfo.maxMemory = memoryUsage
@@ -628,10 +688,6 @@ private func getStoragedProcessMemory(): ProcessMemoryInfo {
 
 public func initMemoryHandler(
     memoryPreference: MemoryPreference,
-    getMemoryUsage: () -> Int64,
-    getArkTsMemoryUsage: () -> Int64,
-    getArkTsMemoryLimit: () -> Int64,
-    getTotalMemoryLimit: () -> Int64,
     onNavDestinationSwitch: (cb: (targetPageName: String) -> Unit) -> Unit,
     repeatSampleAndReportMemory: (sample: () -> Unit, report: () -> Unit, save: () -> Unit) -> Unit,
     reporPageMemoryInfo: (info: InteropPageMemoryInfo) -> Unit,
@@ -646,10 +702,6 @@ public func initMemoryHandler(
     }
     memory_init_flag = true
     _memoryPreference = memoryPreference
-    _getMemoryUsage = getMemoryUsage
-    _getArkTsMemoryUsage = getArkTsMemoryUsage
-    _getArkTsMemoryLimit = getArkTsMemoryLimit
-    _getTotalMemoryLimit = getTotalMemoryLimit
     _reportPageMemoryInfo = reporPageMemoryInfo
     _reportProcessMemoryInfo = reporProcessMemoryInfo
     MEMOMRY_THRESHOLD = memoryThreshold

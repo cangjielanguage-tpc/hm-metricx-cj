@@ -14,13 +14,16 @@ public func getProcessMemoryInfoInterop(): InteropProcessMemoryInfo {
     getProcessMemoryInfo()
 }
 
+// ArkTS 端 Worker 异步采样到 heapUsed/vmHeapLimit 后经本 interop 灌 Cangjie 缓存。
+// doMemorySample 读缓存不再置 0，6 个 ArkTS VM 堆字段恢复有效，主线程零 hidebug 调用。
+@Interop[ArkTS]
+public func setArkTsMemoryCacheInterop(usage: Int64, limit: Int64): Unit {
+    setArkTsMemoryCache(usage, limit)
+}
+
 @Interop[ArkTS]
 public func initMemoryHandlerInterop(
     memoryPreference: MemoryPreference,
-    getMemoryUsage: () -> Int64,
-    getArkTsMemoryUsage: () -> Int64,
-    getArkTsTotalHeap: () -> Int64,
-    getTotalMemoryLimit: () -> Int64,
     onNavDestinationSwitch: ((String) -> Unit) -> Unit,
     repeatSampleAndReportMemory: (() -> Unit, () -> Unit, () -> Unit) -> Unit,
     reporPageMemoryInfo: (InteropPageMemoryInfo) -> Unit,
@@ -30,8 +33,7 @@ public func initMemoryHandlerInterop(
     cjRatio: Float64,
     arkTsRatio: Float64
 ): Unit {
-    initMemoryHandler(memoryPreference, getMemoryUsage, getArkTsMemoryUsage, getArkTsTotalHeap,
-        getTotalMemoryLimit, onNavDestinationSwitch, repeatSampleAndReportMemory,
+    initMemoryHandler(memoryPreference, onNavDestinationSwitch, repeatSampleAndReportMemory,
         reporPageMemoryInfo, reporProcessMemoryInfo, memoryThreshold: memoryThreshold,
         totalRatio: totalRatio, cjRatio: cjRatio, arkTsRatio: arkTsRatio)
 }

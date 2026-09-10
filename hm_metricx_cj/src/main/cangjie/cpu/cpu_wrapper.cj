@@ -13,22 +13,36 @@ public func getProcessCpuInfoInterop(): InteropProcessCpuInfo {
     getProcessCpuInfo()
 }
 
+/**
+ * 设置进程名（包名），供 CPU/高CPU/后台CPU 上报 reportInfo.processName 使用。
+ * 由 ArkTS 端在 init 时调用，替代 cpu.cj 内 getpid().toString()（与 pid 字段重复且语义错误）。
+ */
+@Interop[ArkTS]
+public func setProcessNameInterop(name: String): Unit {
+    processName = name
+}
+
 @Interop[ArkTS]
 public func initCpuHandlerInterop(
-    getCpuUsage: () -> Float64,
     onNavDestinationSwitch: ((String) -> Unit) -> Unit,
     repeatSampleAndReportCpu: (() -> Unit, () -> Unit) -> Unit,
     reporPageCpuInfo: (InteropPageCpuInfo) -> Unit,
     reporProcessCpuInfo: (InteropProcessCpuInfo) -> Unit
 ): Unit {
-    initCpuHandler(getCpuUsage, onNavDestinationSwitch, repeatSampleAndReportCpu, reporPageCpuInfo, reporProcessCpuInfo)
+    initCpuHandler(onNavDestinationSwitch, repeatSampleAndReportCpu, reporPageCpuInfo, reporProcessCpuInfo)
+}
+
+/**
+ * 销毁普通 CPU 采样监控（复位 cpu_init_flag 以允许再次 init）。
+ */
+@Interop[ArkTS]
+public func destroyCpuHandlerInterop(): Unit {
+    destroyCpuHandler()
 }
 
 /**
  * 初始化高 CPU 监控
  *
- * @param getCpuUsage 获取 CPU 使用率的回调（由 ArkTS 传入）
- * @param getAppThreadCpuUsageJson 获取线程 CPU 使用率 JSON 的回调（由 ArkTS 传入）
  * @param onNavDestinationSwitch 页面切换回调（由 ArkTS 传入，用于更新当前页面名称）
  * @param repeatHighCpuSample 重复采样回调（由 ArkTS 传入，用于启动采样定时器）
  * @param repeatHighCpuReport 重复上报回调（由 ArkTS 传入，用于启动上报定时器）
@@ -36,8 +50,6 @@ public func initCpuHandlerInterop(
  */
 @Interop[ArkTS]
 public func initHighCpuMonitorHandlerInterop(
-    getCpuUsage: () -> Float64,
-    getAppThreadCpuUsageJson: () -> String,
     onNavDestinationSwitch: ((String) -> Unit) -> Unit,
     repeatHighCpuSample: (() -> Unit) -> Unit,
     repeatHighCpuReport: (() -> Unit) -> Unit,
@@ -49,8 +61,6 @@ public func initHighCpuMonitorHandlerInterop(
     }
 
     initHighCpuMonitorHandlerInternal(
-        getCpuUsage,
-        getAppThreadCpuUsageJson,
         onNavDestinationSwitch,
         repeatHighCpuSample,
         repeatHighCpuReport,
@@ -123,7 +133,6 @@ public func isHighCpuMonitoringActiveInterop(): Bool {
  * 初始化后台活动超长率监控
  *
  * @param config 后台 CPU 监控配置
- * @param getAppThreadCpuUsageJson 获取线程 CPU 使用率 JSON 的回调（由 ArkTS 传入）
  * @param repeatSample 重复采样回调（由 ArkTS 传入，用于启动采样定时器）
  * @param clearSample 清除采样定时器回调（由 ArkTS 传入）
  * @param reportHighCpuInfoJson 后台 CPU 占用上报回调（JSON 字符串格式）
@@ -131,7 +140,6 @@ public func isHighCpuMonitoringActiveInterop(): Bool {
 @Interop[ArkTS]
 public func initBackgroundCpuMonitorHandlerInterop(
     config: InteropBackgroundCpuMonitorConfig,
-    getAppThreadCpuUsageJson: () -> String,
     repeatSample: (() -> Unit) -> Unit,
     clearSample: () -> Unit,
     reportHighCpuInfoJson: (String) -> Unit
@@ -142,7 +150,6 @@ public func initBackgroundCpuMonitorHandlerInterop(
 
     initBackgroundCpuMonitorHandlerInternal(
         config,
-        getAppThreadCpuUsageJson,
         repeatSample,
         clearSample,
         wrappedReportCallback
